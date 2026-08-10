@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Shuffle, Sparkles } from 'lucide-react';
@@ -45,6 +45,17 @@ const randomDefaults = () => ({
 });
 
 export default function NewProjectPage() {
+  // useSearchParams() forces client-side rendering; Next 14 requires a
+  // Suspense boundary around any component that reads it so the outer page
+  // can still be statically prerendered.
+  return (
+    <Suspense fallback={null}>
+      <NewProjectPageInner />
+    </Suspense>
+  );
+}
+
+function NewProjectPageInner() {
   // Server-render placeholder defaults so hydration matches; useEffect below
   // rerolls to a fresh random combo the moment the client mounts.
   const [title, setTitle] = useState('My Awesome Game');
