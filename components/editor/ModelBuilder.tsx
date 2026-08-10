@@ -1,9 +1,10 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { X, Shapes, Plus, Trash2 } from 'lucide-react';
+import { X, Shapes, Plus, Trash2, Move3D, RotateCw, Maximize2 } from 'lucide-react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Box as DreiBox, Sphere as DreiSphere, TransformControls } from '@react-three/drei';
+import { PALETTE } from '../common/design';
 
 interface ModelBuilderProps {
   isOpen: boolean;
@@ -310,26 +311,47 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-500 to-teal-500 text-white p-6 flex items-center justify-between">
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <Shapes className="w-6 h-6" />
-            <h2 className="text-2xl font-bold">Model Builder</h2>
+            <span
+              className="inline-flex items-center justify-center w-10 h-10 rounded-xl text-white"
+              style={{ background: PALETTE.control }}
+            >
+              <Shapes className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none mb-0.5">
+                Composite builder
+              </div>
+              <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
+                Model Builder
+              </h2>
+            </div>
           </div>
-          <button onClick={onClose} className="hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors">
-            <X className="w-6 h-6" />
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
+          >
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto max-h-[calc(90vh-160px)]">
+        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-y-auto flex-1">
           {/* Right Pane: Preview + Gizmos + Name */}
           <div className="md:col-span-2">
             {/* Live 3D preview */}
-            <div className="w-full h-96 relative rounded-lg border border-gray-200 mb-3 overflow-hidden bg-white">
-              <div className="absolute z-10 top-2 left-2 text-[12px] text-gray-700 bg-white/80 px-2 py-1 rounded pointer-events-none shadow-sm">
-                Click a part to select. Drag gizmos to move/rotate/scale.
-                <span className="ml-2">1=Move • 2=Rotate • 3=Scale • Esc=Clear</span>
+            <div className="w-full h-96 relative rounded-2xl border border-slate-200 mb-3 overflow-hidden bg-slate-50">
+              <div className="absolute z-10 top-2 left-2 text-[11px] text-slate-700 bg-white/95 px-2.5 py-1.5 rounded-lg pointer-events-none shadow-sm border border-slate-200">
+                Click a part to select · <span className="font-semibold">1</span> Move · <span className="font-semibold">2</span> Rotate · <span className="font-semibold">3</span> Scale · <span className="font-semibold">Esc</span> Clear
               </div>
               <Canvas camera={{ position: [0, 3, 6], fov: 55 }}>
                 <ambientLight intensity={0.6} />
@@ -352,223 +374,208 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
               </Canvas>
             </div>
             {/* Gizmo mode */}
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm text-gray-600">Gizmo:</span>
-              <button
-                onClick={() => setGizmoMode('translate')}
-                className={`px-3 py-1 rounded ${gizmoMode === 'translate' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-              >
-                Move
-              </button>
-              <button
-                onClick={() => setGizmoMode('rotate')}
-                className={`px-3 py-1 rounded ${gizmoMode === 'rotate' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-              >
-                Rotate
-              </button>
-              <button
-                onClick={() => setGizmoMode('scale')}
-                className={`px-3 py-1 rounded ${gizmoMode === 'scale' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-              >
-                Scale
-              </button>
-              <span className="text-xs text-gray-500 ml-2">Click a part in the list to edit with gizmos.</span>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Gizmo</span>
+              <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+                <PillButton active={gizmoMode === 'translate'} onClick={() => setGizmoMode('translate')} icon={<Move3D className="w-3.5 h-3.5" />}>Move</PillButton>
+                <PillButton active={gizmoMode === 'rotate'} onClick={() => setGizmoMode('rotate')} icon={<RotateCw className="w-3.5 h-3.5" />}>Rotate</PillButton>
+                <PillButton active={gizmoMode === 'scale'} onClick={() => setGizmoMode('scale')} icon={<Maximize2 className="w-3.5 h-3.5" />}>Scale</PillButton>
+              </div>
             </div>
             {/* Snap controls */}
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Move Snap:</span>
-                <button
-                  onClick={() => setMoveSnap(null)}
-                  className={`px-2 py-1 rounded text-sm ${moveSnap == null ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  Off
-                </button>
-                <button
-                  onClick={() => setMoveSnap(0.5)}
-                  className={`px-2 py-1 rounded text-sm ${moveSnap === 0.5 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  0.5
-                </button>
-                <button
-                  onClick={() => setMoveSnap(1)}
-                  className={`px-2 py-1 rounded text-sm ${moveSnap === 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  1
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Rotate Snap:</span>
-                <button
-                  onClick={() => setRotateSnapDeg(null)}
-                  className={`px-2 py-1 rounded text-sm ${rotateSnapDeg == null ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  Off
-                </button>
-                <button
-                  onClick={() => setRotateSnapDeg(15)}
-                  className={`px-2 py-1 rounded text-sm ${rotateSnapDeg === 15 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  15°
-                </button>
-                <button
-                  onClick={() => setRotateSnapDeg(45)}
-                  className={`px-2 py-1 rounded text-sm ${rotateSnapDeg === 45 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  45°
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Scale Snap:</span>
-                <button
-                  onClick={() => setScaleSnap(null)}
-                  className={`px-2 py-1 rounded text-sm ${scaleSnap == null ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  Off
-                </button>
-                <button
-                  onClick={() => setScaleSnap(0.1)}
-                  className={`px-2 py-1 rounded text-sm ${scaleSnap === 0.1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  0.1
-                </button>
-                <button
-                  onClick={() => setScaleSnap(0.25)}
-                  className={`px-2 py-1 rounded text-sm ${scaleSnap === 0.25 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}`}
-                >
-                  0.25
-                </button>
-              </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-xs">
+              <SnapRow label="Move snap" value={moveSnap} options={[{ v: null, label: 'Off' }, { v: 0.5, label: '0.5' }, { v: 1, label: '1' }]} onSelect={setMoveSnap} />
+              <SnapRow label="Rotate snap" value={rotateSnapDeg} options={[{ v: null, label: 'Off' }, { v: 15, label: '15°' }, { v: 45, label: '45°' }]} onSelect={setRotateSnapDeg} />
+              <SnapRow label="Scale snap" value={scaleSnap} options={[{ v: null, label: 'Off' }, { v: 0.1, label: '0.1' }, { v: 0.25, label: '0.25' }]} onSelect={setScaleSnap} />
             </div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg mb-4"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg mb-4 focus:ring-2 focus:ring-slate-900 focus:border-transparent text-slate-900"
             />
           </div>
           {/* Left Pane: Add Parts + Parts List */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-md font-semibold text-gray-800">Add Parts</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {presets.map((p) => (
-                <button key={p.shape} onClick={() => addPart(p.shape)} className="border rounded-lg p-3 hover:shadow flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
-                  {p.name}
-                </button>
-              ))}
+            <div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Add parts</div>
+              <div className="grid grid-cols-2 gap-2">
+                {presets.map((p) => (
+                  <button
+                    key={p.shape}
+                    onClick={() => addPart(p.shape)}
+                    className="inline-flex items-center gap-2 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-lg p-2.5 text-sm text-slate-800 font-medium transition"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-slate-500" />
+                    {p.name}
+                  </button>
+                ))}
+              </div>
             </div>
-            <h3 className="text-md font-semibold text-gray-800 mt-2">Parts</h3>
-            <div className="space-y-3 max-h-[calc(90vh-360px)] overflow-auto pr-1">
-              {parts.length === 0 ? (
-                <div className="text-gray-500 text-sm">No parts yet. Add a part above.</div>
-              ) : (
-                parts.map((part) => (
-                  <div key={part.id} className={`border rounded-lg p-3 ${selectedId === part.id ? 'ring-2 ring-blue-500' : ''}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <button onClick={() => setSelectedId(part.id)} className="font-medium text-gray-800 hover:underline">
-                        {part.shape}
-                      </button>
-                      <button onClick={() => removePart(part.id)} className="text-red-600 hover:underline flex items-center gap-1">
-                        <Trash2 className="w-4 h-4" /> Remove
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-6 gap-2">
-                      <div className="col-span-2">
-                        <label className="text-xs text-gray-500">Color</label>
-                        <input
-                          type="color"
-                          value={part.color}
-                          onChange={(e) => updatePart(part.id, { color: e.target.value })}
-                          className="w-full h-9 rounded"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Size</label>
-                        <input
-                          type="number"
-                          value={part.size}
-                          onChange={(e) => updatePart(part.id, { size: parseFloat(e.target.value || '50') })}
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Offset X</label>
-                        <input
-                          type="number"
-                          value={part.offset.x}
-                          onChange={(e) => updatePart(part.id, { offset: { ...part.offset, x: parseFloat(e.target.value || '0') } })}
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Offset Y</label>
-                        <input
-                          type="number"
-                          value={part.offset.y}
-                          onChange={(e) => updatePart(part.id, { offset: { ...part.offset, y: parseFloat(e.target.value || '0') } })}
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Offset Z</label>
-                        <input
-                          type="number"
-                          value={part.offset.z}
-                          onChange={(e) => updatePart(part.id, { offset: { ...part.offset, z: parseFloat(e.target.value || '0') } })}
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <label className="text-xs text-gray-500">Rotate X (deg)</label>
-                        <input
-                          type="number"
-                          value={part.rotation?.x ?? 0}
-                          onChange={(e) =>
-                            updatePart(part.id, { rotation: { ...(part.rotation || { x: 0, y: 0, z: 0 }), x: parseFloat(e.target.value || '0') } })
-                          }
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Rotate Y</label>
-                        <input
-                          type="number"
-                          value={part.rotation?.y ?? 0}
-                          onChange={(e) =>
-                            updatePart(part.id, { rotation: { ...(part.rotation || { x: 0, y: 0, z: 0 }), y: parseFloat(e.target.value || '0') } })
-                          }
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500">Rotate Z</label>
-                        <input
-                          type="number"
-                          value={part.rotation?.z ?? 0}
-                          onChange={(e) =>
-                            updatePart(part.id, { rotation: { ...(part.rotation || { x: 0, y: 0, z: 0 }), z: parseFloat(e.target.value || '0') } })
-                          }
-                          className="w-full px-2 py-1 border rounded"
-                        />
-                      </div>
-                    </div>
+            <div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Parts</div>
+              <div className="space-y-2 max-h-[calc(90vh-380px)] overflow-auto pr-1">
+                {parts.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
+                    No parts yet. Add one from above.
                   </div>
-                ))
-              )}
+                ) : (
+                  parts.map((part) => (
+                    <div
+                      key={part.id}
+                      className={`rounded-xl border p-3 transition ${
+                        selectedId === part.id ? 'border-slate-900 shadow-sm ring-1 ring-slate-900' : 'border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <button
+                          onClick={() => setSelectedId(part.id)}
+                          className="font-semibold text-slate-900 text-sm capitalize"
+                        >
+                          {part.shape}
+                        </button>
+                        <button
+                          onClick={() => removePart(part.id)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Remove
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-6 gap-2">
+                        <div className="col-span-2">
+                          <PartFieldLabel>Color</PartFieldLabel>
+                          <input
+                            type="color"
+                            value={part.color}
+                            onChange={(e) => updatePart(part.id, { color: e.target.value })}
+                            className="w-full h-9 rounded-md border border-slate-200"
+                          />
+                        </div>
+                        <PartField label="Size" value={part.size} onChange={(v) => updatePart(part.id, { size: v })} />
+                        <PartField label="X" value={part.offset.x} onChange={(v) => updatePart(part.id, { offset: { ...part.offset, x: v } })} />
+                        <PartField label="Y" value={part.offset.y} onChange={(v) => updatePart(part.id, { offset: { ...part.offset, y: v } })} />
+                        <PartField label="Z" value={part.offset.z} onChange={(v) => updatePart(part.id, { offset: { ...part.offset, z: v } })} />
+                        <PartField
+                          label="Rot X"
+                          value={part.rotation?.x ?? 0}
+                          onChange={(v) => updatePart(part.id, { rotation: { ...(part.rotation || { x: 0, y: 0, z: 0 }), x: v } })}
+                        />
+                        <PartField
+                          label="Rot Y"
+                          value={part.rotation?.y ?? 0}
+                          onChange={(v) => updatePart(part.id, { rotation: { ...(part.rotation || { x: 0, y: 0, z: 0 }), y: v } })}
+                        />
+                        <PartField
+                          label="Rot Z"
+                          value={part.rotation?.z ?? 0}
+                          onChange={(v) => updatePart(part.id, { rotation: { ...(part.rotation || { x: 0, y: 0, z: 0 }), z: v } })}
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
             <div className="mt-4">
               <button
                 onClick={handleSave}
                 disabled={parts.length === 0}
-                className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold disabled:opacity-50"
+                className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-full font-semibold transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Save Composite
+                Save composite
               </button>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- Local UI helpers ------------------------------------------------------
+
+function PillButton({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1 text-xs font-semibold rounded-md px-2.5 py-1.5 transition ${
+        active
+          ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+          : 'text-slate-600 hover:text-slate-900'
+      }`}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+function SnapRow<T extends number | null>({
+  label,
+  value,
+  options,
+  onSelect,
+}: {
+  label: string;
+  value: T;
+  options: { v: T; label: string }[];
+  onSelect: (v: T) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{label}</span>
+      <div className="flex items-center gap-0.5 p-0.5 rounded-md bg-slate-100 border border-slate-200">
+        {options.map((o) => {
+          const isActive = value === o.v;
+          return (
+            <button
+              key={String(o.v)}
+              onClick={() => onSelect(o.v)}
+              className={`text-[11px] font-semibold rounded px-2 py-0.5 transition ${
+                isActive ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PartFieldLabel({ children }: { children: React.ReactNode }) {
+  return <label className="block text-[10px] font-medium text-slate-500 mb-0.5">{children}</label>;
+}
+
+function PartField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <PartFieldLabel>{label}</PartFieldLabel>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value || '0'))}
+        className="w-full px-2 py-1 border border-slate-200 rounded-md text-xs text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+      />
     </div>
   );
 }

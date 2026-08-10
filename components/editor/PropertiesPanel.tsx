@@ -52,30 +52,30 @@ export default function PropertiesPanel({
       <div className="space-y-4">
         {/* Object History */}
         {selectedObject && (
-          <div className="p-3 border border-gray-200 rounded-lg">
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">History</span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onClearHistoryForObject && onClearHistoryForObject(selectedObject.id)}
-                  className="px-3 py-1 rounded bg-gray-200 text-gray-800 text-sm"
-                >
-                  Clear
-                </button>
-              </div>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                History
+              </span>
+              <button
+                onClick={() => onClearHistoryForObject && onClearHistoryForObject(selectedObject.id)}
+                className="text-xs font-medium text-slate-600 hover:text-slate-900"
+              >
+                Clear
+              </button>
             </div>
-            <div className="space-y-2 max-h-44 overflow-auto pr-1">
+            <div className="space-y-1.5 max-h-40 overflow-auto pr-1">
               {(objectHistory || [])
                 .filter((h) => h.objectId === selectedObject.id)
                 .slice(-10)
                 .reverse()
                 .map((h) => (
-                  <div key={h.id} className="text-xs bg-gray-50 border border-gray-200 rounded p-2">
+                  <div key={h.id} className="text-[11px] bg-slate-50 border border-slate-200 rounded-lg p-2">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold">{h.action}</span>
-                      <span className="text-gray-400">{new Date(h.at).toLocaleTimeString()}</span>
+                      <span className="font-semibold text-slate-800">{h.action}</span>
+                      <span className="text-slate-400 font-mono">{new Date(h.at).toLocaleTimeString()}</span>
                     </div>
-                    <pre className="mt-1 whitespace-pre-wrap break-words text-gray-600">
+                    <pre className="mt-1 whitespace-pre-wrap break-words text-slate-600 font-mono text-[10px]">
 {JSON.stringify(h.payload, null, 2)}
                     </pre>
                   </div>
@@ -85,119 +85,93 @@ export default function PropertiesPanel({
         )}
         {/* Sound Controls */}
         {selectedObject.type === 'sound' && (
-          <div className="p-3 border border-gray-200 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Sound Controls</span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => AudioManager.get().playSfx(selectedObject.properties?.soundType || 'click')}
-                  className="px-3 py-1 rounded bg-indigo-500 text-white text-sm"
-                >
-                  Play Once
-                </button>
-                <button
-                  onClick={() => AudioManager.get().startBeat(selectedObject.properties?.beat || 'simple', selectedObject.properties?.bpm || 120)}
-                  className="px-3 py-1 rounded bg-emerald-500 text-white text-sm"
-                >
-                  Start Beat
-                </button>
-                <button
-                  onClick={() => AudioManager.get().stopBeat()}
-                  className="px-3 py-1 rounded bg-gray-300 text-gray-800 text-sm"
-                >
-                  Stop Beat
-                </button>
-              </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Sound controls
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              <button
+                onClick={() => AudioManager.get().playSfx(selectedObject.properties?.soundType || 'click')}
+                className="inline-flex items-center gap-1 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-full px-3 py-1.5 transition"
+              >
+                Play once
+              </button>
+              <button
+                onClick={() => AudioManager.get().startBeat(selectedObject.properties?.beat || 'simple', selectedObject.properties?.bpm || 120)}
+                className="inline-flex items-center gap-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 text-slate-800 rounded-full px-3 py-1.5 transition"
+              >
+                Start beat
+              </button>
+              <button
+                onClick={() => AudioManager.get().stopBeat()}
+                className="inline-flex items-center gap-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 text-slate-800 rounded-full px-3 py-1.5 transition"
+              >
+                Stop beat
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs text-gray-500">Beat BPM</label>
+              <PPField label="BPM">
                 <input
                   type="number"
                   defaultValue={selectedObject.properties?.bpm || 120}
                   onBlur={(e) => onUpdate({ properties: { ...(selectedObject.properties || {}), bpm: parseInt(e.target.value || '120') } })}
-                  className="w-full px-2 py-1 border border-gray-300 rounded"
+                  className="w-full px-2 py-1 border border-slate-200 rounded-md text-sm text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-transparent"
                 />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Autoplay Beat on Start</label>
-                <input
-                  type="checkbox"
-                  defaultChecked={selectedObject.properties?.autoplay_beat || false}
-                  onChange={(e) => onUpdate({ properties: { ...(selectedObject.properties || {}), autoplay_beat: e.target.checked } })}
-                  className="w-4 h-4 ml-2 align-middle"
-                />
-              </div>
+              </PPField>
+              <PPField label="Autoplay">
+                <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    defaultChecked={selectedObject.properties?.autoplay_beat || false}
+                    onChange={(e) => onUpdate({ properties: { ...(selectedObject.properties || {}), autoplay_beat: e.target.checked } })}
+                    className="w-4 h-4 accent-slate-900"
+                  />
+                  on start
+                </label>
+              </PPField>
             </div>
           </div>
         )}
         {/* Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Name
-          </label>
+        <PPField label="Name">
           <input
             type="text"
             value={selectedObject.name || ''}
             onChange={(e) => onUpdate({ name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-transparent"
           />
-        </div>
+        </PPField>
 
         {/* Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Type
-          </label>
+        <PPField label="Type">
           <input
             type="text"
             value={selectedObject.type || ''}
             disabled
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed"
           />
-        </div>
+        </PPField>
 
         {/* Position */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Position
-          </label>
+        <PPField label="Position (x, y, z)">
           <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="text-xs text-gray-500">X</label>
-              <input
-                type="number"
-                value={selectedObject.position_x || 0}
-                onChange={(e) =>
-                  onUpdate({ position_x: parseFloat(e.target.value) })
-                }
-                className="w-full px-2 py-1 border border-gray-300 rounded"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Y</label>
-              <input
-                type="number"
-                value={selectedObject.position_y || 0}
-                onChange={(e) =>
-                  onUpdate({ position_y: parseFloat(e.target.value) })
-                }
-                className="w-full px-2 py-1 border border-gray-300 rounded"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Z</label>
-              <input
-                type="number"
-                value={selectedObject.position_z || 0}
-                onChange={(e) =>
-                  onUpdate({ position_z: parseFloat(e.target.value) })
-                }
-                className="w-full px-2 py-1 border border-gray-300 rounded"
-              />
-            </div>
+            <PPNumField
+              label="X"
+              value={selectedObject.position_x || 0}
+              onChange={(v) => onUpdate({ position_x: v })}
+            />
+            <PPNumField
+              label="Y"
+              value={selectedObject.position_y || 0}
+              onChange={(v) => onUpdate({ position_y: v })}
+            />
+            <PPNumField
+              label="Z"
+              value={selectedObject.position_z || 0}
+              onChange={(v) => onUpdate({ position_z: v })}
+            />
           </div>
-        </div>
+        </PPField>
 
         {/* Scale/Size */}
         <div>
@@ -548,6 +522,47 @@ export default function PropertiesPanel({
           objectId={selectedObject?.id}
         />
       )}
+    </div>
+  );
+}
+
+// --- Local UI helpers ------------------------------------------------------
+
+function PPField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function PPNumField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-[10px] font-medium text-slate-500 mb-0.5">{label}</label>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value || '0'))}
+        className="w-full px-2 py-1 border border-slate-200 rounded-md text-sm text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-transparent"
+      />
     </div>
   );
 }

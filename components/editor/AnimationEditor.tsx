@@ -3,10 +3,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, TransformControls } from '@react-three/drei';
-import { X, Play, Pause, Square, Save, Download, Bone } from 'lucide-react';
+import { X, Play, Pause, Square, Save, Download, Bone, Move3D, RotateCw, Maximize2 } from 'lucide-react';
 import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { PALETTE } from '../common/design';
 
 interface AnimationEditorProps {
   isOpen: boolean;
@@ -380,33 +381,54 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   const rootBones = bones.filter((b) => !b.parent || !bones.find((p) => p.name === b.parent));
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-7xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 flex items-center justify-between">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <Bone className="w-6 h-6" />
-            <h2 className="text-2xl font-bold">Animation Editor</h2>
-            {modelUrl && (
-              <span className="text-sm opacity-90">({modelUrl.split('/').pop()})</span>
-            )}
+            <span
+              className="inline-flex items-center justify-center w-10 h-10 rounded-xl text-white"
+              style={{ background: PALETTE.looks }}
+            >
+              <Bone className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none mb-0.5">
+                Bone keyframes
+              </div>
+              <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 truncate max-w-[400px]">
+                Animation Editor
+              </h2>
+              {modelUrl && (
+                <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[400px]">{modelUrl.split('/').pop()}</div>
+              )}
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="hover:bg-white hover:bg-opacity-20 p-2 rounded-lg transition-colors"
+            aria-label="Close"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel: Bone Hierarchy */}
-          <div className="w-64 bg-gray-50 border-r border-gray-200 overflow-y-auto p-4">
-            <h3 className="font-semibold text-gray-800 mb-3">Bone Hierarchy</h3>
+          <div className="w-64 bg-slate-50 border-r border-slate-200 overflow-y-auto p-4">
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">
+              Bone hierarchy
+            </div>
             {bones.length === 0 ? (
-              <div className="text-sm text-gray-500">Loading bones...</div>
+              <div className="text-sm text-slate-500">Loading bones…</div>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {rootBones.map((bone) => (
                   <BoneTree
                     key={bone.name}
@@ -420,29 +442,28 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
             )}
 
             {selectedBone && (
-              <div className="mt-6 p-3 bg-blue-50 rounded border border-blue-200">
-                <h4 className="font-semibold text-sm text-blue-800 mb-2">
-                  Selected: {selectedBone}
-                </h4>
-                <div className="space-y-2 text-xs">
-                  <div>
-                    <span className="text-gray-600">Position:</span>
-                    <div className="font-mono text-gray-800">
-                      X: {bones.find((b) => b.name === selectedBone)?.position[0].toFixed(2)}
-                      <br />
-                      Y: {bones.find((b) => b.name === selectedBone)?.position[1].toFixed(2)}
-                      <br />
-                      Z: {bones.find((b) => b.name === selectedBone)?.position[2].toFixed(2)}
+              <div className="mt-6 rounded-xl bg-white border border-slate-200 p-3">
+                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Selected
+                </div>
+                <div className="font-semibold text-sm text-slate-900 mb-3 break-all">
+                  {selectedBone}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                    <div className="text-slate-500 mb-0.5">Position</div>
+                    <div className="font-mono text-slate-800 leading-tight">
+                      x {bones.find((b) => b.name === selectedBone)?.position[0].toFixed(2)}
+                      <br />y {bones.find((b) => b.name === selectedBone)?.position[1].toFixed(2)}
+                      <br />z {bones.find((b) => b.name === selectedBone)?.position[2].toFixed(2)}
                     </div>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Rotation:</span>
-                    <div className="font-mono text-gray-800">
-                      X: {bones.find((b) => b.name === selectedBone)?.rotation[0].toFixed(1)}°
-                      <br />
-                      Y: {bones.find((b) => b.name === selectedBone)?.rotation[1].toFixed(1)}°
-                      <br />
-                      Z: {bones.find((b) => b.name === selectedBone)?.rotation[2].toFixed(1)}°
+                  <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                    <div className="text-slate-500 mb-0.5">Rotation</div>
+                    <div className="font-mono text-slate-800 leading-tight">
+                      x {bones.find((b) => b.name === selectedBone)?.rotation[0].toFixed(1)}°
+                      <br />y {bones.find((b) => b.name === selectedBone)?.rotation[1].toFixed(1)}°
+                      <br />z {bones.find((b) => b.name === selectedBone)?.rotation[2].toFixed(1)}°
                     </div>
                   </div>
                 </div>
@@ -451,42 +472,42 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
           </div>
 
           {/* Center: 3D Viewport */}
-          <div className="flex-1 relative bg-gray-900">
+          <div className="flex-1 relative bg-slate-900">
             <Canvas camera={{ position: [0, 1.5, 3], fov: 50 }}>
               <ambientLight intensity={0.6} />
               <directionalLight position={[5, 10, 5]} intensity={0.8} />
               <pointLight position={[-5, 5, -5]} intensity={0.5} />
-              <Grid args={[10, 10]} cellSize={0.5} cellColor="#4B5563" sectionColor="#6B7280" />
+              <Grid args={[10, 10]} cellSize={0.5} cellColor="#334155" sectionColor="#475569" />
               <AnimatedModelView />
               {selectedBone && <BoneController boneName={selectedBone} />}
               <OrbitControls ref={orbitRef} />
             </Canvas>
-            <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-              {transformMode === 'translate' && 'Move (1)'}
-              {transformMode === 'rotate' && 'Rotate (2)'}
-              {transformMode === 'scale' && 'Scale (3)'}
+            <div className="absolute top-3 left-3 inline-flex items-center gap-1 text-[11px] font-semibold bg-white/95 text-slate-800 px-2.5 py-1 rounded-full border border-slate-200 shadow-sm">
+              {transformMode === 'translate' && <><Move3D className="w-3 h-3" /> Move · press 1</>}
+              {transformMode === 'rotate' && <><RotateCw className="w-3 h-3" /> Rotate · press 2</>}
+              {transformMode === 'scale' && <><Maximize2 className="w-3 h-3" /> Scale · press 3</>}
             </div>
           </div>
 
           {/* Right Panel: Timeline & Controls */}
-          <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto p-4">
-            <div className="space-y-4">
+          <div className="w-80 bg-white border-l border-slate-200 overflow-y-auto p-4">
+            <div className="space-y-5">
               {/* Animation Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Animation Name
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Animation name
                 </label>
                 <input
                   type="text"
                   value={animationName}
                   onChange={(e) => setAnimationName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-transparent"
                 />
               </div>
 
               {/* Duration */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   Duration (seconds)
                 </label>
                 <input
@@ -495,81 +516,57 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                   onChange={(e) => setAnimationDuration(parseFloat(e.target.value) || 5)}
                   min="0.1"
                   step="0.1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-transparent"
                 />
               </div>
 
               {/* Transform Mode */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Transform Mode
+                <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Transform mode
                 </label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setTransformMode('translate')}
-                    className={`flex-1 px-3 py-2 rounded ${
-                      transformMode === 'translate'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-800'
-                    }`}
-                  >
-                    Move
-                  </button>
-                  <button
-                    onClick={() => setTransformMode('rotate')}
-                    className={`flex-1 px-3 py-2 rounded ${
-                      transformMode === 'rotate'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-800'
-                    }`}
-                  >
-                    Rotate
-                  </button>
-                  <button
-                    onClick={() => setTransformMode('scale')}
-                    className={`flex-1 px-3 py-2 rounded ${
-                      transformMode === 'scale'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-800'
-                    }`}
-                  >
-                    Scale
-                  </button>
+                <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+                  <TransformPill active={transformMode === 'translate'} onClick={() => setTransformMode('translate')} icon={<Move3D className="w-3.5 h-3.5" />}>Move</TransformPill>
+                  <TransformPill active={transformMode === 'rotate'} onClick={() => setTransformMode('rotate')} icon={<RotateCw className="w-3.5 h-3.5" />}>Rotate</TransformPill>
+                  <TransformPill active={transformMode === 'scale'} onClick={() => setTransformMode('scale')} icon={<Maximize2 className="w-3.5 h-3.5" />}>Scale</TransformPill>
                 </div>
               </div>
 
               {/* Timeline */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">Timeline</label>
-                  <span className="text-xs text-gray-500">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Timeline</label>
+                  <span className="text-xs text-slate-500 font-mono">
                     {currentTime.toFixed(2)}s / {animationDuration.toFixed(2)}s
                   </span>
                 </div>
-                <div className="relative h-32 bg-gray-100 rounded border border-gray-300 overflow-x-auto">
-                  <div className="relative h-full" style={{ width: `${animationDuration * 100}px` }}>
+                <div className="relative h-24 rounded-lg bg-slate-50 border border-slate-200 overflow-x-auto">
+                  <div className="relative h-full pt-5" style={{ width: `${animationDuration * 100}px` }}>
                     {/* Time markers */}
                     {Array.from({ length: Math.ceil(animationDuration) + 1 }).map((_, i) => (
                       <div
                         key={i}
-                        className="absolute top-0 bottom-0 border-l border-gray-400"
+                        className="absolute top-0 bottom-0 border-l border-slate-200"
                         style={{ left: `${i * 100}px` }}
                       >
-                        <span className="absolute -top-5 left-0 text-xs text-gray-600">{i}s</span>
+                        <span className="absolute -top-0 left-1 text-[10px] text-slate-500 font-mono">{i}s</span>
                       </div>
                     ))}
                     {/* Keyframes */}
                     {keyframes.map((kf, idx) => (
                       <div
                         key={idx}
-                        className="absolute top-2 w-2 h-2 bg-blue-600 rounded-full cursor-pointer"
-                        style={{ left: `${(kf.time / animationDuration) * 100}%` }}
+                        className="absolute top-8 w-2.5 h-2.5 rounded-full cursor-pointer shadow-sm"
+                        style={{
+                          left: `calc(${(kf.time / animationDuration) * 100}% - 5px)`,
+                          background: PALETTE.motion,
+                        }}
                         title={`${kf.boneName} at ${kf.time.toFixed(2)}s`}
                       />
                     ))}
                     {/* Playhead */}
                     <div
-                      className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-10"
+                      className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
                       style={{ left: `${(currentTime / animationDuration) * 100}%` }}
                     />
                   </div>
@@ -581,7 +578,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                   step="0.01"
                   value={currentTime}
                   onChange={(e) => setCurrentTime(parseFloat(e.target.value))}
-                  className="w-full mt-2"
+                  className="w-full mt-2 accent-slate-900"
                 />
               </div>
 
@@ -590,20 +587,22 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                 <button
                   onClick={addKeyframe}
                   disabled={!selectedBone}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 text-sm font-semibold rounded-full px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Add Keyframe
+                  Add keyframe
                 </button>
                 <button
                   onClick={playAnimation}
                   disabled={keyframes.length === 0}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+                  className="inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white rounded-full w-10 h-10 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </button>
                 <button
                   onClick={() => setIsPlaying(false)}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg"
+                  className="inline-flex items-center justify-center bg-white border border-slate-200 hover:border-slate-300 text-slate-700 rounded-full w-10 h-10 transition"
+                  aria-label="Stop"
                 >
                   <Square className="w-4 h-4" />
                 </button>
@@ -611,21 +610,23 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
 
               {/* Keyframes List */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Keyframes ({keyframes.length})
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Keyframes · {keyframes.length}
                   </label>
-                  <button
-                    onClick={() => setKeyframes([])}
-                    className="text-xs text-red-600 hover:underline"
-                  >
-                    Clear All
-                  </button>
+                  {keyframes.length > 0 && (
+                    <button
+                      onClick={() => setKeyframes([])}
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      Clear all
+                    </button>
+                  )}
                 </div>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {keyframes.length === 0 ? (
-                    <div className="text-sm text-gray-500 text-center py-4">
-                      No keyframes. Select a bone and add keyframes.
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">
+                      Select a bone, pose it, and add a keyframe.
                     </div>
                   ) : (
                     keyframes
@@ -633,17 +634,17 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                       .map((kf, idx) => (
                         <div
                           key={idx}
-                          className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs"
+                          className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2 text-xs"
                         >
-                          <div>
-                            <span className="font-semibold">{kf.boneName}</span>
-                            <span className="text-gray-500 ml-2">{kf.time.toFixed(2)}s</span>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 truncate">{kf.boneName}</div>
+                            <div className="text-slate-500 font-mono">{kf.time.toFixed(2)}s</div>
                           </div>
                           <button
                             onClick={() =>
                               setKeyframes((prev) => prev.filter((_, i) => i !== idx))
                             }
-                            className="text-red-600 hover:underline"
+                            className="text-red-600 hover:text-red-700 text-[11px] font-medium"
                           >
                             Remove
                           </button>
@@ -657,10 +658,10 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               <button
                 onClick={exportAnimation}
                 disabled={keyframes.length === 0}
-                className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-full font-semibold transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <Download className="w-5 h-5" />
-                Export Animation
+                <Download className="w-4 h-4" />
+                Export animation
               </button>
             </div>
           </div>
@@ -691,10 +692,12 @@ function BoneTree({
     <div>
       <button
         onClick={() => onSelect(bone.name)}
-        className={`w-full text-left px-2 py-1 rounded text-sm ${
-          isSelected ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'
+        className={`w-full text-left px-2 py-1.5 rounded-md text-xs font-medium transition ${
+          isSelected
+            ? 'bg-slate-900 text-white'
+            : 'text-slate-700 hover:bg-white hover:text-slate-900'
         }`}
-        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        style={{ paddingLeft: `${depth * 14 + 8}px` }}
       >
         {bone.name}
       </button>
@@ -709,6 +712,32 @@ function BoneTree({
         />
       ))}
     </div>
+  );
+}
+
+function TransformPill({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 inline-flex items-center justify-center gap-1 text-xs font-semibold rounded-md px-2.5 py-1.5 transition ${
+        active
+          ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+          : 'text-slate-600 hover:text-slate-900'
+      }`}
+    >
+      {icon}
+      {children}
+    </button>
   );
 }
 
