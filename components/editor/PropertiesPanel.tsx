@@ -26,15 +26,28 @@ export default function PropertiesPanel({
   
   if (!selectedObject) {
     return (
-      <div className="p-6 text-center text-gray-500">
-        <p>Select an object to edit properties</p>
+      <div className="p-6 h-full flex flex-col items-center justify-center text-center">
+        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-100 mb-3">
+          <span className="text-2xl">🎯</span>
+        </div>
+        <p className="font-semibold text-slate-900">Nothing selected</p>
+        <p className="mt-1 text-sm text-slate-500 max-w-[200px]">
+          Click an object in the scene to see its properties here.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Properties</h2>
+    <div className="p-5">
+      <div className="mb-4">
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+          Properties
+        </div>
+        <h2 className="text-lg font-bold text-slate-900 truncate">
+          {selectedObject.name || 'Object'}
+        </h2>
+      </div>
 
       <div className="space-y-4">
         {/* Object History */}
