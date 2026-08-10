@@ -47,8 +47,12 @@ export interface GameObjectProperties {
 }
 
 // Logic Block Types
-export type LogicBlockType = 
+export type LogicBlockType =
+  | 'on_start'
   | 'on_key_press'
+  | 'when_clicked'
+  | 'when_touches'
+  | 'when_receive'
   | 'move'
   | 'jump'
   | 'rotate'
@@ -56,23 +60,54 @@ export type LogicBlockType =
   | 'play_sound'
   | 'if_then'
   | 'repeat'
+  | 'repeat_until'
+  | 'forever'
   | 'wait'
-  | 'set_variable';
+  | 'wait_until'
+  | 'stop'
+  | 'broadcast'
+  | 'broadcast_and_wait'
+  | 'create_clone_of'
+  | 'delete_clone'
+  | 'when_clone_start'
+  | 'define_custom_block'
+  | 'call_custom_block'
+  | 'add_to_list'
+  | 'delete_from_list'
+  | 'insert_into_list'
+  | 'replace_in_list'
+  | 'set_variable'
+  | 'change_variable'
+  | 'show_variable'
+  | 'hide_variable';
 
 export type LogicBlockCategory = 'event' | 'action' | 'condition' | 'movement' | 'input' | 'sound' | 'variable';
+
+// Expression tree used in block inputs. Leaf literals use { op: 'literal', value };
+// variable references use { op: 'var', value: '<name>' }; everything else is an
+// operator whose operands live in args.
+export type ExprValue = number | string | boolean;
+
+export interface Expr {
+  op: string;
+  args?: Expr[];
+  value?: ExprValue;
+}
+
+export type VariableScope = 'global' | 'object';
 
 export interface LogicBlock {
   id: string;
   block_type: LogicBlockType;
   category?: LogicBlockCategory;
   block_data?: string | Record<string, any>;
+  // New interpreter model: parameterized inputs + nested bodies.
+  // Legacy AI-generated blocks carry parameters in block_data instead; the
+  // interpreter accepts both.
+  inputs?: Record<string, Expr | ExprValue>;
+  children?: LogicBlock[];
+  elseChildren?: LogicBlock[];
   position?: { x: number; y: number };
-  connections?: {
-    next?: string;
-    condition?: string;
-    then?: string;
-    else?: string;
-  };
 }
 
 // Game Object
@@ -86,6 +121,9 @@ export interface GameObject {
   rotation_x?: number;
   rotation_y?: number;
   rotation_z?: number;
+  scale_x?: number;
+  scale_y?: number;
+  color?: string | null;
   properties?: string | GameObjectProperties;
   logic_blocks?: LogicBlock[];
   has_physics?: boolean;

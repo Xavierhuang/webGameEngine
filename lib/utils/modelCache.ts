@@ -139,8 +139,8 @@ class ModelCache {
 
     // Sort by: 1. refCount (unused first), 2. age (oldest first)
     const entries = Array.from(this.cache.entries()).map(([url, cached]) => ({
-      url,
       ...cached,
+      url,
       age: Date.now() - cached.loadedAt,
     }));
 

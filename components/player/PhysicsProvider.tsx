@@ -22,7 +22,7 @@ export function PhysicsProvider({ children }: PhysicsProviderProps) {
     });
     
     // Set solver iterations for better stability
-    w.solver.iterations = 10;
+    (w.solver as CANNON.GSSolver).iterations = 10;
     w.broadphase = new CANNON.NaiveBroadphase();
     
     // Create ground plane

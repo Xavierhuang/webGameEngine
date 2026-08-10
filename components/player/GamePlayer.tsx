@@ -1,9 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense, memo, useMemo } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { Box, Sphere, Grid, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import AnimatedModel from '../editor/AnimatedModel';
 import { logger } from '../../lib/utils/logger';
 import {
@@ -15,8 +19,77 @@ import {
   RENDERING,
 } from '../../lib/constants/game';
 import FPSCounter from './FPSCounter';
+import VariableWatchers from './VariableWatchers';
 import { ErrorBoundary } from '../common/ErrorBoundary';
-import type { Project, GameObject, KeyState } from '../../types/game';
+import { ObjectRuntime, RuntimeWorld, type RuntimeContext } from '../../lib/runtime/interpreter';
+import AudioManager from '../../lib/audio/AudioManager';
+import type { Project, GameObject, KeyState, LogicBlock } from '../../types/game';
+
+// -----------------------------------------------------------------------------
+// Per-extension mesh components. Each one always calls exactly one loader hook,
+// which is how React's Rules of Hooks are satisfied. The dispatch component
+// ExtensionModel picks by extension and NEVER calls a hook itself — it only
+// renders one of these children conditionally, which is legal.
+// -----------------------------------------------------------------------------
+type ExtModelProps = {
+  modelUrl: string;
+  meshRef: React.RefObject<any>;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number] | number;
+  color: string;
+};
+
+function GLTFExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
+  const gltf = useGLTF(modelUrl) as any;
+  return <primitive ref={meshRef} object={gltf.scene} position={position} rotation={rotation} scale={scale} />;
+}
+function OBJExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
+  const obj = useLoader(OBJLoader as any, modelUrl);
+  return <primitive ref={meshRef} object={obj as any} position={position} rotation={rotation} scale={scale} />;
+}
+function STLExtModel({ modelUrl, meshRef, position, rotation, scale, color }: ExtModelProps) {
+  const geom = useLoader(STLLoader as any, modelUrl);
+  return (
+    <mesh ref={meshRef} position={position} rotation={rotation} scale={scale}>
+      <primitive object={geom as any} attach="geometry" />
+      <meshStandardMaterial color={color} />
+    </mesh>
+  );
+}
+function FBXExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
+  const fbx = useLoader(FBXLoader as any, modelUrl);
+  return <primitive ref={meshRef} object={fbx as any} position={position} rotation={rotation} scale={scale} />;
+}
+function ColladaExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
+  const collada = useLoader(ColladaLoader as any, modelUrl);
+  return <primitive ref={meshRef} object={(collada as any).scene} position={position} rotation={rotation} scale={scale} />;
+}
+function BoxFallback({ meshRef, position, rotation, scale, color }: Omit<ExtModelProps, 'modelUrl'>) {
+  return (
+    <Box ref={meshRef} position={position} rotation={rotation} scale={scale as any}>
+      <meshStandardMaterial color={color} />
+    </Box>
+  );
+}
+function ExtensionModel({ ext, ...rest }: ExtModelProps & { ext: string }) {
+  switch (ext) {
+    case 'glb':
+    case 'gltf':
+      return <GLTFExtModel {...rest} />;
+    case 'obj':
+      return <OBJExtModel {...rest} />;
+    case 'stl':
+      return <STLExtModel {...rest} />;
+    case 'fbx':
+      return <FBXExtModel {...rest} />;
+    case 'dae':
+      return <ColladaExtModel {...rest} />;
+    default:
+      // Unknown extension: fallback to box. No loader hook needed.
+      return <BoxFallback {...rest} />;
+  }
+}
 
 interface GamePlayerProps {
   project: Project;
@@ -25,6 +98,11 @@ interface GamePlayerProps {
 export default function GamePlayer({ project }: GamePlayerProps) {
   const [keys, setKeys] = useState<KeyState>({});
   const scene = project.scenes?.[0];
+  // Shared runtime world: variables, broadcasts, and touch/click sensing.
+  const worldRef = useRef<RuntimeWorld | null>(null);
+  if (!worldRef.current) worldRef.current = new RuntimeWorld();
+  const world = worldRef.current;
+  const vars = world.vars;
   
   useEffect(() => {
     if (scene) {
@@ -77,8 +155,9 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             <p className="text-gray-400 text-sm mt-1">{project.description}</p>
           )}
         </div>
-        <div className="rounded-lg shadow-2xl overflow-hidden" style={{ width: '800px', height: '600px', backgroundColor: SCENE.DEFAULT_BACKGROUND_COLOR }}>
+        <div className="relative rounded-lg shadow-2xl overflow-hidden" style={{ width: '800px', height: '600px', backgroundColor: SCENE.DEFAULT_BACKGROUND_COLOR }}>
           <FPSCounter position="top-right" />
+          <VariableWatchers vars={vars} />
           <ErrorBoundary
             fallback={
               <div className="w-full h-full flex items-center justify-center bg-red-900 bg-opacity-50">
@@ -115,7 +194,7 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             position={SCENE.GRID_POSITION}
           />
           {scene && (
-            <GameScene scene={scene} keys={keys} />
+            <GameScene scene={scene} keys={keys} world={world} />
           )}
             </Canvas>
           </ErrorBoundary>
@@ -184,12 +263,25 @@ function SkyDome() {
   );
 }
 
-const GameScene = memo(function GameScene({ scene, keys }: { scene: { game_objects?: GameObject[]; background_color?: string }; keys: KeyState }) {
+const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { game_objects?: GameObject[]; background_color?: string }; keys: KeyState; world: RuntimeWorld }) {
   const { scene: threeScene, camera } = useThree();
   const skyBlueColor = useRef(new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR));
   const checkCount = useRef(0);
   const skyDomeRef = useRef<THREE.Mesh>(null);
   const characterPositionRef = useRef<THREE.Vector3 | null>(null);
+  // Live clones spawned by create_clone_of blocks
+  const [clones, setClones] = useState<{ cloneId: string; sourceId: string }[]>([]);
+
+  useEffect(() => {
+    world.onSpawnClone = (sourceId, cloneId) =>
+      setClones((prev) => (prev.some((c) => c.cloneId === cloneId) ? prev : [...prev, { cloneId, sourceId }]));
+    world.onDespawnClone = (cloneId) =>
+      setClones((prev) => prev.filter((c) => c.cloneId !== cloneId));
+    return () => {
+      world.onSpawnClone = undefined;
+      world.onDespawnClone = undefined;
+    };
+  }, [world]);
   
   useEffect(() => {
     logger.debug('[GameScene] Component mounted, setting background to sky blue');
@@ -202,7 +294,7 @@ const GameScene = memo(function GameScene({ scene, keys }: { scene: { game_objec
     // Check if sky dome is in the scene (debug only)
     if (logger.isDevelopment) {
       setTimeout(() => {
-        const skyDome = threeScene.children.find((child: any) => child.userData?.isSkyDome);
+        const skyDome = threeScene.children.find((child: any) => child.userData?.isSkyDome) as any;
         logger.group('🌌 SKY DOME CHECK', () => {
           logger.debug(`In scene: ${skyDome ? '✅ YES' : '❌ NO'}`);
           logger.debug(`Total scene children: ${threeScene.children.length}`);
@@ -240,12 +332,13 @@ const GameScene = memo(function GameScene({ scene, keys }: { scene: { game_objec
   // Debug: Comprehensive scene analysis (development only)
   useEffect(() => {
     if (scene?.game_objects && process.env.NODE_ENV === 'development') {
+      const sceneObjects = scene.game_objects;
       logger.group('📊 SCENE ANALYSIS', () => {
-        logger.debug(`Total objects: ${scene.game_objects.length}`);
+        logger.debug(`Total objects: ${sceneObjects.length}`);
         logger.debug(`Background color from DB: ${scene.background_color || 'none'}`);
-      
+
       const objectsByType: { [key: string]: any[] } = {};
-      scene.game_objects.forEach((obj: any) => {
+      sceneObjects.forEach((obj: any) => {
         const type = obj.type || 'unknown';
         if (!objectsByType[type]) objectsByType[type] = [];
         objectsByType[type].push(obj);
@@ -295,7 +388,7 @@ const GameScene = memo(function GameScene({ scene, keys }: { scene: { game_objec
         });
         
         // Check for large green objects
-        const largeGreenObjects = scene.game_objects.filter((obj: any) => {
+        const largeGreenObjects = sceneObjects.filter((obj: any) => {
         const props = typeof obj.properties === 'string' 
           ? JSON.parse(obj.properties || '{}') 
           : (obj.properties || {});
@@ -361,25 +454,41 @@ const GameScene = memo(function GameScene({ scene, keys }: { scene: { game_objec
           key={obj.id}
           object={obj}
           keys={keys}
+          world={world}
           camera={camera}
           onPositionUpdate={obj.type === 'character' ? (pos) => {
             characterPositionRef.current = pos;
           } : undefined}
         />
       ))}
+      {clones.map((c) => {
+        const source = scene.game_objects?.find((o) => o.id === c.sourceId);
+        if (!source) return null;
+        return (
+          <GameObject
+            key={c.cloneId}
+            object={source}
+            keys={keys}
+            world={world}
+            cloneId={c.cloneId}
+          />
+        );
+      })}
     </>
   );
 });
 
 // Frustum culling wrapper - only renders GameObject if it's in the camera's view
-const FrustumCulledObject = memo(function FrustumCulledObject({ 
-  object, 
-  keys, 
-  camera, 
-  onPositionUpdate 
-}: { 
-  object: GameObject; 
-  keys: KeyState; 
+const FrustumCulledObject = memo(function FrustumCulledObject({
+  object,
+  keys,
+  world,
+  camera,
+  onPositionUpdate
+}: {
+  object: GameObject;
+  keys: KeyState;
+  world: RuntimeWorld;
   camera: THREE.Camera;
   onPositionUpdate?: (pos: THREE.Vector3) => void;
 }) {
@@ -435,29 +544,91 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
       <GameObject
         object={object}
         keys={keys}
+        world={world}
         onPositionUpdate={onPositionUpdate}
       />
     );
   }
-  
+
   // Only render if visible
   if (!isVisible) {
     return null;
   }
-  
+
   return (
     <GameObject
       object={object}
       keys={keys}
+      world={world}
       onPositionUpdate={onPositionUpdate}
     />
   );
 });
 
-const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: { object: GameObject; keys: KeyState; onPositionUpdate?: (pos: THREE.Vector3) => void }) {
+const GameObject = memo(function GameObject({ object, keys, world, onPositionUpdate, cloneId }: { object: GameObject; keys: KeyState; world: RuntimeWorld; onPositionUpdate?: (pos: THREE.Vector3) => void; cloneId?: string }) {
+  // Clones register/run under their clone id but render the source object's looks.
+  const objectId = cloneId ?? object.id;
   const meshRef = useRef<THREE.Mesh>(null);
   const velocityRef = useRef({ x: 0, y: 0, z: 0 });
   const isGroundedRef = useRef(false);
+  // Live key state for the interpreter (React replaces the keys object each event)
+  const keysRef = useRef<KeyState>(keys);
+  keysRef.current = keys;
+  // Per-frame movement accumulated by interpreter move blocks
+  const frameAccumRef = useRef({ x: 0, z: 0 });
+  // Extra rotation (radians) applied by interpreter rotate blocks
+  const rotationOffsetRef = useRef({ x: 0, y: 0, z: 0 });
+  // Bounding radius for touch sensing (set each render from computed scale)
+  const radiusRef = useRef(0.5);
+
+  // Register in the shared world for broadcasts and touch/click sensing
+  useEffect(() => {
+    world.register(objectId, {
+      name: object.name,
+      getPosition: () =>
+        meshRef.current
+          ? { x: meshRef.current.position.x, y: meshRef.current.position.y, z: meshRef.current.position.z }
+          : positionRef.current,
+      getRadius: () => radiusRef.current,
+      touchable: object.type !== 'platform',
+    });
+    return () => world.unregister(objectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, objectId, object.name]);
+
+  // Block interpreter context — stable across frames, reads everything through refs
+  const ctxRef = useRef<RuntimeContext | null>(null);
+  if (!ctxRef.current) {
+    ctxRef.current = {
+      getKeys: () => keysRef.current,
+      move: (dx, dz) => {
+        frameAccumRef.current.x += dx;
+        frameAccumRef.current.z += dz;
+      },
+      jump: () => {
+        if (isGroundedRef.current) {
+          velocityRef.current.y = PHYSICS.JUMP_FORCE;
+          isGroundedRef.current = false;
+        }
+      },
+      rotate: (xDeg, yDeg, zDeg) => {
+        rotationOffsetRef.current.x += (xDeg * Math.PI) / 180;
+        rotationOffsetRef.current.y += (yDeg * Math.PI) / 180;
+        rotationOffsetRef.current.z += (zDeg * Math.PI) / 180;
+      },
+      scaleBy: (factor) => {
+        meshRef.current?.scale.multiplyScalar(factor);
+      },
+      playSound: (name) => {
+        try {
+          AudioManager.get().playSfx(name);
+        } catch (e) {
+          logger.warn('[GamePlayer] playSfx failed:', e);
+        }
+      },
+    };
+  }
+
   // Parse properties FIRST (before using it)
   const properties = typeof object.properties === 'string'
     ? JSON.parse(object.properties || '{}')
@@ -480,11 +651,17 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
   const defaultY = 300;
   const posX = (object.position_x === 0 || object.position_x == null) ? defaultX : object.position_x;
   const posY = (object.position_y === 0 || object.position_y == null) ? defaultY : object.position_y;
-  const positionRef = useRef({
-    x: (posX / 100) - 5,
-    y: -(posY / 100) + 3,
-    z: object.position_z || 0,
-  });
+  // Clones spawn at the source object's live position.
+  const spawnPos = cloneId ? world.getObjectPosition(object.id) : null;
+  const positionRef = useRef(
+    spawnPos
+      ? { x: spawnPos.x, y: spawnPos.y, z: spawnPos.z }
+      : {
+          x: (posX / 100) - 5,
+          y: -(posY / 100) + 3,
+          z: object.position_z || 0,
+        }
+  );
 
   // Get color from multiple possible locations
   const color = object.color
@@ -519,6 +696,7 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
       : (object.scale_x || 1);
     scale = [scaleValue, scaleValue, scaleValue];
   }
+  radiusRef.current = scaleValue / 2;
 
   // Get rotation from properties (in degrees, convert to radians)
   const rotationFromProps = properties.rotation || {};
@@ -560,6 +738,19 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
   if (logicBlocks.length > 0) {
     logger.debug(`Object "${object.name}" has ${logicBlocks.length} logic blocks:`, logicBlocks);
   }
+
+  // Build the block interpreter; rebuilt when the object's blocks change
+  const blocksKey = JSON.stringify(logicBlocks);
+  const runtime = useMemo(() => {
+    if (logicBlocks.length === 0) return null;
+    return new ObjectRuntime(objectId, logicBlocks as LogicBlock[], world.vars, ctxRef.current!, world, { isClone: !!cloneId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocksKey, objectId, world]);
+
+  // Expose this object's scripts to world broadcasts
+  useEffect(() => {
+    if (runtime) world.attachRuntime(objectId, runtime);
+  }, [world, objectId, runtime]);
 
   // Physics simulation (simple gravity and movement)
   const hasInitializedPosition = useRef(false);
@@ -649,83 +840,20 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
         isGroundedRef.current = false;
       }
 
-      // Execute logic blocks for movement
+      // Execute logic blocks via the interpreter (coroutines stepped once per frame)
       let moveX = 0;
       let moveY = 0;
       let moveZ = 0;
       const moveSpeed = PHYSICS.MOVE_SPEED;
       const jumpForce = PHYSICS.JUMP_FORCE;
 
-      // Process logic blocks
-      logicBlocks.forEach((block: any) => {
-        const blockData = typeof block.block_data === 'string'
-          ? JSON.parse(block.block_data || '{}')
-          : (block.block_data || {});
-
-        // Handle key press events
-        if (block.block_type === 'on_key_press' || block.category === 'input' || block.category === 'event') {
-          const key = blockData.key || blockData.parameter?.key || blockData.direction || 'SPACE';
-          const action = blockData.action || blockData.parameter?.action || '';
-
-          // Map key names to our key state
-          const keyMap: { [key: string]: string } = {
-            'UP': 'arrowup',
-            'DOWN': 'arrowdown',
-            'LEFT': 'arrowleft',
-            'RIGHT': 'arrowright',
-            'SPACE': ' ',
-            'W': 'w',
-            'A': 'a',
-            'S': 's',
-            'D': 'd',
-            'ARROWUP': 'arrowup',
-            'ARROWDOWN': 'arrowdown',
-            'ARROWLEFT': 'arrowleft',
-            'ARROWRIGHT': 'arrowright',
-          };
-
-          const keyName = keyMap[key.toUpperCase()] || key.toLowerCase();
-          const isPressed = keys[keyName] || keys[key.toLowerCase()];
-
-          if (isPressed) {
-                // Handle movement based on key or action
-                if (action === 'move_up' || key === 'UP' || key === 'ArrowUp' || key === 'ARROWUP') {
-                  // Forward movement (negative Z in Three.js)
-                  moveZ = -moveSpeed * delta;
-                } else if (action === 'move_down' || key === 'DOWN' || key === 'ArrowDown' || key === 'ARROWDOWN') {
-                  // Backward movement (positive Z in Three.js)
-                  moveZ = moveSpeed * delta;
-                } else if (action === 'move_left' || key === 'LEFT' || key === 'ArrowLeft' || key === 'ARROWLEFT') {
-                  moveX = -moveSpeed * delta;
-                } else if (action === 'move_right' || key === 'RIGHT' || key === 'ArrowRight' || key === 'ARROWRIGHT') {
-                  moveX = moveSpeed * delta;
-                } else if (action === 'jump' || key === 'SPACE' || key === ' ') {
-                  if (isGroundedRef.current) {
-                    velocityRef.current.y = jumpForce;
-                    isGroundedRef.current = false;
-                  }
-                }
-          }
-        }
-
-        // Handle movement blocks
-        if (block.block_type === 'move' || block.category === 'movement') {
-          const direction = blockData.direction || blockData.parameter?.direction || '';
-          const distance = blockData.distance || blockData.parameter?.distance || 5;
-
-          if (direction === 'up' || direction === 'UP') {
-            // Forward movement (negative Z in Three.js)
-            moveZ = -(distance / 100) * delta;
-          } else if (direction === 'down' || direction === 'DOWN') {
-            // Backward movement (positive Z in Three.js)
-            moveZ = (distance / 100) * delta;
-          } else if (direction === 'left' || direction === 'LEFT') {
-            moveX = -(distance / 100) * delta;
-          } else if (direction === 'right' || direction === 'RIGHT') {
-            moveX = (distance / 100) * delta;
-          }
-        }
-      });
+      if (runtime?.hasScripts) {
+        frameAccumRef.current.x = 0;
+        frameAccumRef.current.z = 0;
+        runtime.step(delta, state.clock.elapsedTime);
+        moveX = frameAccumRef.current.x;
+        moveZ = frameAccumRef.current.z;
+      }
 
       // Fallback: Default keyboard controls if no logic blocks but is a character
       if (!hasMovementLogic && isCharacter) {
@@ -825,12 +953,13 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
     // Apply base rotation from properties (but NOT for platforms - they have special rotation)
     // Platforms have their rotation set in JSX and should not be overridden here
     if (meshRef.current && !isPlatform && shape !== 'plane') {
+      const offset = rotationOffsetRef.current;
       if (properties.animate) {
         // Apply base rotation and add animation
-        meshRef.current.rotation.set(rotation[0], rotation[1] + (state.clock.elapsedTime * 0.01), rotation[2]);
+        meshRef.current.rotation.set(rotation[0] + offset.x, rotation[1] + offset.y + (state.clock.elapsedTime * 0.01), rotation[2] + offset.z);
       } else {
         // Just apply base rotation
-        meshRef.current.rotation.set(rotation[0], rotation[1], rotation[2]);
+        meshRef.current.rotation.set(rotation[0] + offset.x, rotation[1] + offset.y, rotation[2] + offset.z);
       }
     }
   });
@@ -851,6 +980,7 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
           rotation={[RENDERING.DEFAULT_PLATFORM_ROTATION, 0, 0]}
           scale={scale}
           renderOrder={0}
+          onClick={() => world.notifyClicked(objectId)}
         >
           <planeGeometry args={[1, 1]} />
           <meshStandardMaterial color={color} />
@@ -862,7 +992,7 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
   // Render based on shape
   if (object.type === 'collectible' || shape === 'circle' || shape === 'sphere') {
     return (
-      <Sphere ref={meshRef} position={position} rotation={rotation} scale={scale[0]}>
+      <Sphere ref={meshRef} position={position} rotation={rotation} scale={scale[0]} onClick={() => world.notifyClicked(objectId)}>
         <meshStandardMaterial color={color} />
       </Sphere>
     );
@@ -900,7 +1030,7 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
       // meshRef position should be at the FEET position, not torso center
       // For physics calculations, we account for this by checking feet position
       return (
-        <group ref={meshRef} position={shouldHavePhysics ? [0, 0, 0] : position}>
+        <group ref={meshRef as any} position={shouldHavePhysics ? [0, 0, 0] : position} onClick={() => world.notifyClicked(objectId)}>
           <AnimatedModel
             url={modelUrl}
             position={[0, 0, 0]}
@@ -918,59 +1048,23 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
       logger.debug('[GamePlayer] Rendering non-animated model for character');
     }
     
-    // Non-animated models
+    // Non-animated models. Each extension is its own component so its
+    // useGLTF/useLoader hook always fires unconditionally (Rules of Hooks).
+    // The parent switch below picks which one to render; hooks never appear
+    // inside a conditional branch in a single component.
     const shouldHavePhysics = object.has_physics || hasMovementLogic || isCharacter;
-    const modelPosition = shouldHavePhysics ? [0, 0, 0] : position;
-    function Model() {
-      if (ext === 'glb' || ext === 'gltf') {
-        const gltf = useGLTF(modelUrl);
-        return <primitive ref={meshRef as any} object={gltf.scene} position={modelPosition} rotation={rotation} scale={scale} />;
-      }
-      // Lazy dynamic loaders to avoid SSR import issues if not installed
-      try {
-        if (ext === 'obj') {
-          const { useLoader } = require('@react-three/fiber');
-          const { OBJLoader } = require('three/examples/jsm/loaders/OBJLoader.js');
-          const obj = useLoader(OBJLoader, modelUrl);
-          return <primitive ref={meshRef as any} object={obj} position={modelPosition} rotation={rotation} scale={scale} />;
-        }
-        if (ext === 'stl') {
-          const { useLoader } = require('@react-three/fiber');
-          const { STLLoader } = require('three/examples/jsm/loaders/STLLoader.js');
-          const geom = useLoader(STLLoader, modelUrl);
-          return (
-            <mesh ref={meshRef} position={modelPosition} rotation={rotation} scale={scale}>
-              <primitive object={geom} attach="geometry" />
-              <meshStandardMaterial color={color} />
-            </mesh>
-          );
-        }
-        if (ext === 'fbx') {
-          const { useLoader } = require('@react-three/fiber');
-          const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
-          const fbx = useLoader(FBXLoader, modelUrl);
-          return <primitive ref={meshRef as any} object={fbx} position={modelPosition} rotation={rotation} scale={scale} />;
-        }
-        if (ext === 'dae') {
-          const { useLoader } = require('@react-three/fiber');
-          const { ColladaLoader } = require('three/examples/jsm/loaders/ColladaLoader.js');
-          const collada = useLoader(ColladaLoader, modelUrl);
-          return <primitive ref={meshRef as any} object={collada.scene} position={modelPosition} rotation={rotation} scale={scale} />;
-        }
-      } catch (e) {
-        // Fallback if loaders unavailable
-        logger.warn('Loader not available for', ext, e);
-      }
-      // Unknown extension: fallback to box
-      return (
-        <Box ref={meshRef} position={modelPosition} rotation={rotation} scale={scale}>
-          <meshStandardMaterial color={color} />
-        </Box>
-      );
-    }
+    const modelPosition: [number, number, number] = shouldHavePhysics ? [0, 0, 0] : position;
     return (
       <Suspense fallback={null}>
-        <Model />
+        <ExtensionModel
+          ext={ext}
+          modelUrl={modelUrl}
+          meshRef={meshRef}
+          position={modelPosition}
+          rotation={rotation}
+          scale={scale}
+          color={color}
+        />
       </Suspense>
     );
   }
@@ -980,7 +1074,7 @@ const GameObject = memo(function GameObject({ object, keys, onPositionUpdate }: 
   // For objects with physics, position is controlled by useFrame
   const shouldHavePhysics = object.has_physics || hasMovementLogic || isCharacter;
   return (
-    <Box ref={meshRef} position={shouldHavePhysics ? [0, 0, 0] : position} rotation={rotation} scale={scale}>
+    <Box ref={meshRef} position={shouldHavePhysics ? [0, 0, 0] : position} rotation={rotation} scale={scale} onClick={() => world.notifyClicked(objectId)}>
       <meshStandardMaterial color={color} />
     </Box>
   );

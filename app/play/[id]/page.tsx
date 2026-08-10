@@ -1,5 +1,6 @@
 import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
 import GamePlayer from '@/components/player/GamePlayer';
+import type { Project } from '@/types/game';
 
 interface PlayPageProps {
   params: Promise<{ id: string }>;
@@ -125,6 +126,6 @@ export default async function PlayPage({ params }: PlayPageProps) {
     })),
   };
 
-  return <GamePlayer project={projectData} />;
+  return <GamePlayer project={projectData as unknown as Project} />;
 }
 

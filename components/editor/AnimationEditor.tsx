@@ -107,7 +107,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
           const bonesMap = new Map<string, THREE.Bone>();
 
           if (skeleton) {
-            skeleton.bones.forEach((bone) => {
+            (skeleton as THREE.Skeleton).bones.forEach((bone: THREE.Bone) => {
               bonesMap.set(bone.name, bone);
               bonesList.push({
                 name: bone.name,
@@ -214,7 +214,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
 
     return (
       <TransformControls
-        object={boneRef}
+        object={boneRef as any}
         mode={transformMode}
         showX
         showY
@@ -363,7 +363,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
     animationClipRef.current = clip;
 
     // Export as JSON
-    const json = JSON.stringify(clip.toJSON(), null, 2);
+    const json = JSON.stringify(THREE.AnimationClip.toJSON(clip), null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

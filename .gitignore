@@ -5,6 +5,7 @@ node_modules
 
 # testing
 coverage
+test/.build/
 
 # next.js
 .next/
@@ -60,3 +61,8 @@ public/uploads/models/
 *.gltf
 *.stl
 *.dae
+
+# local tooling
+.codex/
+.lingcode/
+.mcp.json

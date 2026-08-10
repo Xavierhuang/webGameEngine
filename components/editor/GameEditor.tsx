@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { useRef } from 'react';
@@ -9,13 +10,22 @@ import Toolbar from './Toolbar';
 import ObjectsPanel from './ObjectsPanel';
 import SceneView from './SceneView';
 import PropertiesPanel from './PropertiesPanel';
-import LogicBlockEditor from './LogicBlockEditor';
 import AIAssistant from './AIAssistant';
 import CharacterSelector from './CharacterSelector';
 import CollectibleSelector from './CollectibleSelector';
 import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+
+// Blockly needs the DOM — load the block editor client-side only.
+const BlockEditor = dynamic(() => import('./BlockEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-gray-900 text-gray-400 text-sm">
+      Loading block editor…
+    </div>
+  ),
+});
 
 interface GameEditorProps {
   projectId: string;
@@ -692,10 +702,18 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 </div>
               }
             >
-              <LogicBlockEditor
-              projectId={projectId}
-              selectedObject={selectedObject}
-            />
+              {selectedObject ? (
+                <BlockEditor
+                  key={selectedObject.id}
+                  objectId={selectedObject.id}
+                  objectName={selectedObject.name}
+                  initialBlocks={selectedObject.logic_blocks ?? []}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-900 text-gray-400 text-sm">
+                  Select an object to edit its blocks
+                </div>
+              )}
             </ErrorBoundary>
           )}
         </div>

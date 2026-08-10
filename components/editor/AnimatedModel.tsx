@@ -105,13 +105,13 @@ function GLTFAnimatedModel({
     const animationName = findAnimationName(animationState, Object.keys(actions));
     if (animationName && actions[animationName]) {
       const action = actions[animationName];
-      action.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat).play();
+      action.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat, Infinity).play();
       logger.debug(`[GLTF/GLB] Playing animation: "${animationName}" (looping)`);
     } else if (Object.keys(actions).length > 0) {
       // Fallback to first available animation
       const firstAction = Object.values(actions)[0];
       if (firstAction) {
-        firstAction.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat).play();
+        firstAction.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat, Infinity).play();
         logger.debug(`[GLTF/GLB] Playing first available animation (looping)`);
       }
     }
@@ -336,7 +336,7 @@ function FBXAnimatedModel({
       // Ensure animation is properly set up
       try {
         action.reset();
-        action.setLoop(THREE.LoopRepeat);
+        action.setLoop(THREE.LoopRepeat, Infinity);
         action.setEffectiveTimeScale(1.0); // Normal speed
         action.setEffectiveWeight(1.0); // Full weight
         action.clampWhenFinished = false; // Don't clamp at end

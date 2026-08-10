@@ -25,12 +25,16 @@ export async function getAuthenticatedUser() {
       display_name: string | null;
       role: string;
     }>(
-      'SELECT id, email, username, display_name, role FROM users WHERE id = ?',
+      `SELECT u.id, u.email, p.username, p.display_name, p.role
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+       WHERE u.id = ?`,
       [userId]
     );
 
     return user;
   } catch (error) {
+    console.error('[auth] getAuthenticatedUser failed:', error);
     return null;
   }
 }

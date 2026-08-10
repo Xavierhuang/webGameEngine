@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
 import { randomUUID } from 'crypto';
 
+/**
+ * The logic_blocks table has a single JSON block_data column, so new-style
+ * block fields (inputs / children / elseChildren) are folded into it.
+ * The interpreter reads them from either location.
+ */
+function serializeBlockData(block: any): string {
+  const data = { ...(block.block_data || block.data || {}) };
+  if (block.inputs !== undefined) data.inputs = block.inputs;
+  if (block.children !== undefined) data.children = block.children;
+  if (block.elseChildren !== undefined) data.elseChildren = block.elseChildren;
+  return JSON.stringify(data);
+}
+
 export async function POST(request: NextRequest) {
   let update: any;
   try {
@@ -74,7 +87,7 @@ export async function POST(request: NextRequest) {
             block.block_type || block.type || 'action',
             block.category || 'general',
             block.order_index || 0,
-            JSON.stringify(block.block_data || block.data || {}),
+            serializeBlockData(block),
           ]
         );
       }
@@ -203,7 +216,7 @@ export async function POST(request: NextRequest) {
               block.block_type || block.type || 'action',
               block.category || 'general',
               block.order_index || 0,
-              JSON.stringify(block.block_data || block.data || {}),
+              serializeBlockData(block),
             ]
           );
         }
@@ -360,7 +373,7 @@ export async function POST(request: NextRequest) {
                       block.block_type || block.type || 'action',
                       block.category || 'general',
                       block.order_index || 0,
-                      JSON.stringify(block.block_data || block.data || {}),
+                      serializeBlockData(block),
                     ]
                   );
                 }
@@ -440,7 +453,7 @@ export async function POST(request: NextRequest) {
                   block.block_type,
                   block.category,
                   block.order_index || 0,
-                  JSON.stringify(block.block_data || {}),
+                  serializeBlockData(block),
                 ]
               );
             }
@@ -495,7 +508,7 @@ export async function POST(request: NextRequest) {
                   block.block_type || block.type || 'action',
                   block.category || 'general',
                   block.order_index || 0,
-                  JSON.stringify(block.block_data || block.data || {}),
+                  serializeBlockData(block),
                 ]
               );
             }

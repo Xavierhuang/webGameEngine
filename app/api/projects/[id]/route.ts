@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { getAuthenticatedUser, requireAuth, query, queryOne } from '@/lib/mysql/server';
 
 export async function GET(
   request: NextRequest,
@@ -137,7 +137,7 @@ export async function GET(
       created_at: Date;
     }>('SELECT * FROM assets WHERE project_id = ?', [id]);
 
-    // Structure the response similar to Supabase format
+    // Structure the response with nested relations (mirrors what a single Supabase select-with-joins used to return)
     const projectWithRelations = {
       ...project,
       scenes: scenes.map((scene) => ({
@@ -187,12 +187,22 @@ export async function PATCH(
 
     const body = await request.json();
 
+    // Only allow updating known project columns (keys are interpolated into SQL)
+    const ALLOWED_FIELDS = new Set([
+      'title',
+      'description',
+      'thumbnail_url',
+      'is_published',
+      'visibility',
+      'genre',
+    ]);
+
     // Build update query dynamically
     const updateFields: string[] = [];
     const updateValues: any[] = [];
 
     Object.keys(body).forEach((key) => {
-      if (body[key] !== undefined) {
+      if (ALLOWED_FIELDS.has(key) && body[key] !== undefined) {
         updateFields.push(`${key} = ?`);
         updateValues.push(body[key]);
       }

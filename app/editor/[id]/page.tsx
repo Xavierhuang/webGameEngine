@@ -142,7 +142,7 @@ export default async function EditorPage({ params }: EditorPageProps) {
     created_at: Date;
   }>('SELECT * FROM assets WHERE project_id = ?', [id]);
 
-  // Structure the response similar to Supabase format
+  // Structure the response with nested relations (mirrors what a single Supabase select-with-joins used to return)
   const projectWithRelations = {
     ...project,
     scenes: scenes.map((scene) => ({

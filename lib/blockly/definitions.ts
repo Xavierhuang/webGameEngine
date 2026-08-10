@@ -1,0 +1,356 @@
+/**
+ * Blockly block definitions for the lingplay block language.
+ * Pure data — no Blockly import — so the serializer and node tests can use it.
+ *
+ * Conventions that make the serializer generic:
+ * - Statement block types are named exactly after LogicBlockType strings
+ *   ('on_start', 'move', 'if_then', ...).
+ * - Field/input names match the LogicBlock `inputs` keys exactly.
+ * - Statement inputs are named 'children' / 'elseChildren'.
+ * - Expression blocks are named 'expr_<op>' with value inputs arg0..argN
+ *   and an optional 'value' field. Special leaves: expr_number, expr_text,
+ *   expr_var.
+ * - Custom blocks use Blockly's built-in procedures_defnoreturn /
+ *   procedures_callnoreturn (special-cased in the serializer).
+ */
+
+export interface BlockSpec {
+  fields: string[];
+  values: string[];
+  statements: string[];
+}
+
+const COLOUR = {
+  event: 45,
+  control: 120,
+  action: 210,
+  variable: 330,
+  list: 260,
+  clone: 290,
+  operator: 160,
+  sensing: 200,
+};
+
+const KEY_OPTIONS: [string, string][] = [
+  ['up arrow', 'ArrowUp'],
+  ['down arrow', 'ArrowDown'],
+  ['left arrow', 'ArrowLeft'],
+  ['right arrow', 'ArrowRight'],
+  ['space', 'SPACE'],
+  ['w', 'w'],
+  ['a', 'a'],
+  ['s', 's'],
+  ['d', 'd'],
+];
+
+const SCOPE_OPTIONS: [string, string][] = [
+  ['for all objects', 'global'],
+  ['for this object only', 'object'],
+];
+
+const text = (name: string, value = '') => ({ type: 'field_input', name, text: value });
+const num = (name: string, value = 0) => ({ type: 'field_number', name, value });
+const value = (name: string) => ({ type: 'input_value', name });
+const statements = (name: string) => ({ type: 'input_statement', name });
+const dropdown = (name: string, options: [string, string][]) => ({ type: 'field_dropdown', name, options });
+
+// ---------------------------------------------------------------------------
+// Statement blocks (hats + actions + control)
+// ---------------------------------------------------------------------------
+
+const statementDefs: object[] = [
+  // Events — hats have no previousStatement.
+  { type: 'on_start', message0: 'when game starts', nextStatement: null, colour: COLOUR.event },
+  {
+    type: 'on_key_press', message0: 'when %1 key held', args0: [dropdown('key', KEY_OPTIONS)],
+    nextStatement: null, colour: COLOUR.event,
+  },
+  { type: 'when_clicked', message0: 'when this object clicked', nextStatement: null, colour: COLOUR.event },
+  {
+    type: 'when_touches', message0: 'when touching %1', args0: [text('target')],
+    nextStatement: null, colour: COLOUR.event,
+  },
+  {
+    type: 'when_receive', message0: 'when I receive %1', args0: [text('message', 'message1')],
+    nextStatement: null, colour: COLOUR.event,
+  },
+  { type: 'when_clone_start', message0: 'when I start as a clone', nextStatement: null, colour: COLOUR.clone },
+
+  // Actions
+  {
+    type: 'move', message0: 'move %1 %2', args0: [
+      dropdown('direction', [['forward', 'up'], ['backward', 'down'], ['left', 'left'], ['right', 'right']]),
+      value('distance'),
+    ],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  { type: 'jump', message0: 'jump', previousStatement: null, nextStatement: null, colour: COLOUR.action },
+  {
+    type: 'rotate', message0: 'rotate x %1 y %2 z %3', args0: [value('x'), value('y'), value('z')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  {
+    type: 'scale', message0: 'scale by %1', args0: [value('factor')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  {
+    type: 'play_sound', message0: 'play sound %1', args0: [text('sound', 'click')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  {
+    type: 'broadcast', message0: 'broadcast %1', args0: [text('message', 'message1')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.event,
+  },
+  {
+    type: 'broadcast_and_wait', message0: 'broadcast %1 and wait', args0: [text('message', 'message1')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.event,
+  },
+
+  // Variables
+  {
+    type: 'set_variable', message0: 'set %1 to %2 %3',
+    args0: [text('name', 'score'), value('value'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.variable,
+  },
+  {
+    type: 'change_variable', message0: 'change %1 by %2 %3',
+    args0: [text('name', 'score'), value('value'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.variable,
+  },
+  {
+    type: 'show_variable', message0: 'show variable %1 %2',
+    args0: [text('name', 'score'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.variable,
+  },
+  {
+    type: 'hide_variable', message0: 'hide variable %1 %2',
+    args0: [text('name', 'score'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.variable,
+  },
+
+  // Lists
+  {
+    type: 'add_to_list', message0: 'add %1 to list %2 %3',
+    args0: [value('item'), text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.list,
+  },
+  {
+    type: 'delete_from_list', message0: 'delete item %1 of list %2 %3',
+    args0: [value('index'), text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.list,
+  },
+  {
+    type: 'insert_into_list', message0: 'insert %1 at %2 of list %3 %4',
+    args0: [value('item'), value('index'), text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.list,
+  },
+  {
+    type: 'replace_in_list', message0: 'replace item %1 of list %2 with %3 %4',
+    args0: [value('index'), text('name', 'my list'), value('item'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.list,
+  },
+
+  // Clones
+  {
+    type: 'create_clone_of', message0: 'create clone of %1', args0: [text('target', 'myself')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.clone,
+  },
+  {
+    type: 'delete_clone', message0: 'delete this clone',
+    previousStatement: null, nextStatement: null, colour: COLOUR.clone,
+  },
+
+  // Control
+  {
+    type: 'wait', message0: 'wait %1 seconds', args0: [value('seconds')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.control,
+  },
+  {
+    type: 'wait_until', message0: 'wait until %1', args0: [value('condition')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.control,
+  },
+  {
+    type: 'if_then', message0: 'if %1 then', args0: [value('condition')],
+    message1: '%1', args1: [statements('children')],
+    message2: 'else %1', args2: [statements('elseChildren')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.control,
+  },
+  {
+    type: 'repeat', message0: 'repeat %1', args0: [value('times')],
+    message1: '%1', args1: [statements('children')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.control,
+  },
+  {
+    type: 'repeat_until', message0: 'repeat until %1', args0: [value('condition')],
+    message1: '%1', args1: [statements('children')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.control,
+  },
+  {
+    type: 'forever', message0: 'forever %1', args0: [statements('children')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.control,
+  },
+  {
+    type: 'stop', message0: 'stop %1', args0: [
+      dropdown('option', [['this script', 'this_script'], ['other scripts in object', 'other_scripts'], ['all scripts', 'all']]),
+    ],
+    previousStatement: null, nextStatement: null, colour: COLOUR.control,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Expression blocks (output blocks used inside value inputs)
+// ---------------------------------------------------------------------------
+
+const BINARY_OPS: [string, string][] = [
+  ['add', '%1 + %2'], ['sub', '%1 - %2'], ['mul', '%1 × %2'], ['div', '%1 ÷ %2'],
+  ['mod', '%1 mod %2'], ['lt', '%1 < %2'], ['gt', '%1 > %2'], ['eq', '%1 = %2'],
+  ['and', '%1 and %2'], ['or', '%1 or %2'], ['join', 'join %1 %2'],
+];
+
+const UNARY_OPS: [string, string][] = [
+  ['not', 'not %1'], ['abs', 'abs %1'], ['floor', 'floor %1'],
+  ['ceiling', 'ceiling %1'], ['sqrt', 'sqrt %1'], ['round', 'round %1'],
+];
+
+const exprDefs: object[] = [
+  { type: 'expr_number', message0: '%1', args0: [num('NUM', 0)], output: null, colour: COLOUR.operator },
+  { type: 'expr_text', message0: '%1', args0: [text('TEXT', 'hello')], output: null, colour: COLOUR.operator },
+  { type: 'expr_var', message0: '%1', args0: [text('value', 'score')], output: null, colour: COLOUR.variable },
+  ...BINARY_OPS.map(([op, msg]) => ({
+    type: `expr_${op}`, message0: msg, args0: [value('arg0'), value('arg1')], output: null, colour: COLOUR.operator,
+  })),
+  ...UNARY_OPS.map(([op, msg]) => ({
+    type: `expr_${op}`, message0: msg, args0: [value('arg0')], output: null, colour: COLOUR.operator,
+  })),
+  {
+    type: 'expr_random', message0: 'random from %1 to %2', args0: [value('arg0'), value('arg1')],
+    output: null, colour: COLOUR.operator,
+  },
+  {
+    type: 'expr_letter_of', message0: 'letter %1 of %2', args0: [value('arg0'), value('arg1')],
+    output: null, colour: COLOUR.operator,
+  },
+  { type: 'expr_length', message0: 'length of %1', args0: [value('arg0')], output: null, colour: COLOUR.operator },
+  {
+    type: 'expr_contains', message0: '%1 contains %2 ?', args0: [value('arg0'), value('arg1')],
+    output: null, colour: COLOUR.operator,
+  },
+  // Sensing
+  { type: 'expr_touching', message0: 'touching %1 ?', args0: [text('value')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_distance_to', message0: 'distance to %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_key_pressed', message0: 'key %1 pressed ?', args0: [dropdown('value', KEY_OPTIONS)], output: null, colour: COLOUR.sensing },
+  { type: 'expr_timer', message0: 'timer', output: null, colour: COLOUR.sensing },
+  // List reporters
+  {
+    type: 'expr_list_item', message0: 'item %2 of list %1', args0: [text('value', 'my list'), value('arg0')],
+    output: null, colour: COLOUR.list,
+  },
+  { type: 'expr_list_length', message0: 'length of list %1', args0: [text('value', 'my list')], output: null, colour: COLOUR.list },
+  {
+    type: 'expr_list_contains', message0: 'list %1 contains %2 ?', args0: [text('value', 'my list'), value('arg0')],
+    output: null, colour: COLOUR.list,
+  },
+];
+
+export const BLOCK_DEFINITIONS: object[] = [...statementDefs, ...exprDefs];
+
+/** Derived per-type input layout, used by the serializer. */
+export const BLOCK_SPECS: Record<string, BlockSpec> = Object.fromEntries(
+  BLOCK_DEFINITIONS.map((def: any) => {
+    const spec: BlockSpec = { fields: [], values: [], statements: [] };
+    for (const argsKey of ['args0', 'args1', 'args2', 'args3']) {
+      for (const arg of def[argsKey] ?? []) {
+        if (arg.type?.startsWith('field_')) spec.fields.push(arg.name);
+        else if (arg.type === 'input_value') spec.values.push(arg.name);
+        else if (arg.type === 'input_statement') spec.statements.push(arg.name);
+      }
+    }
+    return [def.type, spec];
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Toolbox
+// ---------------------------------------------------------------------------
+
+const numShadow = (n: number) => ({ shadow: { type: 'expr_number', fields: { NUM: n } } });
+const textShadow = (t: string) => ({ shadow: { type: 'expr_text', fields: { TEXT: t } } });
+const blk = (type: string, inputs?: Record<string, unknown>) => ({ kind: 'block', type, ...(inputs ? { inputs } : {}) });
+
+export const TOOLBOX = {
+  kind: 'categoryToolbox',
+  contents: [
+    {
+      kind: 'category', name: 'Events', colour: String(COLOUR.event),
+      contents: ['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start'].map((t) => blk(t)),
+    },
+    {
+      kind: 'category', name: 'Control', colour: String(COLOUR.control),
+      contents: [
+        blk('wait', { seconds: numShadow(1) }),
+        blk('wait_until'),
+        blk('if_then'),
+        blk('repeat', { times: numShadow(4) }),
+        blk('repeat_until'),
+        blk('forever'),
+        blk('stop'),
+      ],
+    },
+    {
+      kind: 'category', name: 'Actions', colour: String(COLOUR.action),
+      contents: [
+        blk('move', { distance: numShadow(200) }),
+        blk('jump'),
+        blk('rotate', { x: numShadow(0), y: numShadow(90), z: numShadow(0) }),
+        blk('scale', { factor: numShadow(2) }),
+        blk('play_sound'),
+        blk('broadcast'),
+        blk('broadcast_and_wait'),
+      ],
+    },
+    {
+      kind: 'category', name: 'Variables', colour: String(COLOUR.variable),
+      contents: [
+        blk('set_variable', { value: numShadow(0) }),
+        blk('change_variable', { value: numShadow(1) }),
+        blk('show_variable'),
+        blk('hide_variable'),
+        blk('expr_var'),
+      ],
+    },
+    {
+      kind: 'category', name: 'Lists', colour: String(COLOUR.list),
+      contents: [
+        blk('add_to_list', { item: textShadow('apple') }),
+        blk('delete_from_list', { index: numShadow(1) }),
+        blk('insert_into_list', { index: numShadow(1), item: textShadow('apple') }),
+        blk('replace_in_list', { index: numShadow(1), item: textShadow('apple') }),
+        blk('expr_list_item', { arg0: numShadow(1) }),
+        blk('expr_list_length'),
+        blk('expr_list_contains', { arg0: textShadow('apple') }),
+      ],
+    },
+    {
+      kind: 'category', name: 'Clones', colour: String(COLOUR.clone),
+      contents: [blk('create_clone_of'), blk('delete_clone')],
+    },
+    {
+      kind: 'category', name: 'Operators', colour: String(COLOUR.operator),
+      contents: [
+        blk('expr_number'),
+        blk('expr_text'),
+        ...BINARY_OPS.map(([op]) => blk(`expr_${op}`, { arg0: numShadow(0), arg1: numShadow(0) })),
+        ...UNARY_OPS.map(([op]) => blk(`expr_${op}`, { arg0: numShadow(0) })),
+        blk('expr_random', { arg0: numShadow(1), arg1: numShadow(10) }),
+        blk('expr_letter_of', { arg0: numShadow(1), arg1: textShadow('abc') }),
+        blk('expr_length', { arg0: textShadow('abc') }),
+        blk('expr_contains', { arg0: textShadow('abc'), arg1: textShadow('a') }),
+      ],
+    },
+    {
+      kind: 'category', name: 'Sensing', colour: String(COLOUR.sensing),
+      contents: [blk('expr_touching'), blk('expr_distance_to'), blk('expr_key_pressed'), blk('expr_timer')],
+    },
+    { kind: 'category', name: 'My Blocks', colour: '290', custom: 'PROCEDURE' },
+  ],
+};
