@@ -162,12 +162,30 @@ Event hats (start a script):
 Actions:
 - move {direction: "up"|"down"|"left"|"right", distance: number}
 - jump, rotate {x,y,z degrees}, scale {factor}, play_sound {sound}
+- goto_xyz {x, y, z} — teleport to absolute world position
+- goto_object {target} — teleport to another named object
+- change_xyz {dx, dy, dz} — add to current position
+- set_x {value} / set_y {value} / set_z {value} — write one axis
+- glide_to_xyz {x, y, z, seconds} — smooth move over N seconds (yields until done)
+- point_towards {target} — rotate Y to face named object on the XZ plane
+- set_rotation {x, y, z degrees} — absolute rotation
 - set_variable {name, value, scope?} / change_variable {name, value, scope?} (scope: "global" default, or "object")
 - show_variable {name, scope?} / hide_variable {name, scope?} (on-screen watcher)
 - broadcast {message} / broadcast_and_wait {message}
 - create_clone_of {target?} — spawns a copy of this object (or the named object) at its position;
   max 300 clones. Clones run when_clone_start scripts, not on_start.
 - delete_clone — deletes this clone (no-op on the original object)
+
+Looks:
+- show / hide — toggle mesh visibility
+- set_size {pct} (100 = default) / change_size_by {delta}
+- say {text, seconds?} / think {text, seconds?} — billboard bubble; seconds omitted = persistent
+- clear_bubble — hide the bubble
+- set_color {hex} — runtime tint (e.g. "#ff8800")
+
+AI (yields until the response returns; writes result into the named variable):
+- ask_ai {prompt, into_var, scope?} — freeform, short answer
+- ai_decide {prompt, choices: "yes,no", into_var, scope?} — constrained to one of the choices
 
 Lists (a named variable holding many items; same scope? input as variables):
 - add_to_list {name, item, scope?}
@@ -200,6 +218,9 @@ Expressions (use anywhere an input accepts a value):
 - Compare: lt gt eq — Logic: and or not — Text: join letter_of length contains
 - Sensing: {"op":"touching","value":"Coin"}, {"op":"distance_to","value":"Enemy"},
   {"op":"key_pressed","value":"SPACE"}, {"op":"timer"}
+- Self position/rotation: {"op":"position_x"}, position_y, position_z,
+  rotation_x, rotation_y, rotation_z, {"op":"size"}, {"op":"visible"}
+- Other-object position/rotation: {"op":"object_x","value":"Enemy"} (and _y, _z, _rotation_x/y/z)
 - Lists: {"op":"list_item","value":"inventory","args":[<index expr>]},
   {"op":"list_length","value":"inventory"},
   {"op":"list_contains","value":"inventory","args":[<item expr>]}
@@ -451,6 +472,41 @@ export async function generateSpriteDescription(
     return content.text;
   }
   return description;
+}
+
+/**
+ * Runtime AI call used by ask_ai / ai_decide blocks. Single-turn, no history.
+ * When `choices` is provided, the model is constrained to reply with exactly one
+ * of those options — useful for `ai_decide` where the game reads the answer as
+ * a discrete branch.
+ */
+export async function askAI(prompt: string, choices?: string[]): Promise<string> {
+  if (!ai) return '';
+  const system = choices?.length
+    ? `You are an in-game AI called from a Scratch-style block. Answer with EXACTLY ONE of these options, verbatim, with no explanation or punctuation: ${choices.join(' | ')}`
+    : 'You are an in-game AI called from a Scratch-style block. Answer in one short sentence — under 20 words. No preamble, no markdown.';
+
+  try {
+    const response = await ai.messages.create({
+      model: activeModel,
+      max_tokens: choices?.length ? 32 : 200,
+      system,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const content = response.content.find((b: any) => b.type === 'text') as
+      | { type: 'text'; text: string }
+      | undefined;
+    const raw = (content?.text ?? '').trim();
+    if (!choices?.length) return raw;
+    // Constrain: pick the choice whose lowercase form matches, else fall back to raw.
+    const lower = raw.toLowerCase();
+    const match = choices.find((c) => c.toLowerCase() === lower)
+      ?? choices.find((c) => lower.includes(c.toLowerCase()));
+    return match ?? raw;
+  } catch (error: any) {
+    console.error(`${providerName} askAI error:`, error?.message ?? error);
+    return '';
+  }
 }
 
 export default ai;

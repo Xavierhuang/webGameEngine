@@ -138,6 +138,35 @@ roundTrip(corpus, 'round trip: full corpus');
   eq(back[1].block_type, 'move', 'db round trip: synthesized move persists as a real block');
 }
 
+// --- Phase 5: motion writers, looks, AI ---
+const phase5 = [
+  { id: 'h1', block_type: 'on_start' },
+  { id: 'g1', block_type: 'goto_xyz', inputs: { x: 1, y: 2, z: 3 } },
+  { id: 'g2', block_type: 'goto_object', inputs: { target: 'Flag' } },
+  { id: 'c1', block_type: 'change_xyz', inputs: { dx: 1, dy: 0, dz: -1 } },
+  { id: 'sx', block_type: 'set_x', inputs: { value: 5 } },
+  { id: 'sy', block_type: 'set_y', inputs: { value: 0 } },
+  { id: 'sz', block_type: 'set_z', inputs: { value: -2 } },
+  { id: 'gl', block_type: 'glide_to_xyz', inputs: { seconds: 1, x: 10, y: 0, z: 0 } },
+  { id: 'pt', block_type: 'point_towards', inputs: { target: 'Enemy' } },
+  { id: 'sr', block_type: 'set_rotation', inputs: { x: 0, y: 90, z: 0 } },
+  { id: 'sh', block_type: 'show' },
+  { id: 'hd', block_type: 'hide' },
+  { id: 'ss', block_type: 'set_size', inputs: { pct: 50 } },
+  { id: 'cs', block_type: 'change_size_by', inputs: { delta: 25 } },
+  { id: 'sa', block_type: 'say', inputs: { text: 'Hello', seconds: 2 } },
+  { id: 'th', block_type: 'think', inputs: { text: 'Hmm', seconds: 1 } },
+  { id: 'cb', block_type: 'clear_bubble' },
+  { id: 'sc', block_type: 'set_color', inputs: { hex: '#ffcc00' } },
+  { id: 'aa', block_type: 'ask_ai', inputs: { prompt: 'Where to?', into_var: 'answer' } },
+  { id: 'ad', block_type: 'ai_decide', inputs: { prompt: 'attack?', choices: 'yes,no', into_var: 'choice' } },
+  // Reporters exercised as expression args in a set_variable
+  { id: 'e1', block_type: 'set_variable', inputs: { name: 'px', value: { op: 'position_x' }, scope: 'global' } },
+  { id: 'e2', block_type: 'set_variable', inputs: { name: 'ox', value: { op: 'object_x', value: 'Enemy' }, scope: 'global' } },
+  { id: 'e3', block_type: 'set_variable', inputs: { name: 'sz2', value: { op: 'size' }, scope: 'global' } },
+];
+roundTrip(phase5, 'round trip: Phase 5 corpus');
+
 // --- empty workspace ---
 deepEq(blocklyToLogic({}), [], 'empty workspace serializes to no blocks');
 deepEq(blocklyToLogic(logicToBlockly([])), [], 'empty logic round trip');

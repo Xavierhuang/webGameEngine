@@ -521,5 +521,226 @@ const ctxIdle = {
   eq(v5.get('o', 'after'), 1, 'custom block: caller resumed after procedure');
 }
 
+// --- Phase 5a: motion writers + position/rotation reporters ---
+{
+  // Ctx that tracks live position + rotation like the player wires up.
+  function makeCtx() {
+    const pos = { x: 0, y: 0, z: 0 };
+    const rot = { x: 0, y: 0, z: 0 }; // degrees
+    return {
+      pos, rot,
+      ctx: {
+        getKeys: () => ({}),
+        move: () => {},
+        jump: () => {},
+        rotate: (x, y, z) => { rot.x += x; rot.y += y; rot.z += z; },
+        scaleBy: () => {},
+        playSound: () => {},
+        getPosition: () => ({ ...pos }),
+        getRotation: () => ({ ...rot }),
+        setPosition: (x, y, z) => { pos.x = x; pos.y = y; pos.z = z; },
+        changePosition: (dx, dy, dz) => { pos.x += dx; pos.y += dy; pos.z += dz; },
+        setPositionAxis: (axis, v) => { pos[axis] = v; },
+        setRotation: (x, y, z) => { rot.x = x; rot.y = y; rot.z = z; },
+        pointTowards: (tx, tz) => {
+          const yRad = Math.atan2(tx - pos.x, -(tz - pos.z));
+          rot.y = yRad * 180 / Math.PI;
+        },
+      },
+    };
+  }
+
+  // goto_xyz / change_xyz / set_x/y/z
+  {
+    const m = makeCtx();
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 'g', block_type: 'goto_xyz', inputs: { x: 5, y: 2, z: -1 } },
+      { id: 'c', block_type: 'change_xyz', inputs: { dx: 1, dy: 1, dz: 1 } },
+      { id: 'sx', block_type: 'set_x', inputs: { value: 99 } },
+      { id: 'sy', block_type: 'set_y', inputs: { value: -3 } },
+    ], new VariableStore(), m.ctx);
+    rt.step(0.016, 0);
+    eq(m.pos.x, 99, 'motion: goto -> change -> set_x');
+    eq(m.pos.y, -3, 'motion: set_y');
+    eq(m.pos.z, 0, 'motion: z after change (-1+1=0)');
+  }
+
+  // set_rotation replaces base
+  {
+    const m = makeCtx();
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 'r', block_type: 'rotate', inputs: { x: 45, y: 45, z: 0 } },
+      { id: 's', block_type: 'set_rotation', inputs: { x: 0, y: 90, z: 0 } },
+    ], new VariableStore(), m.ctx);
+    rt.step(0.016, 0);
+    eq(m.rot.y, 90, 'motion: set_rotation replaces rotate accumulator');
+  }
+
+  // goto_object teleports to named object
+  {
+    const m = makeCtx();
+    const w = new RuntimeWorld();
+    w.register('flag', { name: 'Flag', getPosition: () => ({ x: 7, y: 8, z: 9 }), getRadius: () => 0.5 });
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 'g', block_type: 'goto_object', inputs: { target: 'Flag' } },
+    ], w.vars, m.ctx, w);
+    rt.step(0.016, 0);
+    eq(m.pos.x === 7 && m.pos.y === 8 && m.pos.z === 9, true, 'motion: goto_object by name');
+  }
+
+  // point_towards sets Y rotation to face target on XZ plane
+  {
+    const m = makeCtx();
+    const w = new RuntimeWorld();
+    w.register('target', { name: 'T', getPosition: () => ({ x: 10, y: 0, z: 0 }), getRadius: () => 0.5 });
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 'p', block_type: 'point_towards', inputs: { target: 'T' } },
+    ], w.vars, m.ctx, w);
+    rt.step(0.016, 0);
+    // At (0,0,0) facing (10,0,0): atan2(10, 0) = 90 degrees
+    eq(Math.round(m.rot.y), 90, 'motion: point_towards yields 90deg for +X target');
+  }
+
+  // glide_to_xyz interpolates over `seconds`, yielding a frame each step
+  {
+    const m = makeCtx();
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 'g', block_type: 'glide_to_xyz', inputs: { x: 10, y: 0, z: 0, seconds: 0.1 } },
+      { id: 's', block_type: 'set_variable', inputs: { name: 'after', value: 1 } },
+    ], new VariableStore(), m.ctx);
+    rt.step(0.05, 0);
+    eq(m.pos.x > 0 && m.pos.x < 10, true, 'glide: partial after 0.05s of 0.1s');
+    rt.step(0.05, 0.05);
+    rt.step(0.05, 0.10);
+    eq(Math.round(m.pos.x), 10, 'glide: reached target');
+  }
+
+  // position_x/y/z reporters via env.ctx
+  {
+    const m = makeCtx();
+    m.pos.x = 42; m.pos.y = -7; m.pos.z = 3;
+    const env = { objectId: 'o', vars: new VariableStore(), keys: {}, time: 0, ctx: m.ctx };
+    eq(evalExpr({ op: 'position_x' }, env), 42, 'reporter: position_x');
+    eq(evalExpr({ op: 'position_y' }, env), -7, 'reporter: position_y');
+    eq(evalExpr({ op: 'position_z' }, env), 3, 'reporter: position_z');
+    m.rot.y = 45;
+    eq(evalExpr({ op: 'rotation_y' }, env), 45, 'reporter: rotation_y');
+  }
+
+  // object_x/y/z read other objects via world
+  {
+    const w = new RuntimeWorld();
+    w.register('a', { name: 'A', getPosition: () => ({ x: 1, y: 2, z: 3 }), getRadius: () => 0.5 });
+    const env = { objectId: 'o', vars: w.vars, keys: {}, time: 0, world: w };
+    eq(evalExpr({ op: 'object_x', value: 'A' }, env), 1, 'reporter: object_x');
+    eq(evalExpr({ op: 'object_z', value: 'A' }, env), 3, 'reporter: object_z');
+    eq(evalExpr({ op: 'object_y', value: 'Nobody' }, env), 0, 'reporter: unknown object -> 0');
+  }
+}
+
+// --- Phase 5b: looks basics ---
+{
+  function makeLooksCtx() {
+    let visible = true, size = 100, color = null;
+    const bubbles = [];
+    return {
+      state: { get visible() { return visible; }, get size() { return size; }, get color() { return color; }, bubbles },
+      ctx: {
+        getKeys: () => ({}),
+        move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+        getVisible: () => visible,
+        setVisible: (v) => { visible = v; },
+        getSize: () => size,
+        setSize: (pct) => { size = pct; },
+        changeSizeBy: (delta) => { size += delta; },
+        say: (text, seconds, style) => { bubbles.push({ text, seconds, style }); },
+        clearBubble: () => { bubbles.push(null); },
+        setColor: (hex) => { color = hex; },
+      },
+    };
+  }
+
+  const m = makeLooksCtx();
+  const rt = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'v1', block_type: 'hide' },
+    { id: 'v2', block_type: 'show' },
+    { id: 's1', block_type: 'set_size', inputs: { pct: 50 } },
+    { id: 's2', block_type: 'change_size_by', inputs: { delta: 25 } },
+    { id: 'sy', block_type: 'say', inputs: { text: 'Hi', seconds: 2 } },
+    { id: 'th', block_type: 'think', inputs: { text: 'Hmm' } },
+    { id: 'cb', block_type: 'clear_bubble' },
+    { id: 'sc', block_type: 'set_color', inputs: { hex: '#ff0000' } },
+  ], new VariableStore(), m.ctx);
+  rt.step(0.016, 0);
+  eq(m.state.visible, true, 'looks: show after hide');
+  eq(m.state.size, 75, 'looks: set 50 then change +25');
+  eq(m.state.color, '#ff0000', 'looks: set_color');
+  eq(m.state.bubbles[0].text, 'Hi', 'looks: say text');
+  eq(m.state.bubbles[0].seconds, 2, 'looks: say seconds');
+  eq(m.state.bubbles[1].style, 'think', 'looks: think style');
+  eq(m.state.bubbles[2], null, 'looks: clear_bubble');
+
+  // reporters via env.ctx
+  const env = { objectId: 'o', vars: new VariableStore(), keys: {}, time: 0, ctx: m.ctx };
+  eq(evalExpr({ op: 'size' }, env), 75, 'looks reporter: size');
+  eq(evalExpr({ op: 'visible' }, env), true, 'looks reporter: visible');
+}
+
+// --- Phase 5c: AI blocks — mock the ctx.askAI callback ---
+{
+  const w = new RuntimeWorld();
+  let capturedPrompt = null;
+  let capturedChoices = null;
+  let resolve = null;
+  const ctx = {
+    getKeys: () => ({}),
+    move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+    askAI: (prompt, cb, options) => {
+      capturedPrompt = prompt;
+      capturedChoices = options?.choices ?? null;
+      resolve = cb;
+    },
+  };
+  const rt = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'a', block_type: 'ask_ai', inputs: { prompt: 'Hello', into_var: 'answer' } },
+    { id: 'b', block_type: 'set_variable', inputs: { name: 'after', value: 1 } },
+  ], w.vars, ctx, w);
+  rt.step(0.016, 0);
+  eq(capturedPrompt, 'Hello', 'ai: askAI called with prompt');
+  eq(w.vars.get('o', 'after'), 0, 'ai: script suspended until callback fires');
+  rt.step(0.016, 0.016);
+  eq(w.vars.get('o', 'after'), 0, 'ai: still suspended after another frame');
+  resolve('42');
+  rt.step(0.016, 0.032);
+  eq(w.vars.get('o', 'answer'), '42', 'ai: answer written to variable');
+  eq(w.vars.get('o', 'after'), 1, 'ai: script resumed after callback');
+
+  // ai_decide with constrained choices
+  const w2 = new RuntimeWorld();
+  let ctx2Choices = null;
+  const ctx2 = {
+    getKeys: () => ({}),
+    move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+    askAI: (prompt, cb, options) => {
+      ctx2Choices = options?.choices ?? null;
+      cb('yes'); // synchronous callback
+    },
+  };
+  const rt2 = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'd', block_type: 'ai_decide', inputs: { prompt: 'ok?', choices: 'yes,no', into_var: 'v' } },
+  ], w2.vars, ctx2, w2);
+  rt2.step(0.016, 0);
+  eq(ctx2Choices?.join(','), 'yes,no', 'ai_decide: choices parsed from comma list');
+  eq(w2.vars.get('o', 'v'), 'yes', 'ai_decide: answer stored');
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

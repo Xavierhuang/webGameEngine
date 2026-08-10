@@ -79,7 +79,29 @@ export type LogicBlockType =
   | 'set_variable'
   | 'change_variable'
   | 'show_variable'
-  | 'hide_variable';
+  | 'hide_variable'
+  // Phase 5a: motion writers
+  | 'goto_xyz'
+  | 'goto_object'
+  | 'change_xyz'
+  | 'set_x'
+  | 'set_y'
+  | 'set_z'
+  | 'glide_to_xyz'
+  | 'point_towards'
+  | 'set_rotation'
+  // Phase 5b: looks basics
+  | 'show'
+  | 'hide'
+  | 'set_size'
+  | 'change_size_by'
+  | 'say'
+  | 'think'
+  | 'clear_bubble'
+  | 'set_color'
+  // Phase 5c: AI blocks
+  | 'ask_ai'
+  | 'ai_decide';
 
 export type LogicBlockCategory = 'event' | 'action' | 'condition' | 'movement' | 'input' | 'sound' | 'variable';
 

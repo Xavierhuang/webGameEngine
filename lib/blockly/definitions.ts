@@ -24,11 +24,15 @@ const COLOUR = {
   event: 45,
   control: 120,
   action: 210,
+  motion: 210,
+  sound: 340,
   variable: 330,
   list: 260,
   clone: 290,
   operator: 160,
   sensing: 200,
+  looks: 320,
+  ai: 20,
 };
 
 const KEY_OPTIONS: [string, string][] = [
@@ -91,11 +95,11 @@ const statementDefs: object[] = [
   },
   {
     type: 'scale', message0: 'scale by %1', args0: [value('factor')],
-    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
   },
   {
     type: 'play_sound', message0: 'play sound %1', args0: [text('sound', 'click')],
-    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+    previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {
     type: 'broadcast', message0: 'broadcast %1', args0: [text('message', 'message1')],
@@ -195,6 +199,63 @@ const statementDefs: object[] = [
     ],
     previousStatement: null, nextStatement: null, colour: COLOUR.control,
   },
+
+  // Phase 5a: motion writers
+  {
+    type: 'goto_xyz', message0: 'go to x %1 y %2 z %3', args0: [value('x'), value('y'), value('z')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  {
+    type: 'goto_object', message0: 'go to object %1', args0: [text('target')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  {
+    type: 'change_xyz', message0: 'change x %1 y %2 z %3', args0: [value('dx'), value('dy'), value('dz')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  { type: 'set_x', message0: 'set x to %1', args0: [value('value')], previousStatement: null, nextStatement: null, colour: COLOUR.action },
+  { type: 'set_y', message0: 'set y to %1', args0: [value('value')], previousStatement: null, nextStatement: null, colour: COLOUR.action },
+  { type: 'set_z', message0: 'set z to %1', args0: [value('value')], previousStatement: null, nextStatement: null, colour: COLOUR.action },
+  {
+    type: 'glide_to_xyz', message0: 'glide %1 secs to x %2 y %3 z %4',
+    args0: [value('seconds'), value('x'), value('y'), value('z')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  {
+    type: 'point_towards', message0: 'point towards %1', args0: [text('target')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+  {
+    type: 'set_rotation', message0: 'set rotation x %1 y %2 z %3', args0: [value('x'), value('y'), value('z')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.action,
+  },
+
+  // Phase 5b: looks basics
+  { type: 'show', message0: 'show', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
+  { type: 'hide', message0: 'hide', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
+  { type: 'set_size', message0: 'set size to %1 %%', args0: [value('pct')], previousStatement: null, nextStatement: null, colour: COLOUR.looks },
+  { type: 'change_size_by', message0: 'change size by %1', args0: [value('delta')], previousStatement: null, nextStatement: null, colour: COLOUR.looks },
+  {
+    type: 'say', message0: 'say %1 for %2 secs', args0: [value('text'), value('seconds')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
+    type: 'think', message0: 'think %1 for %2 secs', args0: [value('text'), value('seconds')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  { type: 'clear_bubble', message0: 'clear bubble', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
+  { type: 'set_color', message0: 'set color to %1', args0: [text('hex', '#ffcc00')], previousStatement: null, nextStatement: null, colour: COLOUR.looks },
+
+  // Phase 5c: AI blocks
+  {
+    type: 'ask_ai', message0: 'ask AI %1 store in %2', args0: [value('prompt'), text('into_var', 'answer')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.ai,
+  },
+  {
+    type: 'ai_decide', message0: 'ask AI %1 choose from %2 store in %3',
+    args0: [value('prompt'), text('choices', 'yes,no'), text('into_var', 'answer')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.ai,
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -250,6 +311,19 @@ const exprDefs: object[] = [
     type: 'expr_list_contains', message0: 'list %1 contains %2 ?', args0: [text('value', 'my list'), value('arg0')],
     output: null, colour: COLOUR.list,
   },
+  // Phase 5a: motion reporters
+  { type: 'expr_position_x', message0: 'x position', output: null, colour: COLOUR.sensing },
+  { type: 'expr_position_y', message0: 'y position', output: null, colour: COLOUR.sensing },
+  { type: 'expr_position_z', message0: 'z position', output: null, colour: COLOUR.sensing },
+  { type: 'expr_rotation_x', message0: 'x rotation', output: null, colour: COLOUR.sensing },
+  { type: 'expr_rotation_y', message0: 'y rotation', output: null, colour: COLOUR.sensing },
+  { type: 'expr_rotation_z', message0: 'z rotation', output: null, colour: COLOUR.sensing },
+  { type: 'expr_object_x', message0: 'x of %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_object_y', message0: 'y of %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_object_z', message0: 'z of %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
+  // Phase 5b: looks reporters
+  { type: 'expr_size', message0: 'size', output: null, colour: COLOUR.looks },
+  { type: 'expr_visible', message0: 'visible ?', output: null, colour: COLOUR.looks },
 ];
 
 export const BLOCK_DEFINITIONS: object[] = [...statementDefs, ...exprDefs];
@@ -281,8 +355,49 @@ export const TOOLBOX = {
   kind: 'categoryToolbox',
   contents: [
     {
+      kind: 'category', name: 'Motion', colour: String(COLOUR.motion),
+      contents: [
+        blk('move', { distance: numShadow(200) }),
+        blk('jump'),
+        blk('goto_xyz', { x: numShadow(0), y: numShadow(0), z: numShadow(0) }),
+        blk('goto_object'),
+        blk('change_xyz', { dx: numShadow(1), dy: numShadow(0), dz: numShadow(0) }),
+        blk('set_x', { value: numShadow(0) }),
+        blk('set_y', { value: numShadow(0) }),
+        blk('set_z', { value: numShadow(0) }),
+        blk('glide_to_xyz', { seconds: numShadow(1), x: numShadow(0), y: numShadow(0), z: numShadow(0) }),
+        blk('rotate', { x: numShadow(0), y: numShadow(90), z: numShadow(0) }),
+        blk('set_rotation', { x: numShadow(0), y: numShadow(0), z: numShadow(0) }),
+        blk('point_towards'),
+      ],
+    },
+    {
+      kind: 'category', name: 'Looks', colour: String(COLOUR.looks),
+      contents: [
+        blk('show'),
+        blk('hide'),
+        blk('say', { text: textShadow('Hello!'), seconds: numShadow(2) }),
+        blk('think', { text: textShadow('Hmm...'), seconds: numShadow(2) }),
+        blk('clear_bubble'),
+        blk('set_size', { pct: numShadow(100) }),
+        blk('change_size_by', { delta: numShadow(10) }),
+        blk('scale', { factor: numShadow(2) }),
+        blk('set_color'),
+        blk('expr_size'),
+        blk('expr_visible'),
+      ],
+    },
+    {
+      kind: 'category', name: 'Sound', colour: String(COLOUR.sound),
+      contents: [blk('play_sound')],
+    },
+    {
       kind: 'category', name: 'Events', colour: String(COLOUR.event),
-      contents: ['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start'].map((t) => blk(t)),
+      contents: [
+        ...['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start'].map((t) => blk(t)),
+        blk('broadcast'),
+        blk('broadcast_and_wait'),
+      ],
     },
     {
       kind: 'category', name: 'Control', colour: String(COLOUR.control),
@@ -297,15 +412,10 @@ export const TOOLBOX = {
       ],
     },
     {
-      kind: 'category', name: 'Actions', colour: String(COLOUR.action),
+      kind: 'category', name: 'AI', colour: String(COLOUR.ai),
       contents: [
-        blk('move', { distance: numShadow(200) }),
-        blk('jump'),
-        blk('rotate', { x: numShadow(0), y: numShadow(90), z: numShadow(0) }),
-        blk('scale', { factor: numShadow(2) }),
-        blk('play_sound'),
-        blk('broadcast'),
-        blk('broadcast_and_wait'),
+        blk('ask_ai', { prompt: textShadow('What should I do next?') }),
+        blk('ai_decide', { prompt: textShadow('Should I attack or flee?') }),
       ],
     },
     {
@@ -349,7 +459,21 @@ export const TOOLBOX = {
     },
     {
       kind: 'category', name: 'Sensing', colour: String(COLOUR.sensing),
-      contents: [blk('expr_touching'), blk('expr_distance_to'), blk('expr_key_pressed'), blk('expr_timer')],
+      contents: [
+        blk('expr_touching'),
+        blk('expr_distance_to'),
+        blk('expr_key_pressed'),
+        blk('expr_timer'),
+        blk('expr_position_x'),
+        blk('expr_position_y'),
+        blk('expr_position_z'),
+        blk('expr_rotation_x'),
+        blk('expr_rotation_y'),
+        blk('expr_rotation_z'),
+        blk('expr_object_x'),
+        blk('expr_object_y'),
+        blk('expr_object_z'),
+      ],
     },
     { kind: 'category', name: 'My Blocks', colour: '290', custom: 'PROCEDURE' },
   ],

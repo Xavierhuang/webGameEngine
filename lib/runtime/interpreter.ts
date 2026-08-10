@@ -201,6 +201,8 @@ export interface EvalEnv {
   world?: RuntimeWorld;
   /** Custom-block parameter frames, innermost last. */
   locals?: Array<Record<string, Value>>;
+  /** Per-object runtime context; used by position/rotation/size reporters. */
+  ctx?: RuntimeContext;
 }
 
 export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Value {
@@ -246,6 +248,32 @@ export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Valu
     case 'list_contains': {
       const item = expr.args?.[0] !== undefined ? evalExpr(expr.args[0], env) : '';
       return env.vars.listContains(env.objectId, String(expr.value ?? ''), item);
+    }
+    // Self position/rotation/size reporters (Phase 5a/5b)
+    case 'position_x': return env.ctx?.getPosition?.().x ?? 0;
+    case 'position_y': return env.ctx?.getPosition?.().y ?? 0;
+    case 'position_z': return env.ctx?.getPosition?.().z ?? 0;
+    case 'rotation_x': return env.ctx?.getRotation?.().x ?? 0;
+    case 'rotation_y': return env.ctx?.getRotation?.().y ?? 0;
+    case 'rotation_z': return env.ctx?.getRotation?.().z ?? 0;
+    case 'size': return env.ctx?.getSize?.() ?? 100;
+    case 'visible': return env.ctx?.getVisible?.() ?? true;
+    // Other-object position/rotation reporters
+    case 'object_x':
+    case 'object_y':
+    case 'object_z': {
+      const target = expr.value !== undefined ? String(expr.value) : expr.args?.[0] !== undefined ? String(evalExpr(expr.args[0], env)) : '';
+      const p = env.world?.getObjectPositionByName(target);
+      if (!p) return 0;
+      return expr.op === 'object_x' ? p.x : expr.op === 'object_y' ? p.y : p.z;
+    }
+    case 'object_rotation_x':
+    case 'object_rotation_y':
+    case 'object_rotation_z': {
+      const target = expr.value !== undefined ? String(expr.value) : expr.args?.[0] !== undefined ? String(evalExpr(expr.args[0], env)) : '';
+      const r = env.world?.getObjectRotationByName(target);
+      if (!r) return 0;
+      return expr.op === 'object_rotation_x' ? r.x : expr.op === 'object_rotation_y' ? r.y : r.z;
     }
     default: {
       const fn = operators[expr.op];
@@ -320,6 +348,8 @@ function isKeyDown(keys: Record<string, boolean>, key: string): boolean {
 export interface WorldObjectHooks {
   name: string;
   getPosition(): { x: number; y: number; z: number };
+  /** Optional rotation reader in degrees; used by expr_object_rotation_*. */
+  getRotation?(): { x: number; y: number; z: number };
   /** Approximate bounding radius in world units. */
   getRadius(): number;
   /** Whether other objects can "touch" this one (platforms are scenery — default true). */
@@ -390,6 +420,16 @@ export class RuntimeWorld {
   /** Live position of a registered object (used to place new clones at the source). */
   getObjectPosition(id: string): { x: number; y: number; z: number } | null {
     return this.objects.get(id)?.getPosition() ?? null;
+  }
+
+  /** Live position of the object with the given display name (case-insensitive). */
+  getObjectPositionByName(name: string): { x: number; y: number; z: number } | null {
+    return this.findByName(name)?.[1].getPosition() ?? null;
+  }
+
+  /** Live rotation (degrees) of the object with the given display name; null if unknown. */
+  getObjectRotationByName(name: string): { x: number; y: number; z: number } | null {
+    return this.findByName(name)?.[1].getRotation?.() ?? null;
   }
 
   /**
@@ -473,11 +513,41 @@ export interface RuntimeContext {
   /** Accumulate a world-unit movement for this frame. */
   move(dx: number, dz: number): void;
   jump(): void;
-  /** Rotate by degrees (applied instantly). */
+  /** Rotate by degrees (applied instantly). Relative — accumulates on top of base. */
   rotate(xDeg: number, yDeg: number, zDeg: number): void;
   /** Multiply uniform scale. */
   scaleBy(factor: number): void;
   playSound(name: string): void;
+
+  // --- Phase 5a: motion writers / readers ---
+  /** Read self position in world units. */
+  getPosition?(): { x: number; y: number; z: number };
+  /** Read self rotation in degrees. */
+  getRotation?(): { x: number; y: number; z: number };
+  /** Absolute position write (teleport). */
+  setPosition?(x: number, y: number, z: number): void;
+  /** Add to current position. */
+  changePosition?(dx: number, dy: number, dz: number): void;
+  /** Write a single axis. */
+  setPositionAxis?(axis: 'x' | 'y' | 'z', v: number): void;
+  /** Absolute rotation write in degrees (replaces base). */
+  setRotation?(xDeg: number, yDeg: number, zDeg: number): void;
+  /** Rotate around Y to face the target's XZ position. */
+  pointTowards?(targetX: number, targetZ: number): void;
+
+  // --- Phase 5b: looks basics ---
+  setVisible?(v: boolean): void;
+  getVisible?(): boolean;
+  setSize?(pct: number): void;
+  changeSizeBy?(deltaPct: number): void;
+  getSize?(): number;
+  say?(text: string, seconds?: number, style?: 'say' | 'think'): void;
+  clearBubble?(): void;
+  setColor?(hex: string): void;
+
+  // --- Phase 5c: AI ---
+  /** Fire an async AI call; the callback fires once with the response text. */
+  askAI?(prompt: string, cb: (result: string) => void, options?: { choices?: string[] }): void;
 }
 
 interface ScriptState {
@@ -602,7 +672,7 @@ export class ObjectRuntime {
   }
 
   private env(time: number): EvalEnv {
-    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack };
+    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack, ctx: this.ctx };
   }
 
   step(delta: number, time: number) {
@@ -919,6 +989,140 @@ export class ObjectRuntime {
             String(getInput(block, 'scope', env, 'global')) === 'object' ? 'object' : 'global'
           );
           return;
+
+        // --- Phase 5a: motion writers ---
+        case 'goto_xyz': {
+          this.ctx.setPosition?.(
+            toNumber(getInput(block, 'x', env, 0)),
+            toNumber(getInput(block, 'y', env, 0)),
+            toNumber(getInput(block, 'z', env, 0))
+          );
+          return;
+        }
+        case 'goto_object': {
+          const target = String(getInput(block, 'target', env, ''));
+          const p = this.world?.getObjectPositionByName(target);
+          if (p) this.ctx.setPosition?.(p.x, p.y, p.z);
+          return;
+        }
+        case 'change_xyz': {
+          this.ctx.changePosition?.(
+            toNumber(getInput(block, 'dx', env, 0)),
+            toNumber(getInput(block, 'dy', env, 0)),
+            toNumber(getInput(block, 'dz', env, 0))
+          );
+          return;
+        }
+        case 'set_x':
+          this.ctx.setPositionAxis?.('x', toNumber(getInput(block, 'value', env, 0)));
+          return;
+        case 'set_y':
+          this.ctx.setPositionAxis?.('y', toNumber(getInput(block, 'value', env, 0)));
+          return;
+        case 'set_z':
+          this.ctx.setPositionAxis?.('z', toNumber(getInput(block, 'value', env, 0)));
+          return;
+        case 'set_rotation':
+          this.ctx.setRotation?.(
+            toNumber(getInput(block, 'x', env, 0)),
+            toNumber(getInput(block, 'y', env, 0)),
+            toNumber(getInput(block, 'z', env, 0))
+          );
+          return;
+        case 'point_towards': {
+          const target = String(getInput(block, 'target', env, ''));
+          const p = this.world?.getObjectPositionByName(target);
+          if (!p) return;
+          this.ctx.pointTowards?.(p.x, p.z);
+          return;
+        }
+        case 'glide_to_xyz': {
+          const seconds = Math.max(0, toNumber(getInput(block, 'seconds', env, 1)));
+          const targetX = toNumber(getInput(block, 'x', env, 0));
+          const targetY = toNumber(getInput(block, 'y', env, 0));
+          const targetZ = toNumber(getInput(block, 'z', env, 0));
+          const start = this.ctx.getPosition?.() ?? { x: 0, y: 0, z: 0 };
+          if (seconds <= 0) {
+            this.ctx.setPosition?.(targetX, targetY, targetZ);
+            return;
+          }
+          let elapsed = 0;
+          while (elapsed < seconds) {
+            elapsed += this.frameDelta;
+            const t = Math.min(1, elapsed / seconds);
+            this.ctx.setPosition?.(
+              start.x + (targetX - start.x) * t,
+              start.y + (targetY - start.y) * t,
+              start.z + (targetZ - start.z) * t
+            );
+            if (elapsed < seconds) yield FRAME;
+          }
+          return;
+        }
+
+        // --- Phase 5b: looks basics ---
+        case 'show':
+          this.ctx.setVisible?.(true);
+          return;
+        case 'hide':
+          this.ctx.setVisible?.(false);
+          return;
+        case 'set_size':
+          this.ctx.setSize?.(toNumber(getInput(block, 'pct', env, getInput(block, 'value', env, 100))));
+          return;
+        case 'change_size_by':
+          this.ctx.changeSizeBy?.(toNumber(getInput(block, 'delta', env, getInput(block, 'value', env, 10))));
+          return;
+        case 'say': {
+          const text = String(getInput(block, 'text', env, ''));
+          const rawSeconds = getInput(block, 'seconds', env, '');
+          const seconds = rawSeconds === '' || rawSeconds === undefined ? undefined : toNumber(rawSeconds);
+          this.ctx.say?.(text, seconds, 'say');
+          return;
+        }
+        case 'think': {
+          const text = String(getInput(block, 'text', env, ''));
+          const rawSeconds = getInput(block, 'seconds', env, '');
+          const seconds = rawSeconds === '' || rawSeconds === undefined ? undefined : toNumber(rawSeconds);
+          this.ctx.say?.(text, seconds, 'think');
+          return;
+        }
+        case 'clear_bubble':
+          this.ctx.clearBubble?.();
+          return;
+        case 'set_color':
+          this.ctx.setColor?.(String(getInput(block, 'hex', env, getInput(block, 'value', env, '#ffffff'))));
+          return;
+
+        // --- Phase 5c: AI blocks ---
+        // ask_ai/ai_decide fire an async call and suspend the coroutine until it resolves,
+        // then write the response into the named variable.
+        case 'ask_ai':
+        case 'ai_decide': {
+          const prompt = String(getInput(block, 'prompt', env, ''));
+          const intoVar = String(getInput(block, 'into_var', env, getInput(block, 'variable', env, 'answer')));
+          const scope = String(getInput(block, 'scope', env, 'global')) === 'object' ? 'object' : 'global';
+          let choices: string[] | undefined;
+          if (block.block_type === 'ai_decide') {
+            const raw = getInput(block, 'choices', env, '');
+            if (typeof raw === 'string' && raw.trim() !== '') {
+              choices = raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+            } else if (Array.isArray(raw)) {
+              choices = raw.map(String);
+            }
+          }
+          if (!this.ctx.askAI || !prompt) return;
+          let done = false;
+          let result: string = '';
+          this.ctx.askAI(prompt, (r) => {
+            done = true;
+            result = r;
+          }, choices ? { choices } : undefined);
+          while (!done) yield FRAME;
+          this.vars.set(this.objectId, intoVar, result, scope);
+          return;
+        }
+
         default:
           return; // unknown op: skip, never throw
       }

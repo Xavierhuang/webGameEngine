@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Kids Game Builder - Create Amazing Games!',
-  description: 'A fun and safe platform for kids to create their own games with AI assistance',
+  title: 'lingplay — Make 3D games with blocks and AI',
+  description: 'A creative coding platform for 3D games. Snap blocks together, ask an AI for help, and share your world.',
 };
 
 export default function RootLayout({

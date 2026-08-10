@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, memo, useMemo } from 'react';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
-import { Box, Sphere, Grid, useGLTF } from '@react-three/drei';
+import { Box, Sphere, Grid, useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
@@ -565,6 +565,52 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   );
 });
 
+/**
+ * Speech bubble that follows the object's live world position, independent of
+ * any mesh scale/transform. Rendered as a scene-root sibling of the mesh so the
+ * mesh's scale never distorts the bubble offset or size.
+ */
+function FollowerBubble({
+  meshRef,
+  bubble,
+  yOffset,
+}: {
+  meshRef: React.RefObject<THREE.Object3D>;
+  bubble: { text: string; style: 'say' | 'think' } | null;
+  yOffset: number;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!groupRef.current || !meshRef.current) return;
+    // Copy world position so parent scale never distorts the anchor.
+    meshRef.current.getWorldPosition(groupRef.current.position);
+    groupRef.current.position.y += yOffset;
+  });
+  if (!bubble) return null;
+  const border = bubble.style === 'say' ? '2px solid #333' : '2px dashed #333';
+  const tailChar = bubble.style === 'say' ? '▾' : '⋯';
+  return (
+    <group ref={groupRef} renderOrder={999}>
+      <Html center distanceFactor={10} zIndexRange={[40, 20]} occlude={false}>
+        <div
+          style={{
+            background: 'white', color: '#111', border, borderRadius: 12, padding: '6px 10px',
+            fontFamily: 'system-ui, sans-serif', fontSize: 13, maxWidth: 200, minWidth: 40,
+            whiteSpace: 'pre-wrap', textAlign: 'center', pointerEvents: 'none', userSelect: 'none',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.25)', position: 'relative',
+          }}
+        >
+          {bubble.text}
+          <span style={{
+            position: 'absolute', left: '50%', bottom: -10, transform: 'translateX(-50%)',
+            color: '#333', fontSize: 14, lineHeight: 1,
+          }}>{tailChar}</span>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
 const GameObject = memo(function GameObject({ object, keys, world, onPositionUpdate, cloneId }: { object: GameObject; keys: KeyState; world: RuntimeWorld; onPositionUpdate?: (pos: THREE.Vector3) => void; cloneId?: string }) {
   // Clones register/run under their clone id but render the source object's looks.
   const objectId = cloneId ?? object.id;
@@ -576,10 +622,17 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   keysRef.current = keys;
   // Per-frame movement accumulated by interpreter move blocks
   const frameAccumRef = useRef({ x: 0, z: 0 });
-  // Extra rotation (radians) applied by interpreter rotate blocks
-  const rotationOffsetRef = useRef({ x: 0, y: 0, z: 0 });
+  // Live rotation (radians) applied every frame — mutated by both rotate (add) and setRotation (replace)
+  const baseRotationRef = useRef<{ x: number; y: number; z: number } | null>(null);
   // Bounding radius for touch sensing (set each render from computed scale)
   const radiusRef = useRef(0.5);
+  // Phase 5b looks state applied each frame
+  const visibleRef = useRef(true);
+  const sizeMultiplierRef = useRef(1);
+  const tintColorRef = useRef<string | null>(null);
+  const [bubble, setBubble] = useState<{ text: string; style: 'say' | 'think'; expiresAt: number | null } | null>(null);
+  const bubbleRef = useRef(bubble);
+  bubbleRef.current = bubble;
 
   // Register in the shared world for broadcasts and touch/click sensing
   useEffect(() => {
@@ -589,6 +642,14 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         meshRef.current
           ? { x: meshRef.current.position.x, y: meshRef.current.position.y, z: meshRef.current.position.z }
           : positionRef.current,
+      getRotation: () =>
+        meshRef.current
+          ? {
+              x: (meshRef.current.rotation.x * 180) / Math.PI,
+              y: (meshRef.current.rotation.y * 180) / Math.PI,
+              z: (meshRef.current.rotation.z * 180) / Math.PI,
+            }
+          : { x: 0, y: 0, z: 0 },
       getRadius: () => radiusRef.current,
       touchable: object.type !== 'platform',
     });
@@ -612,12 +673,15 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         }
       },
       rotate: (xDeg, yDeg, zDeg) => {
-        rotationOffsetRef.current.x += (xDeg * Math.PI) / 180;
-        rotationOffsetRef.current.y += (yDeg * Math.PI) / 180;
-        rotationOffsetRef.current.z += (zDeg * Math.PI) / 180;
+        const base = baseRotationRef.current ?? { x: 0, y: 0, z: 0 };
+        baseRotationRef.current = {
+          x: base.x + (xDeg * Math.PI) / 180,
+          y: base.y + (yDeg * Math.PI) / 180,
+          z: base.z + (zDeg * Math.PI) / 180,
+        };
       },
       scaleBy: (factor) => {
-        meshRef.current?.scale.multiplyScalar(factor);
+        if (factor > 0) sizeMultiplierRef.current *= factor;
       },
       playSound: (name) => {
         try {
@@ -625,6 +689,89 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         } catch (e) {
           logger.warn('[GamePlayer] playSfx failed:', e);
         }
+      },
+      // Phase 5a: motion writers/readers
+      getPosition: () => ({ ...positionRef.current }),
+      getRotation: () => {
+        const r = baseRotationRef.current ?? { x: 0, y: 0, z: 0 };
+        return { x: (r.x * 180) / Math.PI, y: (r.y * 180) / Math.PI, z: (r.z * 180) / Math.PI };
+      },
+      setPosition: (x, y, z) => {
+        positionRef.current.x = x;
+        positionRef.current.y = y;
+        positionRef.current.z = z;
+        if (meshRef.current) meshRef.current.position.set(x, y, z);
+        velocityRef.current.x = 0;
+        velocityRef.current.y = 0;
+        velocityRef.current.z = 0;
+        isGroundedRef.current = false;
+      },
+      changePosition: (dx, dy, dz) => {
+        positionRef.current.x += dx;
+        positionRef.current.y += dy;
+        positionRef.current.z += dz;
+        if (meshRef.current) {
+          meshRef.current.position.x += dx;
+          meshRef.current.position.y += dy;
+          meshRef.current.position.z += dz;
+        }
+        if (dy !== 0) {
+          velocityRef.current.y = 0;
+          isGroundedRef.current = false;
+        }
+      },
+      setPositionAxis: (axis, v) => {
+        positionRef.current[axis] = v;
+        if (meshRef.current) meshRef.current.position[axis] = v;
+        if (axis === 'y') {
+          velocityRef.current.y = 0;
+          isGroundedRef.current = false;
+        }
+      },
+      setRotation: (xDeg, yDeg, zDeg) => {
+        baseRotationRef.current = {
+          x: (xDeg * Math.PI) / 180,
+          y: (yDeg * Math.PI) / 180,
+          z: (zDeg * Math.PI) / 180,
+        };
+      },
+      pointTowards: (targetX, targetZ) => {
+        const self = positionRef.current;
+        const dx = targetX - self.x;
+        const dz = targetZ - self.z;
+        // Scratch/three: object faces -Z by default; angle so that forward vector points at target on XZ.
+        const yRad = Math.atan2(dx, -dz);
+        baseRotationRef.current = {
+          x: baseRotationRef.current?.x ?? 0,
+          y: yRad,
+          z: baseRotationRef.current?.z ?? 0,
+        };
+      },
+      // Phase 5b: looks basics
+      getVisible: () => visibleRef.current,
+      setVisible: (v) => { visibleRef.current = v; },
+      getSize: () => sizeMultiplierRef.current * 100,
+      setSize: (pct) => { sizeMultiplierRef.current = Math.max(0, pct) / 100; },
+      changeSizeBy: (deltaPct) => { sizeMultiplierRef.current = Math.max(0, sizeMultiplierRef.current * 100 + deltaPct) / 100; },
+      say: (text, seconds, style = 'say') => {
+        const expiresAt = seconds && seconds > 0 ? performance.now() + seconds * 1000 : null;
+        setBubble({ text, style, expiresAt });
+      },
+      clearBubble: () => setBubble(null),
+      setColor: (hex) => { tintColorRef.current = hex; },
+      // Phase 5c: AI (implementation delegated to the app so the interpreter stays server-agnostic)
+      askAI: (prompt, cb, options) => {
+        fetch('/api/ai/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, choices: options?.choices }),
+        })
+          .then((r) => r.json())
+          .then((data) => cb(String(data?.answer ?? '')))
+          .catch((e) => {
+            logger.warn('[GamePlayer] askAI failed:', e);
+            cb('');
+          });
       },
     };
   }
@@ -953,14 +1100,35 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
     // Apply base rotation from properties (but NOT for platforms - they have special rotation)
     // Platforms have their rotation set in JSX and should not be overridden here
     if (meshRef.current && !isPlatform && shape !== 'plane') {
-      const offset = rotationOffsetRef.current;
-      if (properties.animate) {
-        // Apply base rotation and add animation
-        meshRef.current.rotation.set(rotation[0] + offset.x, rotation[1] + offset.y + (state.clock.elapsedTime * 0.01), rotation[2] + offset.z);
-      } else {
-        // Just apply base rotation
-        meshRef.current.rotation.set(rotation[0] + offset.x, rotation[1] + offset.y, rotation[2] + offset.z);
+      // Lazy-init the interpreter's live rotation from the object's property rotation.
+      if (baseRotationRef.current === null) {
+        baseRotationRef.current = { x: rotation[0], y: rotation[1], z: rotation[2] };
       }
+      const base = baseRotationRef.current;
+      const animYaw = properties.animate ? state.clock.elapsedTime * 0.01 : 0;
+      meshRef.current.rotation.set(base.x, base.y + animYaw, base.z);
+
+      // Phase 5b: apply live looks state each frame.
+      meshRef.current.visible = visibleRef.current;
+      const effectiveScale = scaleValue * sizeMultiplierRef.current;
+      meshRef.current.scale.setScalar(effectiveScale);
+      radiusRef.current = effectiveScale / 2;
+      if (tintColorRef.current) {
+        const hex = tintColorRef.current;
+        // Only tint materials with no color map — textured meshes (e.g. rigged
+        // characters) would otherwise wash out. Untextured primitives get tinted.
+        meshRef.current.traverse((child: any) => {
+          const mats = Array.isArray(child?.material) ? child.material : child?.material ? [child.material] : [];
+          for (const mat of mats) {
+            if (mat?.color?.set && !mat.map) mat.color.set(hex);
+          }
+        });
+      }
+    }
+
+    // Bubble expiry — check once per frame, don't setState unless needed
+    if (bubbleRef.current?.expiresAt != null && performance.now() >= bubbleRef.current.expiresAt) {
+      setBubble(null);
     }
   });
 
@@ -992,9 +1160,12 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   // Render based on shape
   if (object.type === 'collectible' || shape === 'circle' || shape === 'sphere') {
     return (
-      <Sphere ref={meshRef} position={position} rotation={rotation} scale={scale[0]} onClick={() => world.notifyClicked(objectId)}>
-        <meshStandardMaterial color={color} />
-      </Sphere>
+      <>
+        <Sphere ref={meshRef} position={position} rotation={rotation} scale={scale[0]} onClick={() => world.notifyClicked(objectId)}>
+          <meshStandardMaterial color={color} />
+        </Sphere>
+        <FollowerBubble meshRef={meshRef} bubble={bubble} yOffset={scale[0] * 0.7 + 0.5} />
+      </>
     );
   }
 
@@ -1030,16 +1201,19 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       // meshRef position should be at the FEET position, not torso center
       // For physics calculations, we account for this by checking feet position
       return (
-        <group ref={meshRef as any} position={shouldHavePhysics ? [0, 0, 0] : position} onClick={() => world.notifyClicked(objectId)}>
-          <AnimatedModel
-            url={modelUrl}
-            position={[0, 0, 0]}
-            rotation={rotation}
-            scale={scale}
-            animationState={finalAnimationState || 'idle'}
-            playAnimation={!isAnimationStopped}
-          />
-        </group>
+        <>
+          <group ref={meshRef as any} position={shouldHavePhysics ? [0, 0, 0] : position} onClick={() => world.notifyClicked(objectId)}>
+            <AnimatedModel
+              url={modelUrl}
+              position={[0, 0, 0]}
+              rotation={rotation}
+              scale={scale}
+              animationState={finalAnimationState || 'idle'}
+              playAnimation={!isAnimationStopped}
+            />
+          </group>
+          <FollowerBubble meshRef={meshRef as any} bubble={bubble} yOffset={scaleValue * 1.8 + 0.3} />
+        </>
       );
     }
     
@@ -1055,17 +1229,20 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
     const shouldHavePhysics = object.has_physics || hasMovementLogic || isCharacter;
     const modelPosition: [number, number, number] = shouldHavePhysics ? [0, 0, 0] : position;
     return (
-      <Suspense fallback={null}>
-        <ExtensionModel
-          ext={ext}
-          modelUrl={modelUrl}
-          meshRef={meshRef}
-          position={modelPosition}
-          rotation={rotation}
-          scale={scale}
-          color={color}
-        />
-      </Suspense>
+      <>
+        <Suspense fallback={null}>
+          <ExtensionModel
+            ext={ext}
+            modelUrl={modelUrl}
+            meshRef={meshRef}
+            position={modelPosition}
+            rotation={rotation}
+            scale={scale}
+            color={color}
+          />
+        </Suspense>
+        <FollowerBubble meshRef={meshRef} bubble={bubble} yOffset={scaleValue * 1.2 + 0.3} />
+      </>
     );
   }
 
@@ -1074,9 +1251,12 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   // For objects with physics, position is controlled by useFrame
   const shouldHavePhysics = object.has_physics || hasMovementLogic || isCharacter;
   return (
-    <Box ref={meshRef} position={shouldHavePhysics ? [0, 0, 0] : position} rotation={rotation} scale={scale} onClick={() => world.notifyClicked(objectId)}>
-      <meshStandardMaterial color={color} />
-    </Box>
+    <>
+      <Box ref={meshRef} position={shouldHavePhysics ? [0, 0, 0] : position} rotation={rotation} scale={scale} onClick={() => world.notifyClicked(objectId)}>
+        <meshStandardMaterial color={color} />
+      </Box>
+      <FollowerBubble meshRef={meshRef} bubble={bubble} yOffset={scaleValue * 0.7 + 0.4} />
+    </>
   );
 });
 
