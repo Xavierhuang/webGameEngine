@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, requireAuth, query, queryOne } from '@/lib/mysql/server';
+import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
 export async function GET(
   request: NextRequest,
@@ -197,15 +198,35 @@ export async function PATCH(
       'genre',
     ]);
 
+    // Sanitize + moderate any user-visible text before persisting.
+    const sanitizedTitle = typeof body.title === 'string' ? sanitizeUserInput(body.title) : undefined;
+    const sanitizedDescription = typeof body.description === 'string' ? sanitizeUserInput(body.description) : undefined;
+    const textToCheck = [sanitizedTitle, sanitizedDescription].filter(Boolean).join('\n');
+    if (textToCheck) {
+      const modResult = await moderateText(textToCheck, user.id);
+      if (!modResult.safe) {
+        return NextResponse.json(
+          {
+            error: 'Content moderation failed',
+            reason: modResult.reason ?? 'Contains disallowed content',
+            categories: modResult.categories,
+          },
+          { status: 422 }
+        );
+      }
+    }
+
     // Build update query dynamically
     const updateFields: string[] = [];
     const updateValues: any[] = [];
 
     Object.keys(body).forEach((key) => {
-      if (ALLOWED_FIELDS.has(key) && body[key] !== undefined) {
-        updateFields.push(`${key} = ?`);
-        updateValues.push(body[key]);
-      }
+      if (!ALLOWED_FIELDS.has(key) || body[key] === undefined) return;
+      let value = body[key];
+      if (key === 'title') value = sanitizedTitle;
+      else if (key === 'description') value = sanitizedDescription;
+      updateFields.push(`${key} = ?`);
+      updateValues.push(value);
     });
 
     if (updateFields.length === 0) {

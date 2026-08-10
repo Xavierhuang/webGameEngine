@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, query } from '@/lib/mysql/server';
+import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
 export async function GET(request: NextRequest) {
   try {
@@ -80,11 +81,31 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, genre } = body;
+    const rawTitle = typeof body.title === 'string' ? sanitizeUserInput(body.title) : '';
+    const rawDescription = typeof body.description === 'string' ? sanitizeUserInput(body.description) : '';
+    const genre = typeof body.genre === 'string' ? body.genre.substring(0, 100) : null;
 
     // Validate input
-    if (!title || title.length > 50) {
+    if (!rawTitle || rawTitle.length > 50) {
       return NextResponse.json({ error: 'Invalid title' }, { status: 400 });
+    }
+
+    // Moderation gate — reject if title or description is unsafe. Concatenated
+    // so a single API call covers both fields.
+    const modResult = await moderateText(
+      `${rawTitle}\n${rawDescription}`,
+      user?.id ?? null,
+      user ? null : profileId
+    );
+    if (!modResult.safe) {
+      return NextResponse.json(
+        {
+          error: 'Content moderation failed',
+          reason: modResult.reason ?? 'Contains disallowed content',
+          categories: modResult.categories,
+        },
+        { status: 422 }
+      );
     }
 
     const { randomUUID } = await import('crypto');
@@ -97,9 +118,9 @@ export async function POST(request: NextRequest) {
       [
         projectId,
         profileId,
-        title,
-        description?.substring(0, 500) || null,
-        genre || null,
+        rawTitle,
+        rawDescription ? rawDescription.substring(0, 500) : null,
+        genre,
       ]
     );
 

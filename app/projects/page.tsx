@@ -121,7 +121,7 @@ function ProjectCard({ project }: { project: any }) {
   return (
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all hover:scale-105">
       {/* Thumbnail */}
-      <div className="h-48 bg-gradient-to-br from-purple-200 to-blue-200 flex items-center justify-center">
+      <div className="h-48 bg-gradient-to-br from-purple-200 to-blue-200 flex items-center justify-center relative">
         {project.thumbnail_url ? (
           <img
             src={project.thumbnail_url}
@@ -131,6 +131,7 @@ function ProjectCard({ project }: { project: any }) {
         ) : (
           <div className="text-6xl">🎮</div>
         )}
+        <ModerationBadge status={project.moderation_status} visibility={project.visibility} />
       </div>
 
       {/* Content */}
@@ -166,6 +167,27 @@ function ProjectCard({ project }: { project: any }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function ModerationBadge({ status, visibility }: { status?: string; visibility?: string }) {
+  // Private projects don't surface a badge — moderation only matters for
+  // shared/public content. Approved public projects also stay unbadged (no
+  // point yelling "approved" at the owner).
+  if (visibility === 'private') return null;
+  if (status === 'approved') return null;
+
+  const styles: Record<string, { bg: string; label: string }> = {
+    pending: { bg: 'bg-yellow-500', label: 'Pending review' },
+    rejected: { bg: 'bg-red-500', label: 'Removed' },
+  };
+  const s = styles[status ?? 'pending'] ?? styles.pending;
+  return (
+    <span
+      className={`absolute top-2 left-2 ${s.bg} text-white text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-0.5 shadow`}
+    >
+      {s.label}
+    </span>
   );
 }
 

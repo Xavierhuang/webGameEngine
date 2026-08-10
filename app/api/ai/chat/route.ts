@@ -25,14 +25,17 @@ export async function POST(request: NextRequest) {
       age = profile?.age || 10;
     }
 
-    // Moderate the message
-    if (user) {
-    const moderation = await moderateText(message, user.id);
-    if (!moderation.safe) {
-      return NextResponse.json({
-        message: "Oops! Let's try to use different words. Can you ask in another way?",
-      });
-    }
+    // Moderate the message for BOTH authenticated users and guests. Guests
+    // previously bypassed moderation entirely, which is exactly the "logged
+    // but not enforced" pattern we're fixing in Phase 6a.
+    if (typeof message === 'string' && message.trim() !== '') {
+      const moderation = await moderateText(message, user?.id ?? null, null);
+      if (!moderation.safe) {
+        return NextResponse.json({
+          message: "Oops! Let's try to use different words. Can you ask in another way?",
+          moderation: { categories: moderation.categories, reason: moderation.reason },
+        });
+      }
     }
 
     // Get current project context

@@ -1,14 +1,26 @@
 import { query } from '@/lib/mysql/server';
+import { keywordScan } from './keyword-scan';
 
-// For now, using a simple moderation approach
-// In production, you can integrate with OpenAI Moderation API or other services
+// The moderation pipeline has two tiers:
+//   1. OpenAI Moderation API (preferred, when key is configured) — nuanced,
+//      category-tagged results with severity heuristics downstream.
+//   2. Local keyword blocklist (always) — a cheap defence-in-depth check that
+//      runs before/instead of the API. When the API is unreachable we still
+//      have the local list, so unauthenticated content isn't a silent bypass.
 const useModerationAPI = process.env.OPENAI_API_KEY || process.env.OPENAI_MODERATION_KEY;
 
-async function callModerationAPI(text: string) {
-  if (!useModerationAPI) {
-    // Fallback: simple keyword check
-    return { flagged: false, categories: [] };
-  }
+interface ModerationApiResult {
+  flagged: boolean;
+  categories: Record<string, boolean> | string[];
+}
+
+async function callModerationAPI(text: string): Promise<ModerationApiResult> {
+  // Always run keyword scan first — this is our safety net for when the API
+  // is missing, slow, or errors. A local hit short-circuits the network call.
+  const local = keywordScan(text);
+  if (local.flagged) return local;
+
+  if (!useModerationAPI) return local; // no API configured → keyword result stands
 
   try {
     const response = await fetch('https://api.openai.com/v1/moderations', {
@@ -18,7 +30,7 @@ async function callModerationAPI(text: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ input: text }),
-});
+    });
 
     if (response.ok) {
       const data = await response.json();
@@ -28,7 +40,8 @@ async function callModerationAPI(text: string) {
     console.error('Moderation API error:', error);
   }
 
-  return { flagged: false, categories: [] };
+  // API failed; fall back to keyword result (which is already known to be safe here).
+  return local;
 }
 
 export type ModerationResult = {
@@ -41,11 +54,16 @@ export type ModerationResult = {
 };
 
 /**
- * Moderate text content for kid safety
+ * Moderate text content for kid safety.
+ *
+ * Pass EITHER `userId` (auth users — we look up their profile) OR `profileId`
+ * (guests — we already know it). Passing neither still runs the check but
+ * skips DB logging, useful for pre-flight validation.
  */
 export async function moderateText(
   text: string,
-  userId: string
+  userId?: string | null,
+  profileId?: string | null
 ): Promise<ModerationResult> {
   try {
     const result = await callModerationAPI(text);
@@ -55,7 +73,10 @@ export async function moderateText(
 
     // Check flagged categories
     if (result.flagged) {
-      Object.entries(result.categories).forEach(([category, isFlagged]) => {
+      const entries = Array.isArray(result.categories)
+        ? result.categories.map((c) => [c, true] as [string, boolean])
+        : Object.entries(result.categories);
+      entries.forEach(([category, isFlagged]) => {
         if (isFlagged) {
           flaggedCategories.push(category);
 
@@ -78,16 +99,19 @@ export async function moderateText(
       });
     }
 
-    // Log moderation event
-    await logModerationEvent({
-      userId,
-      contentType: 'text',
-      content: text,
-      flagged: result.flagged,
-      flagReason: flaggedCategories.join(', '),
-      severity,
-      autoActionTaken: actionTaken,
-    });
+    // Log moderation event (best-effort — never let a logging failure block the caller)
+    if (userId || profileId) {
+      await logModerationEvent({
+        userId,
+        profileId,
+        contentType: 'text',
+        content: text,
+        flagged: result.flagged,
+        flagReason: flaggedCategories.join(', '),
+        severity,
+        autoActionTaken: actionTaken,
+      });
+    }
 
     return {
       safe: !result.flagged,
@@ -172,10 +196,12 @@ export async function checkAgeAppropriateness(
 }
 
 /**
- * Log moderation event to database
+ * Log moderation event to database. Best-effort: swallows all errors so
+ * logging failures never break the calling request.
  */
 async function logModerationEvent(event: {
-  userId: string;
+  userId?: string | null;
+  profileId?: string | null;
   contentType: string;
   contentId?: string;
   content?: string;
@@ -187,25 +213,29 @@ async function logModerationEvent(event: {
   try {
     const { randomUUID } = await import('crypto');
     const { queryOne } = await import('@/lib/mysql/server');
-    
-    // Get profile id from user_id
-    const profile = await queryOne<{ id: string }>(
-      'SELECT id FROM profiles WHERE user_id = ?',
-      [event.userId]
-    );
 
-    if (!profile) {
-      console.error('Profile not found for user:', event.userId);
+    // Prefer explicit profileId; otherwise resolve from userId.
+    let profileId = event.profileId ?? null;
+    if (!profileId && event.userId) {
+      const profile = await queryOne<{ id: string }>(
+        'SELECT id FROM profiles WHERE user_id = ?',
+        [event.userId]
+      );
+      profileId = profile?.id ?? null;
+    }
+
+    if (!profileId) {
+      console.error('logModerationEvent: no profile id resolved (userId=%s)', event.userId);
       return;
     }
 
     await query(
-      `INSERT INTO moderation_events 
+      `INSERT INTO moderation_events
        (id, user_id, content_type, content_id, content, flagged, flag_reason, severity, auto_action_taken)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         randomUUID(),
-        profile.id,
+        profileId,
         event.contentType,
         event.contentId || null,
         event.content?.substring(0, 1000) || null,
