@@ -5,7 +5,9 @@ import dynamic from 'next/dynamic';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid } from '@react-three/drei';
 import { useRef } from 'react';
-import { Play, Save, Settings, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Play, Save, Undo2, Redo2, Move3D, Maximize2, RotateCw } from 'lucide-react';
+import { LogoMark } from '../common/AppNav';
 import Toolbar from './Toolbar';
 import ObjectsPanel from './ObjectsPanel';
 import SceneView from './SceneView';
@@ -21,8 +23,11 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 const BlockEditor = dynamic(() => import('./BlockEditor'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full flex items-center justify-center bg-gray-900 text-gray-400 text-sm">
-      Loading block editor…
+    <div className="w-full h-full flex items-center justify-center bg-slate-50">
+      <div className="flex flex-col items-center gap-3 text-slate-500 text-sm">
+        <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
+        Loading block editor…
+      </div>
     </div>
   ),
 });
@@ -242,110 +247,93 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100">
-      {/* Top Bar */}
-      <div className="bg-white shadow-md p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-purple-600">
-            {project?.title || 'My Game'}
-          </h1>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setEditorMode('scene')}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                editorMode === 'scene'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-gray-200 text-gray-700'
-              }`}
-            >
+    <div className="h-screen flex flex-col bg-slate-50">
+      {/* Top Bar — sticky, mirrors the app nav style */}
+      <div className="bg-white/95 backdrop-blur border-b border-slate-200 px-4 py-2.5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href="/projects"
+            title="Back to My Games"
+            className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 px-2 py-1.5 rounded-md hover:bg-slate-100 transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <LogoMark size="sm" />
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none">
+              Editing
+            </div>
+            <h1 className="text-base font-bold text-slate-900 truncate max-w-[280px]">
+              {project?.title || 'My Game'}
+            </h1>
+          </div>
+          {/* Scene / Logic mode toggle */}
+          <div className="ml-4 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+            <ModeButton active={editorMode === 'scene'} onClick={() => setEditorMode('scene')}>
               Scene
-            </button>
-            <button
-              onClick={() => setEditorMode('logic')}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                editorMode === 'logic'
-                  ? 'bg-purple-500 text-white'
-                  : 'bg-gray-200 text-gray-700'
-              }`}
-            >
+            </ModeButton>
+            <ModeButton active={editorMode === 'logic'} onClick={() => setEditorMode('logic')}>
               Logic
-            </button>
+            </ModeButton>
           </div>
         </div>
 
-        <div className="flex gap-2 items-center">
-          {/* Undo/Redo */}
-          <div className="flex gap-1 mr-2">
-            <button
-              onClick={undo}
-              disabled={!canUndo}
-              className={`px-3 py-2 rounded-lg font-medium ${canUndo ? 'bg-gray-200 text-gray-800 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-              title="Undo (Ctrl/Cmd+Z)"
-            >
-              Undo
-            </button>
-            <button
-              onClick={redo}
-              disabled={!canRedo}
-              className={`px-3 py-2 rounded-lg font-medium ${canRedo ? 'bg-gray-200 text-gray-800 hover:bg-gray-300' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-              title="Redo (Shift+Ctrl/Cmd+Z or Ctrl+Y)"
-            >
-              Redo
-            </button>
+        <div className="flex items-center gap-2">
+          {/* Undo / Redo */}
+          <div className="flex items-center gap-0.5">
+            <IconButton onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
+              <Undo2 className="w-4 h-4" />
+            </IconButton>
+            <IconButton onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
+              <Redo2 className="w-4 h-4" />
+            </IconButton>
           </div>
-          {/* Transform Mode Selector */}
+
+          {/* Transform mode — only visible while an object is selected in Scene mode */}
           {selectedObject && editorMode === 'scene' && (
-            <div className="flex gap-1 mr-4 bg-gray-100 p-1 rounded-lg">
-              <button
+            <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200 ml-1">
+              <TransformButton
+                active={transformMode === 'translate'}
                 onClick={() => setTransformMode('translate')}
-                className={`px-3 py-1 rounded transition-colors ${
-                  transformMode === 'translate'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
                 title="Move (W)"
               >
+                <Move3D className="w-3.5 h-3.5" />
                 Move
-              </button>
-              <button
+              </TransformButton>
+              <TransformButton
+                active={transformMode === 'scale'}
                 onClick={() => setTransformMode('scale')}
-                className={`px-3 py-1 rounded transition-colors ${
-                  transformMode === 'scale'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
                 title="Scale (E)"
               >
+                <Maximize2 className="w-3.5 h-3.5" />
                 Scale
-              </button>
-              <button
+              </TransformButton>
+              <TransformButton
+                active={transformMode === 'rotate'}
                 onClick={() => setTransformMode('rotate')}
-                className={`px-3 py-1 rounded transition-colors ${
-                  transformMode === 'rotate'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-50'
-                }`}
                 title="Rotate (R)"
               >
+                <RotateCw className="w-3.5 h-3.5" />
                 Rotate
-              </button>
+              </TransformButton>
             </div>
           )}
-          {/* Removed duplicate AI Helper button; sidebar 'Generate with AI' opens the assistant */}
+
+          {/* Save + Play */}
           <button
             onClick={handleSave}
-            className="bg-blue-500 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-600"
+            className="ml-2 inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 text-sm font-semibold rounded-full px-4 py-1.5 transition"
           >
-            <Save className="w-5 h-5" />
+            <Save className="w-3.5 h-3.5" />
             Save
           </button>
           <button
             type="button"
             onClick={handlePlayTest}
-            className="bg-green-500 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-600 cursor-pointer"
+            className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-full px-4 py-1.5 shadow-sm transition"
             title="Play game in new window"
           >
-            <Play className="w-5 h-5" />
+            <Play className="w-3.5 h-3.5" />
             Play
           </button>
         </div>
@@ -354,7 +342,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
       {/* Main Editor Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Toolbar */}
-        <div className="w-64 bg-white shadow-lg overflow-y-auto">
+        <div className="w-64 bg-white border-r border-slate-200 overflow-y-auto">
           <Toolbar
             onAddObject={async (type) => {
               // Add object to scene
@@ -470,20 +458,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         <div className="flex-1 relative">
           {editorMode === 'scene' ? (
             <ErrorBoundary
-              fallback={
-                <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                  <div className="text-center p-6 bg-white rounded-lg shadow-lg">
-                    <h3 className="text-lg font-bold text-red-600 mb-2">Scene Rendering Error</h3>
-                    <p className="text-gray-600 mb-4">An error occurred while rendering the 3D scene.</p>
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                    >
-                      Reload Page
-                    </button>
-                  </div>
-                </div>
-              }
+              fallback={<EditorErrorPanel title="Scene rendering error" body="Something went wrong rendering the 3D scene." />}
             >
               <div className="w-full h-full editor-grid">
                 <Canvas camera={{ position: [0, 5, 10] }}>
@@ -687,20 +662,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             </ErrorBoundary>
           ) : (
             <ErrorBoundary
-              fallback={
-                <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                  <div className="text-center p-6 bg-white rounded-lg shadow-lg">
-                    <h3 className="text-lg font-bold text-red-600 mb-2">Logic Block Editor Error</h3>
-                    <p className="text-gray-600 mb-4">An error occurred in the logic block editor.</p>
-                    <button
-                      onClick={() => window.location.reload()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                    >
-                      Reload Page
-                    </button>
-                  </div>
-                </div>
-              }
+              fallback={<EditorErrorPanel title="Logic editor error" body="Something went wrong loading the block editor." />}
             >
               {selectedObject ? (
                 <BlockEditor
@@ -710,8 +672,16 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                   initialBlocks={selectedObject.logic_blocks ?? []}
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gray-900 text-gray-400 text-sm">
-                  Select an object to edit its blocks
+                <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                  <div className="text-center max-w-xs">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white border border-slate-200 mb-3">
+                      <span className="text-2xl">🧩</span>
+                    </div>
+                    <p className="font-semibold text-slate-900">No object selected</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Pick an object in the scene (or add one from the left) to write its logic.
+                    </p>
+                  </div>
                 </div>
               )}
             </ErrorBoundary>
@@ -719,18 +689,11 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         </div>
 
         {/* Right Sidebar - Properties */}
-        <div className="w-80 bg-white shadow-lg overflow-y-auto">
+        <div className="w-80 bg-white border-l border-slate-200 overflow-y-auto">
           <ErrorBoundary
             fallback={
               <div className="p-4">
-                <h3 className="text-lg font-bold text-red-600 mb-2">Properties Panel Error</h3>
-                <p className="text-gray-600 mb-4">An error occurred in the properties panel.</p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                >
-                  Reload Page
-                </button>
+                <EditorErrorPanel title="Properties error" body="An error occurred in the properties panel." inline />
               </div>
             }
           >
@@ -1087,6 +1050,116 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         }}
       />
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Top-bar micro components. Extracted so the header JSX stays readable while
+// still sharing the same slate-900 design tokens as the rest of the app.
+// -----------------------------------------------------------------------------
+
+function ModeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-xs font-semibold rounded-md px-3 py-1.5 transition ${
+        active
+          ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+          : 'text-slate-600 hover:text-slate-900'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function IconButton({
+  onClick,
+  disabled,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition ${
+        disabled
+          ? 'text-slate-300 cursor-not-allowed'
+          : 'text-slate-700 hover:bg-slate-100'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function EditorErrorPanel({
+  title,
+  body,
+  inline,
+}: {
+  title: string;
+  body: string;
+  inline?: boolean;
+}) {
+  const content = (
+    <div className="rounded-2xl border border-red-200 bg-red-50 p-6 max-w-sm text-center">
+      <h3 className="font-bold text-red-800">{title}</h3>
+      <p className="mt-1 text-sm text-red-700">{body}</p>
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-4 inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-full px-4 py-2 transition"
+      >
+        Reload page
+      </button>
+    </div>
+  );
+  if (inline) return content;
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-slate-50">
+      {content}
+    </div>
+  );
+}
+
+function TransformButton({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`inline-flex items-center gap-1 text-xs font-semibold rounded-md px-2.5 py-1.5 transition ${
+        active
+          ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+          : 'text-slate-600 hover:text-slate-900'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
