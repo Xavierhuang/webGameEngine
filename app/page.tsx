@@ -469,13 +469,24 @@ function ChatBubble({ side, children }: { side: 'left' | 'right'; children: Reac
 // Gallery
 // -----------------------------------------------------------------------------
 
-const SAMPLE_PROJECTS = [
-  { title: 'Platformer Adventure', tag: 'starter', from: '#4C97FF', to: '#9966FF', emoji: '🏃' },
-  { title: 'Space Explorer', tag: 'physics', from: '#0F172A', to: '#4C97FF', emoji: '🚀' },
-  { title: 'Maze Runner', tag: 'AI enemy', from: '#FF6B35', to: '#FFBF00', emoji: '🌀' },
-  { title: 'Fish Tank', tag: 'clones', from: '#5CB1D6', to: '#59C059', emoji: '🐟' },
-  { title: 'Puzzle Room', tag: 'sensing', from: '#9966FF', to: '#CF63CF', emoji: '🧩' },
-  { title: 'AI Pet', tag: 'ask_ai', from: '#FF6680', to: '#FF6B35', emoji: '🐶' },
+// These are STARTER IDEAS, not real projects — a real gallery of shared
+// projects lands with Phase 6b (community/sharing). Each card takes the user
+// to /projects/new so they can build the idea; the prompt is prefilled via
+// query params so the create form doesn't feel empty.
+const SAMPLE_PROJECTS: {
+  title: string;
+  tag: string;
+  from: string;
+  to: string;
+  emoji: string;
+  href: string;
+}[] = [
+  { title: 'Platformer Adventure', tag: 'starter', from: '#4C97FF', to: '#9966FF', emoji: '🏃', href: '/projects/new?genre=platformer' },
+  { title: 'Space Explorer', tag: 'physics', from: '#0F172A', to: '#4C97FF', emoji: '🚀', href: '/projects/new?genre=adventure' },
+  { title: 'Maze Runner', tag: 'AI enemy', from: '#FF6B35', to: '#FFBF00', emoji: '🌀', href: '/projects/new?genre=arcade' },
+  { title: 'Fish Tank', tag: 'clones', from: '#5CB1D6', to: '#59C059', emoji: '🐟', href: '/projects/new?genre=other' },
+  { title: 'Puzzle Room', tag: 'sensing', from: '#9966FF', to: '#CF63CF', emoji: '🧩', href: '/projects/new?genre=puzzle' },
+  { title: 'AI Pet', tag: 'ask_ai', from: '#FF6680', to: '#FF6B35', emoji: '🐶', href: '/projects/new?genre=other' },
 ];
 
 function GallerySection() {
@@ -511,15 +522,20 @@ function ProjectCard({
   from,
   to,
   emoji,
+  href,
 }: {
   title: string;
   tag: string;
   from: string;
   to: string;
   emoji: string;
+  href: string;
 }) {
   return (
-    <div className="group rounded-2xl overflow-hidden border border-slate-200 bg-white hover:shadow-xl hover:border-slate-300 transition">
+    <Link
+      href={href}
+      className="group block rounded-2xl overflow-hidden border border-slate-200 bg-white hover:shadow-xl hover:border-slate-300 transition focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+    >
       <div
         className="h-40 relative overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${from}, ${to})` }}
@@ -534,15 +550,16 @@ function ProjectCard({
       <div className="p-4 flex items-center justify-between">
         <div>
           <div className="font-bold text-slate-900">{title}</div>
-          <div className="text-xs text-slate-500">Remix in one click</div>
+          <div className="text-xs text-slate-500">Start building this idea</div>
         </div>
         <span
           className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 group-hover:bg-slate-900 group-hover:text-white transition"
+          aria-hidden
         >
-          <Play className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4" />
         </span>
       </div>
-    </div>
+    </Link>
   );
 }
 

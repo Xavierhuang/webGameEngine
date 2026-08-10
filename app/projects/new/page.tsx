@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Shuffle, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
@@ -53,13 +53,21 @@ export default function NewProjectPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     const d = randomDefaults();
     setTitle(d.title);
     setDescription(d.description);
-    setGenre(d.genre);
-  }, []);
+    // Landing gallery cards pass ?genre= so "Start building this idea" preselects
+    // the right genre. Only override if the query value is one we recognize.
+    const requestedGenre = searchParams?.get('genre');
+    if (requestedGenre && GENRES.some((g) => g.value === requestedGenre)) {
+      setGenre(requestedGenre);
+    } else {
+      setGenre(d.genre);
+    }
+  }, [searchParams]);
 
   const shuffle = () => {
     const d = randomDefaults();
