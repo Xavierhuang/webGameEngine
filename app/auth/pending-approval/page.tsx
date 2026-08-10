@@ -1,43 +1,41 @@
 'use client';
 
 import Link from 'next/link';
-import { Mail, Home } from 'lucide-react';
+import { Home, Mail } from 'lucide-react';
+import { AuthShell } from '@/components/common/AuthCard';
 
 export default function PendingApprovalPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-100 rounded-full mb-4">
-          <Mail className="w-8 h-8 text-yellow-600" />
-        </div>
-        
-        <h1 className="text-3xl font-bold text-purple-600 mb-4">
-          Almost There!
-        </h1>
-        
-        <p className="text-gray-700 mb-6">
-          Your account has been created! A parent needs to approve your account before you can start creating games.
-        </p>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <p className="text-sm text-blue-800">
-            <strong>What happens next?</strong>
-            <br />
-            We've sent an email to your parent. Once they approve your account, you'll be able to start creating amazing games!
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <Link
-            href="/"
-            className="block w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-lg font-bold hover:from-purple-600 hover:to-pink-600 transition-all flex items-center justify-center gap-2"
-          >
-            <Home className="w-5 h-5" />
-            Go Home
-          </Link>
-        </div>
+    <AuthShell
+      title="Almost there"
+      subtitle="Your account is created. A parent needs to approve it before you can share games."
+      icon={
+        <span className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-100 text-amber-700">
+          <Mail className="w-6 h-6" />
+        </span>
+      }
+    >
+      <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-700">
+        <strong className="font-semibold text-slate-900 block mb-1">What happens next?</strong>
+        We&apos;ve emailed your parent. Once they approve, you can start building without limits.
+        Until then, you can still explore the editor.
       </div>
-    </div>
+
+      <div className="mt-6 space-y-2">
+        <Link
+          href="/"
+          className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-full font-semibold shadow-lg shadow-slate-900/10 transition"
+        >
+          <Home className="w-4 h-4" />
+          Go home
+        </Link>
+        <Link
+          href="/projects"
+          className="w-full inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 py-3 rounded-full font-semibold transition"
+        >
+          Try the editor anyway
+        </Link>
+      </div>
+    </AuthShell>
   );
 }
-

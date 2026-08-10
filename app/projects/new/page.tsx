@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Shuffle } from 'lucide-react';
+import { ArrowLeft, Shuffle, Sparkles } from 'lucide-react';
+import { AppNav } from '@/components/common/AppNav';
+import { PageBackdrop } from '@/components/common/PageBackdrop';
 
 // Random game name pool — adjective + noun combos so /projects/new is
 // zero-input: a kid lands here and can immediately hit "Create Game" without
@@ -25,14 +27,21 @@ const DESCRIPTIONS = [
   'A colorful world full of surprises.',
   'Jump, run, and explore!',
 ];
-const GENRES = ['platformer', 'puzzle', 'adventure', 'racing', 'arcade'];
+const GENRES: { value: string; label: string; emoji: string }[] = [
+  { value: 'platformer', label: 'Platformer', emoji: '🏃' },
+  { value: 'puzzle', label: 'Puzzle', emoji: '🧩' },
+  { value: 'adventure', label: 'Adventure', emoji: '🗺️' },
+  { value: 'racing', label: 'Racing', emoji: '🏎️' },
+  { value: 'arcade', label: 'Arcade', emoji: '🕹️' },
+  { value: 'other', label: 'Other', emoji: '🎮' },
+];
 
 const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
 const randomTitle = () => `${pick(TITLE_ADJECTIVES)} ${pick(TITLE_NOUNS)}`;
 const randomDefaults = () => ({
   title: randomTitle(),
   description: pick(DESCRIPTIONS),
-  genre: pick(GENRES),
+  genre: pick(GENRES.filter((g) => g.value !== 'other')).value,
 });
 
 export default function NewProjectPage() {
@@ -67,9 +76,7 @@ export default function NewProjectPage() {
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
           description: description || null,
@@ -94,83 +101,86 @@ export default function NewProjectPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 p-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="relative min-h-screen bg-white overflow-hidden">
+      <AppNav />
+      <PageBackdrop />
+
+      <div className="relative max-w-2xl mx-auto px-6 pt-8 pb-16">
         <Link
           href="/projects"
-          className="inline-flex items-center gap-2 text-purple-600 hover:text-purple-700 mb-6"
+          className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-medium mb-6"
         >
-          <ArrowLeft className="w-5 h-5" />
-          Back to Projects
+          <ArrowLeft className="w-4 h-4" />
+          Back to My Games
         </Link>
 
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="flex items-start justify-between mb-6">
-            <h1 className="text-3xl font-bold text-purple-600">
-              Create New Game
-            </h1>
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-xl p-8">
+          <div className="flex items-start justify-between gap-4 mb-6">
+            <div>
+              <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                New project
+              </div>
+              <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
+                Name your game.
+              </h1>
+              <p className="mt-2 text-slate-600 text-sm">
+                Everything's pre-filled — just tap <span className="font-semibold text-slate-900">Create</span>, or change what you like first.
+              </p>
+            </div>
             <button
               type="button"
               onClick={shuffle}
-              title="Try a different random name"
-              className="inline-flex items-center gap-1 text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+              title="Reroll a random name"
+              className="shrink-0 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-full px-3 py-2 transition"
             >
-              <Shuffle className="w-4 h-4" />
+              <Shuffle className="w-3.5 h-3.5" />
               Shuffle
             </button>
           </div>
 
-          <p className="text-sm text-gray-500 mb-6">
-            Everything's ready — just tap <span className="font-semibold text-purple-600">Create Game</span>. Or change anything you like first!
-          </p>
-
-          <form onSubmit={handleCreate} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Game Title
-              </label>
+          <form onSubmit={handleCreate} className="space-y-5">
+            <Field label="Game title">
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
                 maxLength={50}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
                 placeholder="My Awesome Game"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
+            <Field label="Description" hint="A one-liner about what the game is.">
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={500}
-                rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                rows={3}
+                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900 resize-none"
                 placeholder="What kind of game are you creating?"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Genre
-              </label>
-              <select
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-                <option value="platformer">Platformer</option>
-                <option value="puzzle">Puzzle</option>
-                <option value="adventure">Adventure</option>
-                <option value="racing">Racing</option>
-                <option value="arcade">Arcade</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
+            <Field label="Genre">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {GENRES.map((g) => (
+                  <button
+                    key={g.value}
+                    type="button"
+                    onClick={() => setGenre(g.value)}
+                    className={`flex flex-col items-center gap-1 py-2.5 rounded-xl border text-xs font-medium transition ${
+                      genre === g.value
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                    }`}
+                  >
+                    <span className="text-lg">{g.emoji}</span>
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </Field>
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -181,9 +191,10 @@ export default function NewProjectPage() {
             <button
               type="submit"
               disabled={loading || !title}
-              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-lg font-bold hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-full font-semibold shadow-lg shadow-slate-900/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating...' : 'Create Game'}
+              <Sparkles className="w-4 h-4" />
+              {loading ? 'Creating…' : 'Create Game'}
             </button>
           </form>
         </div>
@@ -192,3 +203,22 @@ export default function NewProjectPage() {
   );
 }
 
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-slate-800 mb-1.5">
+        {label}
+      </label>
+      {children}
+      {hint && <p className="mt-1.5 text-xs text-slate-500">{hint}</p>}
+    </div>
+  );
+}

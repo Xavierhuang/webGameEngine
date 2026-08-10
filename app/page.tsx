@@ -11,28 +11,13 @@ import {
   Bot,
   Users,
 } from 'lucide-react';
-
-// Palette pulled from lib/blockly/definitions.ts so the landing page matches
-// the real block colors kids see in the editor.
-const PALETTE = {
-  motion: '#4C97FF',
-  looks: '#9966FF',
-  sound: '#CF63CF',
-  events: '#FFBF00',
-  control: '#59C059',
-  sensing: '#5CB1D6',
-  operators: '#40BF4A',
-  variables: '#FF8C1A',
-  lists: '#FF661A',
-  clones: '#B784E8',
-  ai: '#FF6B35',
-  myblocks: '#FF6680',
-};
+import { AppNav, LogoMark } from '@/components/common/AppNav';
+import { PALETTE } from '@/components/common/design';
 
 export default function Home() {
   return (
     <main className="min-h-screen bg-white text-slate-900">
-      <NavBar />
+      <AppNav />
       <Hero />
       <BlockCategoriesSection />
       <ThreeDimensionalSection />
@@ -41,64 +26,6 @@ export default function Home() {
       <SafetyBar />
       <Footer />
     </main>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Nav
-// -----------------------------------------------------------------------------
-
-function NavBar() {
-  return (
-    <nav className="sticky top-0 z-40 backdrop-blur bg-white/80 border-b border-slate-200">
-      <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-          <LogoMark />
-          <span>lingplay</span>
-        </Link>
-        <div className="hidden md:flex items-center gap-1 text-sm font-medium text-slate-700">
-          <NavLink href="/projects/new">Create</NavLink>
-          <NavLink href="/projects">Explore</NavLink>
-          <NavLink href="#learn">Learn</NavLink>
-          <NavLink href="#safety">For Parents</NavLink>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/auth/login"
-            className="hidden sm:inline-block text-sm font-medium text-slate-700 hover:text-slate-900 px-3 py-1.5"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/projects/new"
-            className="text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-full px-4 py-2 transition"
-          >
-            Start Building
-          </Link>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link href={href} className="px-3 py-1.5 rounded-md hover:bg-slate-100">
-      {children}
-    </Link>
-  );
-}
-
-function LogoMark() {
-  return (
-    <span
-      className="inline-flex items-center justify-center w-7 h-7 rounded-md text-white"
-      style={{
-        background: `linear-gradient(135deg, ${PALETTE.motion}, ${PALETTE.ai})`,
-      }}
-    >
-      <Boxes className="w-4 h-4" />
-    </span>
   );
 }
 

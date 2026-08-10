@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Gamepad2 } from 'lucide-react';
+import { AuthShell } from '@/components/common/AuthCard';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -20,9 +20,7 @@ export default function LoginPage() {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
@@ -30,7 +28,7 @@ export default function LoginPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setError('Account not found. Please sign up first or check your email/password.');
+          setError('Account not found. Please sign up first, or check your email and password.');
         } else {
           setError(data.error || 'Unable to sign in. Please try again.');
         }
@@ -49,86 +47,75 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-100 via-pink-100 to-blue-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full mb-4">
-            <Gamepad2 className="w-8 h-8 text-white" />
+    <AuthShell
+      title="Welcome back"
+      subtitle="Sign in to keep building your games."
+      footer={
+        <p className="text-sm text-slate-600">
+          Don&apos;t have an account?{' '}
+          <Link href="/auth/signup" className="text-slate-900 font-semibold underline underline-offset-2">
+            Sign up
+          </Link>
+        </p>
+      }
+    >
+      <form onSubmit={handleLogin} className="space-y-4">
+        <Field label="Email">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
+            placeholder="you@example.com"
+          />
+        </Field>
+
+        <Field label="Password">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
+            placeholder="Your password"
+          />
+        </Field>
+
+        {error && (
+          <div className="rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm">
+            {error}
           </div>
-          <h1 className="text-3xl font-bold text-purple-600 mb-2">
-            Welcome Back!
-          </h1>
-          <p className="text-gray-600">Continue creating amazing games</p>
-        </div>
+        )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="your@email.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              placeholder="Enter your password"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          <div className="text-right">
-            <Link
-              href="/auth/forgot-password"
-              className="text-sm text-purple-600 hover:text-purple-700 hover:underline"
-            >
-              Forgot password?
-            </Link>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 rounded-lg font-bold hover:from-purple-600 hover:to-pink-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        <div className="text-right">
+          <Link
+            href="/auth/forgot-password"
+            className="text-sm text-slate-600 hover:text-slate-900"
           >
-            {loading ? 'Signing In...' : 'Sign In'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center space-y-2">
-          <p className="text-gray-600 text-sm">
-            Don't have an account?{' '}
-            <Link href="/auth/signup" className="text-purple-600 font-medium hover:underline">
-              Sign Up
-            </Link>
-          </p>
-          {error && error.includes('Account not found') && (
-            <p className="text-xs text-gray-500 mt-2">
-              💡 Tip: Make sure you've signed up first, and check for typos in your email!
-            </p>
-          )}
+            Forgot password?
+          </Link>
         </div>
-      </div>
-    </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-full font-semibold shadow-lg shadow-slate-900/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-slate-800 mb-1.5">{label}</label>
+      {children}
+    </div>
+  );
+}
