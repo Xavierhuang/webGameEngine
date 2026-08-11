@@ -78,7 +78,7 @@ func makeTriangleIndices(rings: Int, segments: Int, baseVertex: UInt32) -> [UInt
       let topRight = topLeft + 1
       let bottomLeft = baseVertex + UInt32((ring + 1) * columns + segment)
       let bottomRight = bottomLeft + 1
-      indices += [topLeft, bottomLeft, topRight, topRight, bottomLeft, bottomRight]
+      indices += [topLeft, topRight, bottomLeft, topRight, bottomRight, bottomLeft]
     }
   }
   return indices
