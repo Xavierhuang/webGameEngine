@@ -13,6 +13,8 @@ export interface CharacterPrefab {
   name: string;
   color: string;
   shape: string;
+  /** Optional local or uploaded GLB model for this character. */
+  model_url?: string;
   size: number;
   description: string;
   /** Extra keywords that also count as a match (case-insensitive). */
@@ -93,14 +95,15 @@ export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
     description: 'Space explorer',
     aliases: ['spaceman', 'cosmonaut', 'space explorer'],
   },
-  // Creatures — best-effort shapes until real GLB models ship. Colors are
-  // overridden by any color word in the prompt (see extractColor below).
+  // Creatures — colors are overridden by any color word in the prompt (see
+  // extractColor below). The dragon uses the checked-in GLB model.
   {
     id: 'dragon',
-    name: 'Dragon',
+    name: 'Red Metal Dragon',
     color: '#DC2626',
     shape: 'capsule',
-    size: 65,
+    model_url: '/models/red-metal-dragon.glb',
+    size: 28,
     description: 'Fire-breathing dragon',
     aliases: ['drake', 'wyrm', 'wyvern'],
   },
