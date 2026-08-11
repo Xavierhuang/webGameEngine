@@ -5,6 +5,13 @@ interface PreviewCanvasBudgetOptions {
   reservedModelSlots?: number;
 }
 
+interface PreviewCanvasLeaseControllerOptions {
+  id: string;
+  kind: PreviewCanvasKind;
+  budget: PreviewCanvasBudget;
+  onLeaseChange?: (hasCanvas: boolean) => void;
+}
+
 /**
  * A shared, deterministic lease pool for WebGL-backed selector previews.
  * Primitive tiles keep one slot available for a model preview so the dragon
@@ -61,6 +68,51 @@ export class PreviewCanvasBudget {
 
   private notify() {
     this.listeners.forEach((listener) => listener());
+  }
+}
+
+/** Bridges visibility changes to a budget lease and owns unmount cleanup. */
+export class PreviewCanvasLeaseController {
+  private visible = false;
+  private disposed = false;
+  private leased = false;
+  private readonly unsubscribe: () => void;
+
+  constructor(private readonly options: PreviewCanvasLeaseControllerOptions) {
+    this.unsubscribe = options.budget.subscribe(() => this.sync());
+  }
+
+  get hasCanvas() {
+    return this.leased;
+  }
+
+  setVisible(visible: boolean) {
+    if (this.disposed) return;
+    this.visible = visible;
+    this.sync();
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.unsubscribe();
+    this.options.budget.release(this.options.id);
+    this.setLease(false);
+  }
+
+  private sync() {
+    if (this.disposed) return;
+
+    const hasCanvas = this.visible
+      ? this.options.budget.acquire(this.options.id, this.options.kind)
+      : (this.options.budget.release(this.options.id), false);
+    this.setLease(hasCanvas);
+  }
+
+  private setLease(hasCanvas: boolean) {
+    if (this.leased === hasCanvas) return;
+    this.leased = hasCanvas;
+    this.options.onLeaseChange?.(hasCanvas);
   }
 }
 

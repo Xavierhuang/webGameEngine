@@ -5,7 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { selectorPreviewCanvasBudget, type PreviewCanvasKind } from './previewCanvasBudget';
+import { PreviewCanvasLeaseController, selectorPreviewCanvasBudget, type PreviewCanvasKind } from './previewCanvasBudget';
 
 interface ShapePreviewProps {
   shape: string;
@@ -170,6 +170,7 @@ function PreviewCanvas({ children }: { children: ReactNode }) {
 
 export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
+  const leaseControllerRef = useRef<PreviewCanvasLeaseController | null>(null);
   const previewId = useId();
   const [isVisible, setIsVisible] = useState(false);
   const [hasCanvas, setHasCanvas] = useState(false);
@@ -193,22 +194,24 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
   }, []);
 
   useEffect(() => {
-    const syncCanvasLease = () => {
-      if (!isVisible) {
-        selectorPreviewCanvasBudget.release(previewId);
-        setHasCanvas(false);
-        return;
-      }
-      setHasCanvas(selectorPreviewCanvasBudget.acquire(previewId, previewKind));
+    const controller = new PreviewCanvasLeaseController({
+      id: previewId,
+      kind: previewKind,
+      budget: selectorPreviewCanvasBudget,
+      onLeaseChange: setHasCanvas,
+    });
+    leaseControllerRef.current = controller;
+    controller.setVisible(isVisible);
+
+    return () => {
+      controller.dispose();
+      if (leaseControllerRef.current === controller) leaseControllerRef.current = null;
     };
+  }, [previewId, previewKind]);
 
-    syncCanvasLease();
-    return selectorPreviewCanvasBudget.subscribe(syncCanvasLease);
-  }, [isVisible, previewId, previewKind]);
-
-  useEffect(() => () => {
-    selectorPreviewCanvasBudget.release(previewId);
-  }, [previewId]);
+  useEffect(() => {
+    leaseControllerRef.current?.setVisible(isVisible);
+  }, [isVisible]);
 
   const capsuleFallback = <PreviewCanvas><ShapeMesh shape="capsule" color={color} /></PreviewCanvas>;
 
@@ -247,7 +250,6 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
     </div>
   );
 }
-
 
 
 
