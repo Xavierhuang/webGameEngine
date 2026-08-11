@@ -16,3 +16,8 @@ test('dragon route owns an interactive local-asset showcase', () => {
   assert.match(page, /Red Metal Dragon/);
   assert.match(page, /Drag to orbit/);
 });
+
+test('portrait dragon zoom stops before the full silhouette can clip', () => {
+  const scene = fs.readFileSync('components/showcase/DragonShowcase.tsx', 'utf8');
+  assert.match(scene, /minDistance=\{11\}/);
+});

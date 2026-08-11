@@ -65,7 +65,7 @@ export default function DragonShowcase() {
           </Suspense>
           <OrbitControls
             enablePan={false}
-            minDistance={5}
+            minDistance={11}
             maxDistance={14}
             minPolarAngle={0.55}
             maxPolarAngle={1.55}
