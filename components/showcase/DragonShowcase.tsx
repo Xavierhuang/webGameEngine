@@ -1,8 +1,9 @@
 'use client';
 
-import { Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Suspense, useEffect } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Html, OrbitControls } from '@react-three/drei';
+import * as THREE from 'three';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { RedMetalDragon } from './RedMetalDragon';
 
@@ -14,6 +15,19 @@ function ModelFallback() {
       </div>
     </Html>
   );
+}
+
+function ResponsiveDragonCamera() {
+  const { camera, size } = useThree();
+
+  useEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera)) return;
+
+    camera.fov = size.width / size.height < 1 ? 52 : 42;
+    camera.updateProjectionMatrix();
+  }, [camera, size.height, size.width]);
+
+  return null;
 }
 
 export default function DragonShowcase() {
@@ -33,6 +47,7 @@ export default function DragonShowcase() {
         style={{ height: 'clamp(520px, 70vh, 720px)' }}
       >
         <Canvas shadows dpr={[1, 2]} camera={{ position: [6.5, 3.6, 8], fov: 42 }}>
+          <ResponsiveDragonCamera />
           <color attach="background" args={['#210809']} />
           <fog attach="fog" args={['#3a100f', 8, 22]} />
           <hemisphereLight args={['#ffb3a5', '#160506', 1.15]} />
@@ -54,7 +69,7 @@ export default function DragonShowcase() {
             maxDistance={14}
             minPolarAngle={0.55}
             maxPolarAngle={1.55}
-            target={[0, 0.7, 0]}
+            target={[0, -0.85, 0]}
           />
         </Canvas>
       </div>
