@@ -103,13 +103,75 @@ function PreviewCanvas({ children }: { children: ReactNode }) {
 /**
  * The 3D preview canvas below uses drei's useGLTF, which only speaks GLB/GLTF.
  * FBX/OBJ/STL/DAE work in the runtime player (via dedicated loaders) but here
- * we fall back to the primitive shape so the picker thumbnail doesn't crash
- * with a JSON parse error ("Unexpected identifier 'Kaydara'" for FBX).
+ * we fall back to a lightweight SVG rendering so the picker thumbnail doesn't
+ * crash with a JSON parse error ("Unexpected identifier 'Kaydara'" for FBX).
  */
 function isGltfLike(url: string | undefined): boolean {
   if (!url) return false;
   const ext = url.split('.').pop()?.toLowerCase();
   return ext === 'glb' || ext === 'gltf';
+}
+
+/**
+ * Cheap SVG rendering for primitive tiles. Bypasses WebGL entirely so the
+ * canvas budget stays free for real 3D models. Any number of these can
+ * render at once — no context limits, no allocation churn.
+ */
+function PrimitiveSvg({ shape, color }: { shape: string; color: string }) {
+  const common = { fill: color, stroke: '#0f172a', strokeWidth: 2 };
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      className="h-full w-full"
+      preserveAspectRatio="xMidYMid meet"
+      aria-hidden="true"
+    >
+      <ellipse cx="50" cy="88" rx="28" ry="5" fill="#0f172a" opacity="0.12" />
+      {shape === 'sphere' && (
+        <>
+          <circle cx="50" cy="47" r="28" {...common} />
+          <ellipse cx="40" cy="36" rx="9" ry="6" fill="white" opacity="0.38" />
+        </>
+      )}
+      {shape === 'cylinder' && (
+        <>
+          <path d="M27 31v37c0 8 46 8 46 0V31" {...common} />
+          <ellipse cx="50" cy="31" rx="23" ry="9" {...common} />
+        </>
+      )}
+      {shape === 'cone' && (
+        <>
+          <path d="M50 17 23 69c4 11 50 11 54 0Z" {...common} />
+          <ellipse cx="50" cy="69" rx="27" ry="9" fill={color} stroke="#0f172a" strokeWidth="2" />
+        </>
+      )}
+      {shape === 'pyramid' && (
+        <>
+          <path d="M50 14 20 72l30 12Z" {...common} />
+          <path d="M50 14 80 72 50 84Z" fill={color} opacity="0.72" stroke="#0f172a" strokeWidth="2" />
+        </>
+      )}
+      {shape === 'torus' && (
+        <>
+          <ellipse cx="50" cy="50" rx="30" ry="23" fill="none" stroke="#0f172a" strokeWidth="17" />
+          <ellipse cx="50" cy="50" rx="30" ry="23" fill="none" stroke={color} strokeWidth="13" />
+        </>
+      )}
+      {shape === 'capsule' && (
+        <>
+          <rect x="31" y="15" width="38" height="70" rx="19" {...common} />
+          <path d="M36 35c3-11 11-16 22-15" fill="none" stroke="white" strokeWidth="5" opacity="0.3" />
+        </>
+      )}
+      {(shape === 'box' || !['sphere','cylinder','cone','pyramid','torus','capsule'].includes(shape)) && (
+        <>
+          <path d="m22 35 29-18 28 16-29 18Z" fill={color} stroke="#0f172a" strokeWidth="2" />
+          <path d="m22 35 28 16v33L22 68Z" fill={color} opacity="0.82" stroke="#0f172a" strokeWidth="2" />
+          <path d="m50 51 29-18v34L50 84Z" fill={color} opacity="0.62" stroke="#0f172a" strokeWidth="2" />
+        </>
+      )}
+    </svg>
+  );
 }
 
 export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewProps) {
@@ -119,9 +181,9 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
   const [isVisible, setIsVisible] = useState(false);
   const [hasCanvas, setHasCanvas] = useState(false);
   // Only treat as a model preview when we can actually load it. Non-GLTF URLs
-  // fall through to the primitive path — cheaper, and doesn't blow up.
+  // fall through to the SVG primitive path — no WebGL context needed.
   const effectiveModelUrl = isGltfLike(modelUrl) ? modelUrl : undefined;
-  const previewKind: PreviewCanvasKind = effectiveModelUrl ? 'model' : 'primitive';
+  const previewKind: PreviewCanvasKind = 'model';
 
   useEffect(() => {
     const element = previewRef.current;
@@ -141,6 +203,9 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
   }, []);
 
   useEffect(() => {
+    // Only real 3D models compete for the canvas budget. SVG primitives render
+    // without a WebGL context, so an unbounded number can coexist.
+    if (!effectiveModelUrl) return;
     const controller = new PreviewCanvasLeaseController({
       id: previewId,
       kind: previewKind,
@@ -154,11 +219,20 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
       controller.dispose();
       if (leaseControllerRef.current === controller) leaseControllerRef.current = null;
     };
-  }, [previewId, previewKind]);
+  }, [previewId, previewKind, effectiveModelUrl]);
 
   useEffect(() => {
     leaseControllerRef.current?.setVisible(isVisible);
   }, [isVisible]);
+
+  // Primitive tiles: SVG only, no canvas budget in play.
+  if (!effectiveModelUrl) {
+    return (
+      <div ref={previewRef} className="h-full w-full">
+        <PrimitiveSvg shape={shape} color={color} />
+      </div>
+    );
+  }
 
   if (!isVisible || !hasCanvas) {
     return (
@@ -171,12 +245,11 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
   return (
     <div ref={previewRef} style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}>
       <PreviewCanvas>
-        {effectiveModelUrl ? (
-          <PreviewErrorBoundary
-            key={effectiveModelUrl}
-            fallback={<ShapeMesh shape={shape} color={color} />}
-          >
-            <>
+        <PreviewErrorBoundary
+          key={effectiveModelUrl}
+          fallback={<ShapeMesh shape={shape} color={color} />}
+        >
+          <>
             <ambientLight intensity={0.8} />
             <directionalLight position={[5, 5, 5]} intensity={0.6} />
             <pointLight position={[-5, 5, -5]} intensity={0.4} />
@@ -191,11 +264,8 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
               minPolarAngle={Math.PI / 3}
               maxPolarAngle={Math.PI / 1.5}
             />
-            </>
-          </PreviewErrorBoundary>
-        ) : (
-          <ShapeMesh shape={shape} color={color} />
-        )}
+          </>
+        </PreviewErrorBoundary>
       </PreviewCanvas>
     </div>
   );
