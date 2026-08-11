@@ -15,6 +15,8 @@ interface AnimatedModelProps {
   animationState?: 'idle' | 'walk' | 'run' | 'jump' | 'fall' | string;
   playAnimation?: boolean;
   onAnimationsLoaded?: (animations: string[]) => void;
+  onLoad?: () => void;
+  onError?: (error: unknown) => void;
 }
 
 export default function AnimatedModel({
@@ -25,6 +27,8 @@ export default function AnimatedModel({
   animationState = 'idle',
   playAnimation = true,
   onAnimationsLoaded,
+  onLoad,
+  onError,
 }: AnimatedModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const ext = (url.split('.').pop() || '').toLowerCase();
@@ -39,6 +43,8 @@ export default function AnimatedModel({
       animationState={animationState}
       playAnimation={playAnimation}
       onAnimationsLoaded={onAnimationsLoaded}
+      onLoad={onLoad}
+      onError={onError}
     />;
   }
   
@@ -52,6 +58,8 @@ export default function AnimatedModel({
       animationState={animationState}
       playAnimation={playAnimation}
       onAnimationsLoaded={onAnimationsLoaded}
+      onLoad={onLoad}
+      onError={onError}
     />;
   }
   
@@ -67,10 +75,16 @@ function GLTFAnimatedModel({
   animationState,
   playAnimation,
   onAnimationsLoaded,
+  onLoad,
+  onError,
 }: AnimatedModelProps) {
   const { scene, animations } = useGLTF(url);
   const { actions, mixer } = useAnimations(animations, scene);
   const groupRef = useRef<THREE.Group>(null);
+
+  useEffect(() => {
+    onLoad?.();
+  }, [onLoad, scene]);
   
   useEffect(() => {
     if (animations.length > 0) {
@@ -146,6 +160,8 @@ function FBXAnimatedModel({
   animationState,
   playAnimation,
   onAnimationsLoaded,
+  onLoad,
+  onError,
 }: AnimatedModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
@@ -199,6 +215,7 @@ function FBXAnimatedModel({
             groupRef.current.remove(groupRef.current.children[0]);
           }
           groupRef.current.add(fbx);
+          onLoad?.();
           
           // Extract animations
           if (animations.length > 0) {
@@ -225,6 +242,7 @@ function FBXAnimatedModel({
         }
       } catch (error) {
         logger.error('Failed to load FBX:', error);
+        onError?.(error);
       }
     };
     
@@ -234,7 +252,7 @@ function FBXAnimatedModel({
     return () => {
       modelCache.release(url);
     };
-  }, [url, onAnimationsLoaded]);
+  }, [url, onAnimationsLoaded, onLoad, onError]);
   
   const lastAnimationStateRef = useRef<string | null>(null);
   
@@ -492,4 +510,3 @@ function findAnimationName(state: string, availableAnimations: string[]): string
   logger.debug(`[findAnimationName] No match found for "${state}"`);
   return null;
 }
-
