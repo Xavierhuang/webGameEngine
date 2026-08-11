@@ -100,13 +100,28 @@ function PreviewCanvas({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * The 3D preview canvas below uses drei's useGLTF, which only speaks GLB/GLTF.
+ * FBX/OBJ/STL/DAE work in the runtime player (via dedicated loaders) but here
+ * we fall back to the primitive shape so the picker thumbnail doesn't crash
+ * with a JSON parse error ("Unexpected identifier 'Kaydara'" for FBX).
+ */
+function isGltfLike(url: string | undefined): boolean {
+  if (!url) return false;
+  const ext = url.split('.').pop()?.toLowerCase();
+  return ext === 'glb' || ext === 'gltf';
+}
+
 export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const leaseControllerRef = useRef<PreviewCanvasLeaseController | null>(null);
   const previewId = useId();
   const [isVisible, setIsVisible] = useState(false);
   const [hasCanvas, setHasCanvas] = useState(false);
-  const previewKind: PreviewCanvasKind = modelUrl ? 'model' : 'primitive';
+  // Only treat as a model preview when we can actually load it. Non-GLTF URLs
+  // fall through to the primitive path — cheaper, and doesn't blow up.
+  const effectiveModelUrl = isGltfLike(modelUrl) ? modelUrl : undefined;
+  const previewKind: PreviewCanvasKind = effectiveModelUrl ? 'model' : 'primitive';
 
   useEffect(() => {
     const element = previewRef.current;
@@ -156,17 +171,17 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
   return (
     <div ref={previewRef} style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}>
       <PreviewCanvas>
-        {modelUrl ? (
+        {effectiveModelUrl ? (
           <PreviewErrorBoundary
-            key={modelUrl}
-            fallback={<ShapeMesh shape="capsule" color={color} />}
+            key={effectiveModelUrl}
+            fallback={<ShapeMesh shape={shape} color={color} />}
           >
             <>
             <ambientLight intensity={0.8} />
             <directionalLight position={[5, 5, 5]} intensity={0.6} />
             <pointLight position={[-5, 5, -5]} intensity={0.4} />
             <Suspense fallback={<LoadingPreview />}>
-              <PreviewModel modelUrl={modelUrl} />
+              <PreviewModel modelUrl={effectiveModelUrl} />
             </Suspense>
             <OrbitControls
               enableZoom={false}
