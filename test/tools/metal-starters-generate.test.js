@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { execFile } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -21,16 +21,18 @@ function listFiles(directory) {
 
 function snapshot(directory, metadataFile) {
   return {
-    files: listFiles(directory).map((name) => [
-      name,
-      fs.readFileSync(path.join(directory, name), 'utf8'),
-    ]),
+    files: listFiles(directory)
+      .filter((name) => name !== '.lingplay-metal-starters.output.lock')
+      .map((name) => [
+        name,
+        fs.readFileSync(path.join(directory, name), 'utf8'),
+      ]),
     metadata: fs.existsSync(metadataFile) ? fs.readFileSync(metadataFile, 'utf8') : null,
   };
 }
 
 test('starter generator has a deterministic catalog and atomic isolated orchestration', {
-  skip: process.platform === 'win32' ? 'requires POSIX shell utilities' : false,
+  skip: process.platform !== 'darwin' ? 'requires macOS lockf and POSIX shell utilities' : false,
 }, async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'lingplay-metal-starters-test-'));
   const fakeBin = path.join(sandbox, 'bin');
@@ -149,6 +151,26 @@ fi
     }
   }
 
+  function spawnExecution(arguments_, options = {}) {
+    const child = spawn('bash', [
+      'tools/metal-starters/generate.sh',
+      ...arguments_,
+    ], {
+      env: { ...env, ...options.env },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    const completion = new Promise((resolve) => {
+      child.on('close', (code, signal) => resolve({ code, signal, stdout, stderr }));
+    });
+    return { child, completion };
+  }
+
   async function run(arguments_) {
     const outputDirectory = path.join(sandbox, `run-${runNumber++}`);
     const metadataFile = path.join(sandbox, `metadata-${runNumber}.json`);
@@ -169,7 +191,7 @@ fi
       ...(arguments_.includes('--all') ? ['--metadata', metadataFile] : []),
     ]);
     assert.equal(result.code, 0, result.stderr);
-    return listFiles(outputDirectory);
+    return listFiles(outputDirectory).filter((name) => name.endsWith('.glb'));
   }
 
   const failureOutput = path.join(sandbox, 'failure-output');
@@ -213,7 +235,8 @@ fi
       const directory = pending.pop();
       for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
         const entryPath = path.join(directory, entry.name);
-        if (entry.name.startsWith('.lingplay-metal-starters')) {
+        if (entry.name.startsWith('.lingplay-metal-starters') &&
+            !entry.name.endsWith('.lock')) {
           artifacts.push(path.relative(sandbox, entryPath));
         }
         if (entry.isDirectory()) pending.push(entryPath);
@@ -283,53 +306,69 @@ fi
     }
   }
 
-  async function verifyAtomicOwnerLockSerialization() {
+  async function verifyAdvisoryLockSerialization() {
     const outputDirectory = path.join(sandbox, 'atomic-lock-output');
     const marker = path.join(sandbox, 'atomic-lock.marker');
     const waitLog = path.join(sandbox, 'live-lock-waits.log');
-    const first = execute([
+    const first = spawnExecution([
       '--character', 'robot', '--output-dir', outputDirectory,
     ], { env: {
-      METAL_STARTERS_LOCK_HOLD_DELAY: '0.4',
       METAL_STARTERS_LOCK_ACQUIRED_MARKER: marker,
+      METAL_STARTERS_STOP_AFTER_LOCK: '1',
     } });
-    await waitForFile(marker);
-    const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
-    assert.equal(fs.lstatSync(lockPath).isSymbolicLink(), true);
-    assert.match(fs.readlinkSync(lockPath), /^[0-9]+$/);
-    const second = execute([
-      '--character', 'robot', '--output-dir', outputDirectory,
-    ], { env: { METAL_STARTERS_LOCK_WAIT_LOG: waitLog } });
-    const results = await Promise.all([first, second]);
-    assert.deepEqual(results.map(({ code }) => code), [0, 0]);
-    assert.match(fs.readFileSync(waitLog, 'utf8'), /\.lingplay-metal-starters\.output\.lock/);
-    assert.equal(fs.existsSync(lockPath), false);
+    try {
+      await waitForFile(marker);
+      const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+      assert.equal(fs.lstatSync(lockPath).isFile(), true);
+      const second = execute([
+        '--character', 'robot', '--output-dir', outputDirectory,
+      ], { env: { METAL_STARTERS_LOCK_WAIT_LOG: waitLog } });
+      await waitForFile(waitLog);
+      assert.equal(first.child.kill('SIGCONT'), true);
+      const [firstResult, secondResult] = await Promise.all([first.completion, second]);
+      assert.deepEqual(
+        [firstResult.code, secondResult.code],
+        [0, 0],
+        firstResult.stderr || secondResult.stderr
+      );
+      assert.match(fs.readFileSync(waitLog, 'utf8'), /\.lingplay-metal-starters\.output\.lock/);
+      assert.equal(fs.lstatSync(lockPath).isFile(), true);
+    } finally {
+      if (first.child.exitCode === null && first.child.signalCode === null) {
+        first.child.kill('SIGKILL');
+      }
+      await first.completion;
+    }
   }
 
-  async function verifyDeadAndMalformedLockRecovery() {
-    const outputDirectory = path.join(sandbox, 'stale-symlink-lock-output');
+  async function verifyLegacyOwnerSymlinksFailClosed() {
+    const outputDirectory = path.join(sandbox, 'legacy-symlink-lock-output');
     fs.mkdirSync(outputDirectory);
-    const lockDirectory = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
-    fs.symlinkSync('99999999', lockDirectory);
-    const deadResult = await execute([
-      '--character', 'robot', '--output-dir', outputDirectory,
-    ], { timeout: 1500 });
-    assert.equal(deadResult.code, 0, deadResult.stderr);
-    assert.equal(fs.existsSync(lockDirectory), false);
-
-    fs.symlinkSync('not-a-pid', lockDirectory);
-    const malformedResult = await execute([
-      '--character', 'robot', '--output-dir', outputDirectory,
-    ], { timeout: 1500 });
-    assert.equal(malformedResult.code, 0, malformedResult.stderr);
-    assert.equal(fs.existsSync(lockDirectory), false);
+    const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+    const canonicalLock = path.join(
+      fs.realpathSync(outputDirectory),
+      '.lingplay-metal-starters.output.lock'
+    );
+    for (const owner of ['99999999', 'not-a-pid']) {
+      fs.symlinkSync(owner, lockPath);
+      const result = await execute([
+        '--character', 'robot', '--output-dir', outputDirectory,
+      ], { timeout: 1500 });
+      assert.deepEqual({ code: result.code, stderr: result.stderr }, {
+        code: 77,
+        stderr: `Publication lock path must be a persistent regular file; remove it manually after confirming no publisher is active: ${canonicalLock}\n`,
+      });
+      assert.equal(fs.lstatSync(lockPath).isSymbolicLink(), true);
+      assert.equal(fs.readlinkSync(lockPath), owner);
+      fs.unlinkSync(lockPath);
+    }
   }
 
-  async function verifyNonSymlinkLockIsPreserved() {
+  async function verifyNonRegularLockFailsClosed() {
     const outputDirectory = path.join(sandbox, 'foreign-lock-output');
     fs.mkdirSync(outputDirectory);
     const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
-    fs.writeFileSync(lockPath, 'foreign lock\n');
+    fs.mkdirSync(lockPath);
     const result = await execute([
       '--character', 'robot', '--output-dir', outputDirectory,
     ], { timeout: 1500 });
@@ -339,10 +378,33 @@ fi
     );
     assert.deepEqual({ code: result.code, stderr: result.stderr }, {
       code: 77,
-      stderr: `Publication lock is not an owner symlink: ${canonicalLock}\n`,
+      stderr: `Publication lock path must be a persistent regular file; remove it manually after confirming no publisher is active: ${canonicalLock}\n`,
     });
-    assert.equal(fs.readFileSync(lockPath, 'utf8'), 'foreign lock\n');
-    fs.rmSync(lockPath);
+    assert.equal(fs.lstatSync(lockPath).isDirectory(), true);
+    fs.rmdirSync(lockPath);
+  }
+
+  async function verifyHardlinkedLockFailsClosed() {
+    const outputDirectory = path.join(sandbox, 'hardlinked-lock-output');
+    fs.mkdirSync(outputDirectory);
+    const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+    const aliasPath = path.join(sandbox, 'hardlinked-lock-alias');
+    fs.writeFileSync(lockPath, 'persistent lock inode\n');
+    fs.linkSync(lockPath, aliasPath);
+    const result = await execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { timeout: 1500 });
+    const canonicalLock = path.join(
+      fs.realpathSync(outputDirectory),
+      '.lingplay-metal-starters.output.lock'
+    );
+    assert.deepEqual({ code: result.code, stderr: result.stderr }, {
+      code: 77,
+      stderr: `Publication lock file has multiple hard links; remove aliases manually after confirming no publisher is active: ${canonicalLock}\n`,
+    });
+    assert.equal(fs.statSync(lockPath).nlink, 2);
+    fs.unlinkSync(aliasPath);
+    fs.unlinkSync(lockPath);
   }
 
   async function verifyOwnedLockSignalAndErrorCleanup() {
@@ -355,46 +417,83 @@ fi
         '--character', 'robot', '--output-dir', outputDirectory,
       ], { env: environment });
       assert.equal(result.code, expectedCode, result.stderr);
-      assert.equal(
-        fs.existsSync(path.join(outputDirectory, '.lingplay-metal-starters.output.lock')),
-        false
-      );
+      const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+      assert.equal(fs.lstatSync(lockPath).isFile(), true);
+      const recovery = await execute([
+        '--character', 'robot', '--output-dir', outputDirectory,
+      ], { timeout: 1500 });
+      assert.equal(recovery.code, 0, recovery.stderr);
     }
   }
 
-  async function verifyLiveForeignLockCannotBeRemovedOrOverwritten() {
-    const outputDirectory = path.join(sandbox, 'live-foreign-lock-output');
-    fs.mkdirSync(outputDirectory);
+  async function verifyKernelLockReleaseAfterOwnerDeath() {
+    const outputDirectory = path.join(sandbox, 'owner-death-output');
+    const marker = path.join(sandbox, 'owner-death.marker');
     const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
-    fs.symlinkSync(String(process.pid), lockPath);
-    const result = await execute([
-      '--character', 'robot', '--output-dir', outputDirectory,
-    ], { timeout: 500 });
-    assert.equal(result.code, 143, result.stderr);
-    assert.equal(fs.readlinkSync(lockPath), String(process.pid));
-    fs.unlinkSync(lockPath);
-  }
-
-  async function verifyCleanupPreservesReplacementOwner() {
-    const outputDirectory = path.join(sandbox, 'replacement-owner-output');
-    const marker = path.join(sandbox, 'replacement-owner.marker');
-    const first = execute([
+    const owner = spawnExecution([
       '--character', 'robot', '--output-dir', outputDirectory,
     ], { env: {
-      METAL_STARTERS_LOCK_HOLD_DELAY: '0.4',
       METAL_STARTERS_LOCK_ACQUIRED_MARKER: marker,
-      METAL_STARTERS_FAIL_AFTER_LOCK: '1',
+      METAL_STARTERS_STOP_AFTER_LOCK: '1',
     } });
-    await waitForFile(marker);
-    const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
-    assert.equal(fs.lstatSync(lockPath).isSymbolicLink(), true);
-    fs.unlinkSync(lockPath);
-    fs.symlinkSync(String(process.pid), lockPath);
-    const result = await first;
-    assert.equal(result.code, 76, result.stderr);
-    assert.equal(fs.readlinkSync(lockPath), String(process.pid));
-    assert.match(result.stderr, /Publication lock ownership changed; left intact:/);
-    fs.unlinkSync(lockPath);
+    try {
+      await waitForFile(marker);
+      assert.equal(fs.lstatSync(lockPath).isFile(), true);
+
+      let contentionCode = 0;
+      try {
+        await execFileAsync('/usr/bin/lockf', [
+          '-s', '-t', '0', '-k', lockPath, '/usr/bin/true',
+        ]);
+      } catch (error) {
+        contentionCode = error.code;
+      }
+      assert.equal(contentionCode, 75, 'the stopped publisher must still own the kernel lock');
+
+      assert.equal(owner.child.kill('SIGKILL'), true);
+      const ownerResult = await owner.completion;
+      assert.deepEqual(
+        { code: ownerResult.code, signal: ownerResult.signal },
+        { code: null, signal: 'SIGKILL' },
+        ownerResult.stderr
+      );
+
+      const successor = await execute([
+        '--character', 'robot', '--output-dir', outputDirectory,
+      ], { timeout: 1500 });
+      assert.equal(successor.code, 0, successor.stderr);
+      assert.equal(fs.lstatSync(lockPath).isFile(), true);
+
+      for (const name of fs.readdirSync(outputDirectory)) {
+        if (name.startsWith('.lingplay-metal-starters.publish.')) {
+          fs.rmSync(path.join(outputDirectory, name), { recursive: true, force: true });
+        }
+      }
+    } finally {
+      if (owner.child.exitCode === null && owner.child.signalCode === null) {
+        owner.child.kill('SIGKILL');
+      }
+      await owner.completion;
+    }
+  }
+
+  async function verifyCanonicalDualLockAcquisitionOrder() {
+    const outputDirectory = path.join(sandbox, 'z-output');
+    const metadataDirectory = path.join(sandbox, 'a-metadata');
+    const metadataFile = path.join(metadataDirectory, 'output');
+    const acquisitionLog = path.join(sandbox, 'dual-lock-order.log');
+    const result = await execute([
+      '--all', '--output-dir', outputDirectory, '--metadata', metadataFile,
+    ], { env: { METAL_STARTERS_LOCK_ACQUIRE_LOG: acquisitionLog } });
+    assert.equal(result.code, 0, result.stderr);
+    const expectedLocks = [
+      path.join(fs.realpathSync(metadataDirectory), '.lingplay-metal-starters.output.lock'),
+      path.join(fs.realpathSync(outputDirectory), '.lingplay-metal-starters.output.lock'),
+    ].sort();
+    assert.deepEqual(
+      fs.readFileSync(acquisitionLog, 'utf8').trim().split('\n'),
+      expectedLocks
+    );
   }
 
   try {
@@ -430,12 +529,13 @@ fi
     assert.equal(new Set(await concurrentBuildDirectories()).size, 2);
     assert.deepEqual(await remainingBuildDirectories(), []);
     assert.deepEqual(publicationArtifacts(), []);
-    await verifyAtomicOwnerLockSerialization();
-    await verifyDeadAndMalformedLockRecovery();
-    await verifyNonSymlinkLockIsPreserved();
+    await verifyKernelLockReleaseAfterOwnerDeath();
+    await verifyAdvisoryLockSerialization();
+    await verifyLegacyOwnerSymlinksFailClosed();
+    await verifyNonRegularLockFailsClosed();
+    await verifyHardlinkedLockFailsClosed();
     await verifyOwnedLockSignalAndErrorCleanup();
-    await verifyLiveForeignLockCannotBeRemovedOrOverwritten();
-    await verifyCleanupPreservesReplacementOwner();
+    await verifyCanonicalDualLockAcquisitionOrder();
     assert.deepEqual(publicationArtifacts(), []);
     await verifyRecoverableRollbackFailure();
   } finally {

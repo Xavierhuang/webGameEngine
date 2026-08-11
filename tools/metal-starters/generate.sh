@@ -87,7 +87,7 @@ BUILD_DIR=''
 OUTPUT_TRANSACTION_DIR=''
 METADATA_TRANSACTION_DIR=''
 TRANSACTION_ACTIVE=0
-LOCK_DIRECTORIES=()
+LOCK_FILE_DESCRIPTORS=()
 TARGETS=()
 NEW_FILES=()
 BACKUPS=()
@@ -95,29 +95,15 @@ ORIGINAL_MARKERS=()
 ABSENT_MARKERS=()
 
 release_locks() {
-  local index lock_directory owner failed=0
-  for ((index = ${#LOCK_DIRECTORIES[@]} - 1; index >= 0; index--)); do
-    lock_directory="${LOCK_DIRECTORIES[$index]}"
-    if [ -L "$lock_directory" ]; then
-      owner="$(readlink "$lock_directory" 2>/dev/null || true)"
-      if [ "$owner" = "$$" ]; then
-        if ! rm -f -- "$lock_directory"; then
-          printf 'Could not release owned publication lock: %s\n' "$lock_directory" >&2
-          failed=1
-        fi
-      else
-        printf 'Publication lock ownership changed; left intact: %s (owner %s)\n' \
-          "$lock_directory" "${owner:-unknown}" >&2
-        failed=1
-      fi
-    elif [ -e "$lock_directory" ]; then
-      printf 'Publication lock ownership changed; left intact: %s (not a symlink)\n' \
-        "$lock_directory" >&2
-      failed=1
-    fi
+  local index descriptor
+  for ((index = ${#LOCK_FILE_DESCRIPTORS[@]} - 1; index >= 0; index--)); do
+    descriptor="${LOCK_FILE_DESCRIPTORS[$index]}"
+    case "$descriptor" in
+      8) exec 8>&- ;;
+      9) exec 9>&- ;;
+    esac
   done
-  LOCK_DIRECTORIES=()
-  return "$failed"
+  LOCK_FILE_DESCRIPTORS=()
 }
 
 rollback_publication() {
@@ -186,50 +172,80 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 acquire_lock() {
-  local lock_directory="$1" owner='' observed_owner=''
-  local retry_delay="${METAL_STARTERS_LOCK_RETRY_DELAY:-0.05}"
-  while true; do
-    if ln -s "$$" "$lock_directory" 2>/dev/null; then
-      LOCK_DIRECTORIES+=("$lock_directory")
-      if [ -n "${METAL_STARTERS_LOCK_ACQUIRED_MARKER:-}" ]; then
-        : > "$METAL_STARTERS_LOCK_ACQUIRED_MARKER"
-      fi
-      if [ -n "${METAL_STARTERS_LOCK_HOLD_DELAY:-}" ]; then
-        sleep "$METAL_STARTERS_LOCK_HOLD_DELAY"
-      fi
-      if [ "${METAL_STARTERS_SIGNAL_AFTER_LOCK:-0}" = '1' ]; then
-        kill -TERM "$$"
-      fi
-      if [ "${METAL_STARTERS_FAIL_AFTER_LOCK:-0}" = '1' ]; then
-        printf 'Injected publication failure after lock acquisition: %s\n' \
-          "$lock_directory" >&2
-        return 76
-      fi
-      return 0
-    fi
-    if [ ! -L "$lock_directory" ]; then
-      [ -e "$lock_directory" ] || continue
-      printf 'Publication lock is not an owner symlink: %s\n' "$lock_directory" >&2
-      return 77
-    fi
+  local lock_file="$1" descriptor="$2" status=0 link_count=''
+  if [ ! -x /usr/bin/lockf ]; then
+    printf 'Required macOS publication lock utility is unavailable: /usr/bin/lockf\n' >&2
+    return 69
+  fi
+  if [ -L "$lock_file" ] || { [ -e "$lock_file" ] && [ ! -f "$lock_file" ]; }; then
+    printf 'Publication lock path must be a persistent regular file; remove it manually after confirming no publisher is active: %s\n' \
+      "$lock_file" >&2
+    return 77
+  fi
 
-    observed_owner="$(readlink "$lock_directory" 2>/dev/null || true)"
-    owner="$observed_owner"
-    case "$owner" in ''|*[!0-9]*|0|1) owner='' ;; esac
-    if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
-      if [ -n "${METAL_STARTERS_LOCK_WAIT_LOG:-}" ]; then
-        printf '%s owner=%s\n' "$lock_directory" "$owner" >> "$METAL_STARTERS_LOCK_WAIT_LOG"
-      fi
-      sleep "$retry_delay"
-      continue
-    fi
+  case "$descriptor" in
+    8) exec 8>>"$lock_file" || status=$? ;;
+    9) exec 9>>"$lock_file" || status=$? ;;
+    *) status=64 ;;
+  esac
+  if [ "$status" -ne 0 ]; then
+    printf 'Could not open persistent publication lock: %s\n' "$lock_file" >&2
+    return 77
+  fi
+  LOCK_FILE_DESCRIPTORS+=("$descriptor")
 
-    # Re-read immediately before unlinking so a changed owner is never
-    # intentionally removed. All cooperating publishers use this protocol.
-    if [ "$(readlink "$lock_directory" 2>/dev/null || true)" = "$observed_owner" ]; then
-      rm -f -- "$lock_directory"
+  if [ -L "$lock_file" ] || [ ! -f "$lock_file" ]; then
+    printf 'Publication lock path changed while opening; left intact: %s\n' "$lock_file" >&2
+    return 77
+  fi
+  link_count="$(/usr/bin/stat -f '%l' "$lock_file" 2>/dev/null || true)"
+  if [ "$link_count" != '1' ]; then
+    printf 'Publication lock file has multiple hard links; remove aliases manually after confirming no publisher is active: %s\n' \
+      "$lock_file" >&2
+    return 77
+  fi
+
+  if /usr/bin/lockf -s -t 0 "$descriptor"; then
+    status=0
+  else
+    status=$?
+  fi
+  if [ "$status" -eq 75 ]; then
+    if [ -n "${METAL_STARTERS_LOCK_WAIT_LOG:-}" ]; then
+      printf '%s\n' "$lock_file" >> "$METAL_STARTERS_LOCK_WAIT_LOG"
     fi
-  done
+    if /usr/bin/lockf -s "$descriptor"; then
+      status=0
+    else
+      status=$?
+    fi
+  fi
+  if [ "$status" -ne 0 ]; then
+    printf 'Could not acquire publication lock: %s (lockf exit %s)\n' \
+      "$lock_file" "$status" >&2
+    return 77
+  fi
+
+  if [ -n "${METAL_STARTERS_LOCK_ACQUIRE_LOG:-}" ]; then
+    printf '%s\n' "$lock_file" >> "$METAL_STARTERS_LOCK_ACQUIRE_LOG"
+  fi
+  if [ -n "${METAL_STARTERS_LOCK_ACQUIRED_MARKER:-}" ]; then
+    : > "$METAL_STARTERS_LOCK_ACQUIRED_MARKER"
+  fi
+  if [ "${METAL_STARTERS_STOP_AFTER_LOCK:-0}" = '1' ]; then
+    kill -STOP "$$"
+  fi
+  if [ -n "${METAL_STARTERS_LOCK_HOLD_DELAY:-}" ]; then
+    sleep "$METAL_STARTERS_LOCK_HOLD_DELAY"
+  fi
+  if [ "${METAL_STARTERS_SIGNAL_AFTER_LOCK:-0}" = '1' ]; then
+    kill -TERM "$$"
+  fi
+  if [ "${METAL_STARTERS_FAIL_AFTER_LOCK:-0}" = '1' ]; then
+    printf 'Injected publication failure after lock acquisition: %s\n' \
+      "$lock_file" >&2
+    return 76
+  fi
 }
 
 register_target() {
@@ -241,12 +257,15 @@ register_target() {
   ABSENT_MARKERS+=("$journal.absent")
 }
 
-# POSIX filesystems cannot atomically swap this multi-path set. These locks
-# serialize cooperating publishers, and every target is staged/backed up on
-# its destination filesystem so handled errors/signals before the final rename
-# roll the complete set back. SIGKILL, power loss, and unlocked readers during
-# the rename window are outside that guarantee.
+# POSIX filesystems cannot atomically swap this multi-path set. Persistent lock
+# inodes are held through inherited file descriptors and are never unlinked;
+# macOS releases their BSD advisory locks when the owning processes die.
+# Cooperating publishers must leave those validated lock inodes in place. Every
+# target is staged/backed up on its destination filesystem so handled errors or
+# signals before the final rename roll the complete set back. Power loss and
+# unlocked readers during the rename window are outside that guarantee.
 publish_transaction() {
+  local LC_ALL=C
   local output_lock metadata_lock first_lock second_lock index target backup
   output_lock="$OUTPUT_DIR/.lingplay-metal-starters.output.lock"
   if [ "$MODE" = 'all' ]; then
@@ -256,10 +275,17 @@ publish_transaction() {
     else
       first_lock="$metadata_lock"; second_lock="$output_lock"
     fi
-    acquire_lock "$first_lock"
-    [ "$second_lock" = "$first_lock" ] || acquire_lock "$second_lock"
+    acquire_lock "$first_lock" 8
+    if [ "$second_lock" != "$first_lock" ]; then
+      if [ ! -L "$second_lock" ] && [ -f "$second_lock" ] && \
+          [ "$first_lock" -ef "$second_lock" ]; then
+        :
+      else
+        acquire_lock "$second_lock" 9
+      fi
+    fi
   else
-    acquire_lock "$output_lock"
+    acquire_lock "$output_lock" 8
   fi
 
   TRANSACTION_ACTIVE=1
