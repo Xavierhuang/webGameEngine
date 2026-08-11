@@ -137,7 +137,7 @@ export default function CharacterSelector({
                     onClose();
                   }}
                 >
-                  <ShapePreview shape={c.shape} color={c.color} />
+                  <ShapePreview shape={c.shape} color={c.color} modelUrl={c.model_url} />
                 </SelectorTile>
               ))}
             </div>

@@ -4,6 +4,7 @@ import { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { modelCache } from '../../lib/utils/modelCache';
 import { logger } from '../../lib/utils/logger';
 
@@ -68,8 +69,9 @@ function GLTFAnimatedModel({
   playAnimation,
   onAnimationsLoaded,
 }: AnimatedModelProps) {
-  const { scene, animations } = useGLTF(url);
-  const { actions, mixer } = useAnimations(animations, scene);
+  const { scene: sourceScene, animations } = useGLTF(url);
+  const instance = useMemo(() => SkeletonUtils.clone(sourceScene), [sourceScene]);
+  const { actions, mixer } = useAnimations(animations, instance);
   const groupRef = useRef<THREE.Group>(null);
   
   useEffect(() => {
@@ -133,7 +135,7 @@ function GLTFAnimatedModel({
   // This ensures TransformControls rotates around the correct pivot point
   return (
     <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale}>
-      <primitive object={scene} />
+      <primitive object={instance} dispose={null} />
     </group>
   );
 }
@@ -492,4 +494,3 @@ function findAnimationName(state: string, availableAnimations: string[]): string
   logger.debug(`[findAnimationName] No match found for "${state}"`);
   return null;
 }
-

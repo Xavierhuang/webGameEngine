@@ -1,13 +1,16 @@
 'use client';
 
+import { Component, Suspense, useEffect, useMemo, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { Html, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 interface ShapePreviewProps {
   shape: string;
   color: string;
   size?: number;
+  modelUrl?: string;
 }
 
 function ShapeMesh({ shape, color }: { shape: string; color: string }) {
@@ -78,20 +81,122 @@ function ShapeMesh({ shape, color }: { shape: string; color: string }) {
   );
 }
 
-export default function ShapePreview({ shape, color, size = 200 }: ShapePreviewProps) {
+function LoadingPreview() {
   return (
-    <div style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}>
-      <Canvas
-        camera={{ position: [2, 2, 2], fov: 50 }}
-        gl={{ alpha: true, antialias: true }}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <ShapeMesh shape={shape} color={color} />
-      </Canvas>
-    </div>
+    <Html center>
+      <span className="rounded-full bg-slate-900/80 px-2 py-1 text-[10px] font-semibold text-white">
+        Loading…
+      </span>
+    </Html>
   );
 }
 
+function PreviewModel({ modelUrl }: { modelUrl: string }) {
+  const { scene: sourceScene } = useGLTF(modelUrl);
+  const scene = useMemo(() => {
+    const clone = SkeletonUtils.clone(sourceScene);
+
+    clone.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+
+      object.castShadow = true;
+      object.receiveShadow = true;
+      object.material = Array.isArray(object.material)
+        ? object.material.map((material) => {
+          const previewMaterial = material.clone();
+          previewMaterial.side = THREE.FrontSide;
+          previewMaterial.needsUpdate = true;
+          return previewMaterial;
+        })
+        : (() => {
+          const previewMaterial = object.material.clone();
+          previewMaterial.side = THREE.FrontSide;
+          previewMaterial.needsUpdate = true;
+          return previewMaterial;
+        })();
+    });
+
+    return clone;
+  }, [sourceScene]);
+
+  useEffect(() => () => {
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => material.dispose());
+    });
+  }, [scene]);
+
+  return (
+    <group position={[0, -0.5, 0]} rotation={[0, -0.55, 0]} scale={0.62}>
+      <primitive object={scene} dispose={null} />
+    </group>
+  );
+}
+
+interface PreviewErrorBoundaryProps {
+  children: ReactNode;
+  fallback: ReactNode;
+}
+
+interface PreviewErrorBoundaryState {
+  hasError: boolean;
+}
+
+class PreviewErrorBoundary extends Component<PreviewErrorBoundaryProps, PreviewErrorBoundaryState> {
+  state: PreviewErrorBoundaryState = { hasError: false };
+
+  static getDerivedStateFromError(): PreviewErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
+}
+
+function PreviewCanvas({ children }: { children: ReactNode }) {
+  return (
+    <Canvas
+      camera={{ position: [2, 2, 2], fov: 50 }}
+      gl={{ alpha: true, antialias: true }}
+      style={{ width: '100%', height: '100%' }}
+    >
+      {children}
+    </Canvas>
+  );
+}
+
+export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewProps) {
+  const capsuleFallback = <PreviewCanvas><ShapeMesh shape="capsule" color={color} /></PreviewCanvas>;
+
+  return (
+    <div style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}>
+      {modelUrl ? (
+        <PreviewErrorBoundary key={modelUrl} fallback={capsuleFallback}>
+          <PreviewCanvas>
+            <ambientLight intensity={0.8} />
+            <directionalLight position={[5, 5, 5]} intensity={0.6} />
+            <pointLight position={[-5, 5, -5]} intensity={0.4} />
+            <Suspense fallback={<LoadingPreview />}>
+              <PreviewModel modelUrl={modelUrl} />
+            </Suspense>
+            <OrbitControls
+              enableZoom={false}
+              enablePan={false}
+              autoRotate
+              autoRotateSpeed={2}
+              minPolarAngle={Math.PI / 3}
+              maxPolarAngle={Math.PI / 1.5}
+            />
+          </PreviewCanvas>
+        </PreviewErrorBoundary>
+      ) : (
+        <PreviewCanvas><ShapeMesh shape={shape} color={color} /></PreviewCanvas>
+      )}
+    </div>
+  );
+}
 
 
 
