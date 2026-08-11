@@ -12,6 +12,7 @@
     "db:migrate": "bash scripts/setup-db.sh",
     "db:migrate:direct": "/usr/local/bin/mysql -u root -p < migrations/001_initial_schema.sql",
     "test:runtime": "tsc lib/runtime/interpreter.ts lib/runtime/operators.ts --outDir test/.build --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/runtime/interpreter.test.js",
+    "test:demo-parity": "tsc lib/runtime/interpreter.ts lib/runtime/operators.ts --outDir test/.build --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/runtime/demo-parity.headless.js",
     "test:serializer": "tsc lib/blockly/serializer.ts lib/blockly/definitions.ts lib/runtime/interpreter.ts lib/runtime/operators.ts --outDir test/.build --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/blockly/serializer.test.js",
     "test:safety": "tsc lib/safety/keyword-scan.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/safety/keyword-scan.test.js",
     "test:prefabs": "tsc lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/prefabs/characters.test.js && node test/prefabs/minion-assets.test.mjs",
@@ -30,7 +31,7 @@
     "test:dragon-generator": "node --test test/tools/metal-dragon-generate.test.js",
     "test:starter-generator": "node --test test/tools/metal-starters-generate.test.js",
     "test:dragon-all": "npm run test:dragon-editor && npm run test:dragon-materials && npm run test:dragon-model-contract && npm run test:dragon-rendering && npm run test:dragon-asset && npm run test:dragon-page && npm run test:dragon-generator",
-    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:minion-materials && npm run test:model-lifecycle && npm run test:preview && npm run test:camera-focus && npm run test:dragon-all && npm run test:starter-generator"
+    "test:all": "npm run test:runtime && npm run test:demo-parity && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:minion-materials && npm run test:model-lifecycle && npm run test:preview && npm run test:camera-focus && npm run test:dragon-all && npm run test:starter-generator"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
