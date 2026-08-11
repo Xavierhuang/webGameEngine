@@ -17,6 +17,7 @@
     "test:prefabs": "tsc lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/prefabs/characters.test.js",
     "generate:dragon": "bash tools/metal-dragon/generate.sh",
     "test:dragon-asset": "node --test test/assets/red-metal-dragon.test.js",
+    "test:dragon-page": "node --test test/showcase/red-metal-dragon-page.test.js",
     "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs"
   },
   "dependencies": {
