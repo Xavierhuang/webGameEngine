@@ -1,3 +1,5 @@
+import type { ModelBounds, ModelOriginOffset } from '../models/modelRenderContract';
+
 /**
  * Built-in character library. Kept as a shared module so both the
  * CharacterSelector picker (client) and the /api/ai/generate-character route
@@ -13,11 +15,17 @@ export interface CharacterPrefab {
   name: string;
   color: string;
   shape: string;
+  /** Optional local or uploaded GLB/FBX model for this character. */
+  model_url?: string;
+  /** Local-space measurements for consistent editor/player rendering. */
+  model_bounds?: ModelBounds;
+  /** Local translation that places the model's feet on its object origin. */
+  model_origin_offset?: ModelOriginOffset;
   size: number;
   description: string;
   /** Extra keywords that also count as a match (case-insensitive). */
   aliases?: string[];
-  model_url?: string;
+  /** Optional 3D preview transform (used only by the picker thumbnail). */
   preview_scale?: number;
   preview_rotation?: [number, number, number];
 }
@@ -149,14 +157,21 @@ export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
     preview_scale: 0.14,
     preview_rotation: [0, 0, 0],
   },
-  // Creatures — best-effort shapes until real GLB models ship. Colors are
-  // overridden by any color word in the prompt (see extractColor below).
+  // Creatures — colors are overridden by any color word in the prompt (see
+  // extractColor below). The dragon uses the checked-in Metal-generated GLB;
+  // the others fall back to primitives until real models ship.
   {
     id: 'dragon',
-    name: 'Dragon',
+    name: 'Red Metal Dragon',
     color: '#DC2626',
     shape: 'capsule',
-    size: 65,
+    model_url: '/models/red-metal-dragon.glb',
+    model_bounds: {
+      min: { x: -2.982, y: -1.836, z: -1.983 },
+      max: { x: 2.82, y: 2.362, z: 1.983 },
+    },
+    model_origin_offset: { x: 0, y: 1.836, z: 0 },
+    size: 28,
     description: 'Fire-breathing dragon',
     aliases: ['drake', 'wyrm', 'wyvern'],
   },
@@ -290,6 +305,24 @@ export function matchCharacterPrefab(prompt: string): CharacterPrefab | null {
   if (!normalized) return null;
 
   const pool = [...CHARACTER_TEMPLATES, ...BASIC_SHAPES];
+  const words = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+  const wordSet = new Set(words);
+  const matchesKeyword = (keyword: string) => {
+    const normalizedKeyword = keyword.toLowerCase();
+    return normalizedKeyword.includes(' ')
+      ? normalized.includes(normalizedKeyword)
+      : wordSet.has(normalizedKeyword);
+  };
+
+  // A model-backed exact keyword is more specific than a primitive role word.
+  // Keep picker order unchanged while ensuring prompts such as "dragon warrior"
+  // resolve to the checked-in model rather than the earlier Knight template.
+  for (const prefab of pool) {
+    if (!prefab.model_url) continue;
+    for (const keyword of [prefab.id, ...(prefab.aliases ?? [])]) {
+      if (matchesKeyword(keyword)) return prefab;
+    }
+  }
 
   // Tier 1: exact id or name.
   for (const p of pool) {
@@ -297,20 +330,23 @@ export function matchCharacterPrefab(prompt: string): CharacterPrefab | null {
   }
 
   // Tier 2: any keyword (id, name, alias) appears as a whole-word match.
-  const words = normalized.split(/[^a-z0-9]+/).filter(Boolean);
-  const wordSet = new Set(words);
   for (const p of pool) {
     const keywords = [p.id, p.name.toLowerCase(), ...(p.aliases ?? [])];
     for (const k of keywords) {
-      const kLower = k.toLowerCase();
       // Whole-word check — "hero" matches "a brave hero" but not "heroic".
-      if (kLower.includes(' ')) {
-        if (normalized.includes(kLower)) return p;
-      } else if (wordSet.has(kLower)) {
-        return p;
-      }
+      if (matchesKeyword(k)) return p;
     }
   }
 
   return null;
+}
+
+/** Builds the exact prefab-first payload returned by generate-character. */
+export function buildPrefabCharacterResponse(prompt: string, prefab: CharacterPrefab) {
+  return {
+    ...prefab,
+    color: extractColor(prompt) ?? prefab.color,
+    name: prompt.length > 2 ? prompt : prefab.name,
+    source: 'prefab' as const,
+  };
 }

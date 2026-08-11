@@ -19,7 +19,18 @@
     "test:model-lifecycle": "tsc lib/utils/modelCache.ts lib/utils/asyncResourceLifecycle.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/utils/model-resource-lifecycle.test.mjs",
     "test:preview": "tsc components/editor/ShapePreview.tsx --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --jsx react-jsx --esModuleInterop --skipLibCheck && node test/editor/shape-preview.test.mjs",
     "test:camera-focus": "tsc lib/editor/cameraFocus.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/editor/camera-focus.test.mjs",
-    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:minion-materials && npm run test:model-lifecycle && npm run test:preview && npm run test:camera-focus"
+    "test:dragon-editor": "tsc lib/prefabs/characters.ts lib/prefabs/characterPayload.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/prefabs/dragon-editor.test.js",
+    "test:dragon-materials": "tsc components/editor/modelMaterialOwnership.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/editor/model-material-ownership.test.js",
+    "test:dragon-model-contract": "tsc lib/models/modelRenderContract.ts lib/prefabs/characters.ts lib/prefabs/characterPayload.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/editor/model-render-contract.test.js",
+    "test:dragon-rendering": "tsc components/editor/previewCanvasBudget.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/editor/dragon-model-rendering.test.js test/editor/preview-canvas-budget.test.js",
+    "generate:dragon": "bash tools/metal-dragon/generate.sh",
+    "generate:starters": "bash tools/metal-starters/generate.sh",
+    "test:dragon-asset": "node --test test/assets/red-metal-dragon.test.js",
+    "test:dragon-page": "node --test test/showcase/red-metal-dragon-page.test.js",
+    "test:dragon-generator": "node --test test/tools/metal-dragon-generate.test.js",
+    "test:starter-generator": "node --test test/tools/metal-starters-generate.test.js",
+    "test:dragon-all": "npm run test:dragon-editor && npm run test:dragon-materials && npm run test:dragon-model-contract && npm run test:dragon-rendering && npm run test:dragon-asset && npm run test:dragon-page && npm run test:dragon-generator",
+    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:minion-materials && npm run test:model-lifecycle && npm run test:preview && npm run test:camera-focus && npm run test:dragon-all && npm run test:starter-generator"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",

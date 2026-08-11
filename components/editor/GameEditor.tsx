@@ -18,7 +18,7 @@ import CollectibleSelector from './CollectibleSelector';
 import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
-import { buildCharacterVisualData } from '../../lib/prefabs/characters';
+import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 
 // Blockly needs the DOM — load the block editor client-side only.
@@ -860,8 +860,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               alert('No scene found. Please create a scene first.');
               return;
             }
-
-            const characterVisualData = buildCharacterVisualData(character);
+            const visual = buildCharacterVisual(character);
 
             const response = await fetch('/api/ai/apply-update', {
               method: 'POST',
@@ -875,12 +874,9 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                     type: 'character',
                     name: character.name,
                     position: { x: 500, y: 300, z: 0 },
-                    sprite_data: characterVisualData.sprite_data,
-                    // Persist full properties; include composite children if provided by builder
-                    properties: {
-                      ...characterVisualData.properties,
-                      characterType: character.id,
-                    },
+                    sprite_data: visual.spriteData,
+                    // visual.properties already includes characterType from the builder
+                    properties: visual.properties,
                   },
                 },
               }),

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { User, Sparkles, Upload, Wand2, Boxes, Link as LinkIcon } from 'lucide-react';
 import ModelBuilder from './ModelBuilder';
-import CharacterPreview from './CharacterPreview';
+import ShapePreview from './ShapePreview';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
 import { CHARACTER_TEMPLATES, BASIC_SHAPES } from '../../lib/prefabs/characters';
@@ -137,7 +137,8 @@ export default function CharacterSelector({
                     onClose();
                   }}
                 >
-                  <CharacterPreview character={c} />
+                  <ShapePreview shape={c.shape} color={c.color} modelUrl={c.model_url} />
+
                 </SelectorTile>
               ))}
             </div>
@@ -161,7 +162,7 @@ export default function CharacterSelector({
                     onClose();
                   }}
                 >
-                  <CharacterPreview character={s} />
+                  <ShapePreview shape={s.shape} color={s.color} modelUrl={s.model_url} />
                 </SelectorTile>
               ))}
             </div>

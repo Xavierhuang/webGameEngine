@@ -5,6 +5,10 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Box, Sphere, useGLTF, TransformControls } from '@react-three/drei';
 import { Suspense } from 'react';
 import * as THREE from 'three';
+import {
+  createModelRenderContract,
+  isModelBounds,
+} from '../../lib/models/modelRenderContract';
 import AnimatedModel from './AnimatedModel';
 import { focusSceneCamera } from '../../lib/editor/cameraFocus';
 
@@ -152,6 +156,11 @@ function GameObject({
   const properties = typeof object.properties === 'string' 
     ? JSON.parse(object.properties || '{}')
     : (object.properties || {});
+  const persistedModelUrl = properties.model_url || properties.sprite_data?.model_url;
+  const modelBounds = properties.model_bounds || properties.sprite_data?.model_bounds;
+  const modelOriginOffset = properties.model_origin_offset
+    || properties.sprite_data?.model_origin_offset;
+  const hasBoundedModel = Boolean(persistedModelUrl && isModelBounds(modelBounds));
 
   // Get color from multiple possible locations
   const color = object.color 
@@ -179,7 +188,7 @@ function GameObject({
   // The database stores the base position (feet level), so we need to offset up to center
   // Base position is at feet, center is at base + 0.85 (half character height to torso)
   let position = localPosition || dbPosition;
-  if (object.type === 'character' && !localPosition) {
+  if (object.type === 'character' && !hasBoundedModel && !localPosition) {
     // When loading from database, offset to gizmo center position (torso level)
     // Character base is at feet, so add 0.85 to get to torso center
     position = [position[0], position[1] + 0.85, position[2]];
@@ -239,7 +248,7 @@ function GameObject({
       setLocalPosition(null);
       // For characters, the gizmo is at the center (torso), so we need to offset from base position
       // Base position is dbPosition[1] (feet), center is base + 0.85 (to torso)
-      const syncedY = object.type === 'character' 
+      const syncedY = object.type === 'character' && !hasBoundedModel
         ? dbPosition[1] + 0.85  // base (feet) + 0.85 = gizmo center (torso)
         : dbPosition[1];
       meshRef.current.position.set(dbPosition[0], syncedY, dbPosition[2]);
@@ -248,6 +257,7 @@ function GameObject({
 
   // Get scale/size
   let scale: [number, number, number];
+  let scaleValue = 1;
   let baseWidthPx = 100;
   let baseHeightPx = 100;
   if (isPlatform) {
@@ -257,7 +267,7 @@ function GameObject({
     const scaleY = baseHeightPx / 100;
     scale = [scaleX, scaleY, 1];
   } else {
-    const scaleValue = properties.size
+    scaleValue = properties.size
       ? (typeof properties.size === 'number' ? properties.size / 100 : (properties.size.width || 50) / 100)
       : (object.scale_x || 1);
     // Ensure uniform scaling on all axes for true cubes/spheres
@@ -266,7 +276,15 @@ function GameObject({
 
   // Determine shape from properties
   const shape = properties.shape || properties.sprite_data?.shape || (properties.model_url ? 'model' : (isPlatform ? 'plane' : 'box'));
-  const modelUrl = properties.model_url || properties.sprite_data?.model_url;
+  const modelUrl = persistedModelUrl;
+  const legacyEditorOrigin = object.type === 'character' && !hasBoundedModel
+    ? { x: 0, y: -0.85 / scaleValue, z: 0 }
+    : modelOriginOffset;
+  const modelRender = createModelRenderContract(
+    scaleValue,
+    modelBounds,
+    legacyEditorOrigin
+  );
 
   const content = (() => {
     if (shape === 'model' && modelUrl) {
@@ -296,31 +314,28 @@ function GameObject({
         // Pass the actual animationState (even if null) to AnimatedModel, but it will handle stopping
         const finalAnimationState = (animationState === null || animationState === 'stop' || animationState === 'none') ? 'stop' : (animationState || 'idle');
         console.log(`[SceneView] Rendering animated model: ${modelUrl}, state: ${finalAnimationState}, playAnimation: ${shouldPlay}`);
-        // For characters, we want the gizmo at the center of the character (torso/waist)
-        // The model's pivot is typically at the feet, so we need to offset it down
-        // Character height is typically ~1.6-1.8 units, so offset by ~0.85 to center at torso
-        // The outer group (meshRef) is at the gizmo center position
-        // The inner group offsets the model down so the model's feet align with the base position
-        // IMPORTANT: Rotation is applied to the outer group (meshRef) so TransformControls rotates around the center
-        const characterCenterOffset = object.type === 'character' ? -0.85 : 0;
         return (
-          <group ref={meshRef} position={position} rotation={rotation} onClick={onClick}>
-            <group position={[0, characterCenterOffset, 0]}>
-              <AnimatedModel
-                url={modelUrl}
-                position={[0, 0, 0]}
-                rotation={[0, 0, 0]}
-                scale={scale}
-                animationState={finalAnimationState}
-                playAnimation={shouldPlay}
-                onAnimationsLoaded={(animations) => {
-                  console.log(`[SceneView] Animations loaded for object ${object.id}:`, animations);
-                  if (onAnimationsDetected) {
-                    onAnimationsDetected(object.id, animations);
-                  }
-                }}
-              />
-            </group>
+          <group
+            ref={meshRef}
+            position={position}
+            rotation={rotation}
+            scale={modelRender.outerScale}
+            onClick={onClick}
+          >
+            <AnimatedModel
+              url={modelUrl}
+              position={modelRender.innerPosition}
+              rotation={[0, 0, 0]}
+              scale={modelRender.innerScale}
+              animationState={finalAnimationState}
+              playAnimation={shouldPlay}
+              onAnimationsLoaded={(animations) => {
+                console.log(`[SceneView] Animations loaded for object ${object.id}:`, animations);
+                if (onAnimationsDetected) {
+                  onAnimationsDetected(object.id, animations);
+                }
+              }}
+            />
           </group>
         );
       }
@@ -633,7 +648,7 @@ function GameObject({
               // For characters, the meshRef is on the outer group (at the gizmo center/torso)
               // The gizmo center is at: basePosition (feet) + 0.85 (to torso)
               // To get back to base position (feet) for saving: gizmoCenter - 0.85
-              if (object.type === 'character') {
+              if (object.type === 'character' && !hasBoundedModel) {
                 // Convert from gizmo center (torso) back to base position (feet)
                 y3 = y3 - 0.85;
               }

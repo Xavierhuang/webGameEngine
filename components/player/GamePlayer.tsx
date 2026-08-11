@@ -11,6 +11,10 @@ import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import AnimatedModel from '../editor/AnimatedModel';
 import { logger } from '../../lib/utils/logger';
 import {
+  createModelRenderContract,
+  resolveActiveModelMetadata,
+} from '../../lib/models/modelRenderContract';
+import {
   PHYSICS,
   CAMERA,
   SCENE,
@@ -924,8 +928,6 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       : (object.scale_x || 1);
     scale = [scaleValue, scaleValue, scaleValue];
   }
-  radiusRef.current = scaleValue / 2;
-
   // Get rotation from properties (in degrees, convert to radians)
   const rotationFromProps = properties.rotation || {};
   const rotation: [number, number, number] = [
@@ -942,6 +944,24 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
     || properties.sprite_data?.shape
     || (modelUrl ? 'model' : 'box');
   const isCharacter = object.type === 'character';
+  const modelMetadata = resolveActiveModelMetadata({
+    shape,
+    baseModelUrl,
+    modelUrl,
+    baseBounds: properties.model_bounds || properties.sprite_data?.model_bounds,
+    baseOriginOffset: properties.model_origin_offset
+      || properties.sprite_data?.model_origin_offset,
+    activeBounds: activeCostume?.model_bounds,
+    activeOriginOffset: activeCostume?.model_origin_offset,
+  });
+  const modelBounds = modelMetadata.bounds;
+  const modelOriginOffset = modelMetadata.originOffset;
+  const modelRender = createModelRenderContract(
+    scaleValue,
+    modelBounds,
+    modelOriginOffset
+  );
+  radiusRef.current = modelRender.touchRadius;
   
   // Debug logging
   logger.debug('[GamePlayer] Rendering object:', {
@@ -1197,7 +1217,11 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       meshRef.current.visible = visibleRef.current;
       const effectiveScale = scaleValue * sizeMultiplierRef.current;
       meshRef.current.scale.setScalar(effectiveScale);
-      radiusRef.current = effectiveScale / 2;
+      radiusRef.current = createModelRenderContract(
+        effectiveScale,
+        modelBounds,
+        modelOriginOffset
+      ).touchRadius;
       if (tintColorRef.current) {
         const hex = tintColorRef.current;
         // Only tint materials with no color map — textured meshes (e.g. rigged
@@ -1287,12 +1311,17 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       // For physics calculations, we account for this by checking feet position
       return (
         <>
-          <group ref={meshRef as any} position={shouldHavePhysics ? [0, 0, 0] : position} onClick={() => world.notifyClicked(objectId)}>
+          <group
+            ref={meshRef as any}
+            position={shouldHavePhysics ? [0, 0, 0] : position}
+            scale={modelRender.outerScale}
+            onClick={() => world.notifyClicked(objectId)}
+          >
             <AnimatedModel
               url={modelUrl}
-              position={[0, 0, 0]}
+              position={modelRender.innerPosition}
               rotation={rotation}
-              scale={scale}
+              scale={modelRender.innerScale}
               animationState={finalAnimationState || 'idle'}
               playAnimation={!isAnimationStopped}
             />
@@ -1344,4 +1373,3 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
     </>
   );
 });
-
