@@ -15,6 +15,8 @@
     "test:serializer": "tsc lib/blockly/serializer.ts lib/blockly/definitions.ts lib/runtime/interpreter.ts lib/runtime/operators.ts --outDir test/.build --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/blockly/serializer.test.js",
     "test:safety": "tsc lib/safety/keyword-scan.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/safety/keyword-scan.test.js",
     "test:prefabs": "tsc lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/prefabs/characters.test.js",
+    "generate:dragon": "bash tools/metal-dragon/generate.sh",
+    "test:dragon-asset": "node --test test/assets/red-metal-dragon.test.js",
     "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs"
   },
   "dependencies": {
