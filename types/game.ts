@@ -36,6 +36,8 @@ export interface Costume {
   color?: string;
   shape?: ShapeType;
   model_url?: string;
+  model_bounds?: { min: Position; max: Position };
+  model_origin_offset?: Position;
 }
 
 // Game Object Properties

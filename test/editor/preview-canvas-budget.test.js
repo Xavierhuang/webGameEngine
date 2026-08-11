@@ -1,10 +1,62 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { PreviewCanvasBudget, PreviewCanvasLeaseController } = require('../.build/components/editor/previewCanvasBudget.js');
+const {
+  PreviewCanvasBudget,
+  PreviewCanvasLeaseController,
+  selectorPreviewCanvasBudget,
+} = require('../.build/components/editor/previewCanvasBudget.js');
 
-test('never allocates more preview canvases than its hard maximum', () => {
-  const budget = new PreviewCanvasBudget({ maximum: 4, reservedModelSlots: 1 });
+function createFakeScheduler() {
+  let now = 0;
+  let nextId = 1;
+  const pending = new Map();
+
+  return {
+    scheduler: {
+      schedule(callback, delayMs) {
+        const id = nextId++;
+        pending.set(id, { callback, deadline: now + delayMs });
+        return () => pending.delete(id);
+      },
+    },
+    advanceBy(milliseconds) {
+      now += milliseconds;
+      let ranTask = true;
+      while (ranTask) {
+        ranTask = false;
+        for (const [id, task] of [...pending.entries()]) {
+          if (task.deadline > now) continue;
+          pending.delete(id);
+          task.callback();
+          ranTask = true;
+        }
+      }
+    },
+    get pendingCount() {
+      return pending.size;
+    },
+  };
+}
+
+function createBudget(options = {}) {
+  const clock = createFakeScheduler();
+  const budget = new PreviewCanvasBudget({
+    maximum: 4,
+    reservedModelSlots: 1,
+    retirementGraceMs: 650,
+    scheduler: clock.scheduler,
+    ...options,
+  });
+  return { budget, clock };
+}
+
+test('shared selector budget leaves room for the editor renderer', () => {
+  assert.equal(selectorPreviewCanvasBudget.capacity, 6);
+});
+
+test('primitive previews stop at their reserved allowance', () => {
+  const { budget } = createBudget();
 
   assert.equal(budget.acquire('hero', 'primitive'), true);
   assert.equal(budget.acquire('knight', 'primitive'), true);
@@ -13,69 +65,91 @@ test('never allocates more preview canvases than its hard maximum', () => {
   assert.equal(budget.size, 3);
 });
 
-test('releases an invisible preview slot so a waiting tile can acquire it', () => {
-  const budget = new PreviewCanvasBudget({ maximum: 3, reservedModelSlots: 1 });
+test('released contexts count against capacity until their retirement completes', () => {
+  const { budget, clock } = createBudget({ maximum: 2, reservedModelSlots: 1 });
 
   assert.equal(budget.acquire('hero', 'primitive'), true);
-  assert.equal(budget.acquire('knight', 'primitive'), true);
+  budget.release('hero');
+
+  assert.equal(budget.activeSize, 0);
+  assert.equal(budget.retiringSize, 1);
+  assert.equal(budget.size, 1);
   assert.equal(budget.acquire('wizard', 'primitive'), false);
-  budget.release('hero');
-
-  assert.equal(budget.has('hero'), false);
+  clock.advanceBy(649);
+  assert.equal(budget.acquire('wizard', 'primitive'), false);
+  clock.advanceBy(1);
   assert.equal(budget.acquire('wizard', 'primitive'), true);
-  assert.equal(budget.size, 2);
+  assert.equal(budget.size, 1);
 });
 
-test('budget notifies a waiting lease when a slot is released', () => {
-  const budget = new PreviewCanvasBudget({ maximum: 2, reservedModelSlots: 1 });
-  let wizardHasCanvas = false;
-
-  assert.equal(budget.acquire('hero', 'primitive'), true);
-  const unsubscribe = budget.subscribe(() => {
-    if (!wizardHasCanvas) wizardHasCanvas = budget.acquire('wizard', 'primitive');
-  });
-
-  budget.release('hero');
-
-  assert.equal(wizardHasCanvas, true);
-  assert.equal(budget.has('wizard'), true);
-  unsubscribe();
-});
-
-test('reserves a preview slot for the dragon model after primitive tiles fill their allowance', () => {
-  const budget = new PreviewCanvasBudget({ maximum: 4, reservedModelSlots: 1 });
-
-  assert.equal(budget.acquire('hero', 'primitive'), true);
-  assert.equal(budget.acquire('knight', 'primitive'), true);
-  assert.equal(budget.acquire('wizard', 'primitive'), true);
-  assert.equal(budget.acquire('robot', 'primitive'), false);
-
-  assert.equal(budget.acquire('red-metal-dragon', 'model'), true);
-  assert.equal(budget.has('red-metal-dragon'), true);
-  assert.equal(budget.size, 4);
-});
-
-test('lease controller acquires only while visible and hands its slot to a visible waiter', () => {
-  const budget = new PreviewCanvasBudget({ maximum: 2, reservedModelSlots: 1 });
+test('a visible waiter acquires only after the released context retires', () => {
+  const { budget, clock } = createBudget({ maximum: 2, reservedModelSlots: 1 });
   const hero = new PreviewCanvasLeaseController({ id: 'hero', kind: 'primitive', budget });
   const wizard = new PreviewCanvasLeaseController({ id: 'wizard', kind: 'primitive', budget });
 
   hero.setVisible(true);
   wizard.setVisible(true);
-
-  assert.equal(hero.hasCanvas, true);
-  assert.equal(wizard.hasCanvas, false);
-
   hero.setVisible(false);
 
   assert.equal(hero.hasCanvas, false);
+  assert.equal(wizard.hasCanvas, false);
+  assert.equal(budget.size, 1);
+  clock.advanceBy(650);
   assert.equal(wizard.hasCanvas, true);
+  assert.equal(budget.size, 1);
+
   hero.dispose();
   wizard.dispose();
+  clock.advanceBy(650);
 });
 
-test('lease controller releases its canvas and ignores future notifications after dispose', () => {
-  const budget = new PreviewCanvasBudget({ maximum: 2, reservedModelSlots: 1 });
+test('reserves a preview slot for the dragon model after primitives fill their allowance', () => {
+  const { budget } = createBudget();
+
+  assert.equal(budget.acquire('hero', 'primitive'), true);
+  assert.equal(budget.acquire('knight', 'primitive'), true);
+  assert.equal(budget.acquire('wizard', 'primitive'), true);
+  assert.equal(budget.acquire('robot', 'primitive'), false);
+  assert.equal(budget.acquire('red-metal-dragon', 'model'), true);
+  assert.equal(budget.size, 4);
+});
+
+test('model-first allocation does not strand primitive capacity', () => {
+  const { budget } = createBudget();
+
+  assert.equal(budget.acquire('red-metal-dragon', 'model'), true);
+  assert.equal(budget.acquire('hero', 'primitive'), true);
+  assert.equal(budget.acquire('knight', 'primitive'), true);
+  assert.equal(budget.acquire('wizard', 'primitive'), true);
+  assert.equal(budget.acquire('robot', 'primitive'), false);
+  assert.equal(budget.size, 4);
+});
+
+test('rapid close and reopen never exceeds active plus retiring capacity', () => {
+  const { budget, clock } = createBudget({ maximum: 1, reservedModelSlots: 0 });
+  const hero = new PreviewCanvasLeaseController({ id: 'hero', kind: 'primitive', budget });
+
+  hero.setVisible(true);
+  assert.equal(budget.size, 1);
+  hero.setVisible(false);
+  hero.setVisible(true);
+
+  assert.equal(hero.hasCanvas, false);
+  assert.equal(budget.activeSize, 0);
+  assert.equal(budget.retiringSize, 1);
+  assert.equal(budget.size, 1);
+  clock.advanceBy(650);
+  assert.equal(hero.hasCanvas, true);
+  assert.equal(budget.activeSize, 1);
+  assert.equal(budget.retiringSize, 0);
+  assert.equal(budget.size, 1);
+
+  hero.dispose();
+  clock.advanceBy(650);
+});
+
+test('controller disposal releases once and leaves no timer or listener effects', () => {
+  const { budget, clock } = createBudget({ maximum: 2, reservedModelSlots: 1 });
   const states = [];
   const dragon = new PreviewCanvasLeaseController({
     id: 'red-metal-dragon',
@@ -86,10 +160,14 @@ test('lease controller releases its canvas and ignores future notifications afte
 
   dragon.setVisible(true);
   dragon.dispose();
+  dragon.dispose();
+  dragon.setVisible(true);
   const statesAfterDispose = [...states];
-  budget.acquire('hero', 'primitive');
 
+  assert.equal(clock.pendingCount, 1);
+  clock.advanceBy(650);
+  assert.equal(clock.pendingCount, 0);
+  budget.acquire('hero', 'primitive');
   assert.equal(dragon.hasCanvas, false);
-  assert.equal(budget.has('red-metal-dragon'), false);
   assert.deepEqual(states, statesAfterDispose);
 });

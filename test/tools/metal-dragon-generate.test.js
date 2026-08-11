@@ -8,7 +8,9 @@ const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
 
-test('generator uses isolated temporary build directories and removes them', async () => {
+test('generator uses isolated temporary build directories and removes them', {
+  skip: process.platform === 'win32' ? 'requires POSIX shell utilities' : false,
+}, async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'lingplay-metal-dragon-test-'));
   const fakeBin = path.join(sandbox, 'bin');
   const buildLog = path.join(sandbox, 'build-dirs.log');

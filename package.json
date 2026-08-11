@@ -16,11 +16,15 @@
     "test:safety": "tsc lib/safety/keyword-scan.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/safety/keyword-scan.test.js",
     "test:prefabs": "tsc lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/prefabs/characters.test.js",
     "test:dragon-editor": "tsc lib/prefabs/characters.ts lib/prefabs/characterPayload.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/prefabs/dragon-editor.test.js",
+    "test:dragon-materials": "tsc components/editor/modelMaterialOwnership.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/editor/model-material-ownership.test.js",
+    "test:dragon-model-contract": "tsc lib/models/modelRenderContract.ts lib/prefabs/characters.ts lib/prefabs/characterPayload.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/editor/model-render-contract.test.js",
     "test:dragon-rendering": "tsc components/editor/previewCanvasBudget.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/editor/dragon-model-rendering.test.js test/editor/preview-canvas-budget.test.js",
     "generate:dragon": "bash tools/metal-dragon/generate.sh",
     "test:dragon-asset": "node --test test/assets/red-metal-dragon.test.js",
     "test:dragon-page": "node --test test/showcase/red-metal-dragon-page.test.js",
-    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs"
+    "test:dragon-generator": "node --test test/tools/metal-dragon-generate.test.js",
+    "test:dragon-all": "npm run test:dragon-editor && npm run test:dragon-materials && npm run test:dragon-model-contract && npm run test:dragon-rendering && npm run test:dragon-asset && npm run test:dragon-page && npm run test:dragon-generator",
+    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:dragon-all"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",

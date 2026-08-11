@@ -213,8 +213,6 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
     leaseControllerRef.current?.setVisible(isVisible);
   }, [isVisible]);
 
-  const capsuleFallback = <PreviewCanvas><ShapeMesh shape="capsule" color={color} /></PreviewCanvas>;
-
   if (!isVisible || !hasCanvas) {
     return (
       <div ref={previewRef} className="flex h-full w-full items-center justify-center" aria-hidden="true">
@@ -225,9 +223,13 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
 
   return (
     <div ref={previewRef} style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}>
-      {modelUrl ? (
-        <PreviewErrorBoundary key={modelUrl} fallback={capsuleFallback}>
-          <PreviewCanvas>
+      <PreviewCanvas>
+        {modelUrl ? (
+          <PreviewErrorBoundary
+            key={modelUrl}
+            fallback={<ShapeMesh shape="capsule" color={color} />}
+          >
+            <>
             <ambientLight intensity={0.8} />
             <directionalLight position={[5, 5, 5]} intensity={0.6} />
             <pointLight position={[-5, 5, -5]} intensity={0.4} />
@@ -242,15 +244,15 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
               minPolarAngle={Math.PI / 3}
               maxPolarAngle={Math.PI / 1.5}
             />
-          </PreviewCanvas>
-        </PreviewErrorBoundary>
-      ) : (
-        <PreviewCanvas><ShapeMesh shape={shape} color={color} /></PreviewCanvas>
-      )}
+            </>
+          </PreviewErrorBoundary>
+        ) : (
+          <ShapeMesh shape={shape} color={color} />
+        )}
+      </PreviewCanvas>
     </div>
   );
 }
-
 
 
 

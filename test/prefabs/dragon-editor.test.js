@@ -1,15 +1,60 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const test = require('node:test');
-const { matchCharacterPrefab } = require('../.build/lib/prefabs/characters.js');
+const {
+  buildPrefabCharacterResponse,
+  matchCharacterPrefab,
+} = require('../.build/lib/prefabs/characters.js');
 const { buildCharacterVisual } = require('../.build/lib/prefabs/characterPayload.js');
 
-test('dragon aliases resolve to the checked-in model prefab', () => {
-  for (const prompt of ['dragon', 'red dragon', 'wyvern']) {
+test('each whole-word dragon alias resolves to the checked-in model prefab', () => {
+  for (const prompt of ['dragon', 'drake', 'wyrm', 'wyvern']) {
     const dragon = matchCharacterPrefab(prompt);
     assert.equal(dragon.name, 'Red Metal Dragon');
     assert.equal(dragon.model_url, '/models/red-metal-dragon.glb');
-    assert.ok(dragon.size > 1);
+    assert.equal(dragon.size, 28);
   }
+});
+
+test('dragon aliases outrank earlier primitive keywords in compound prompts', () => {
+  for (const prompt of [
+    'red dragon warrior',
+    'a hero and dragon',
+    'a knight riding a wyvern',
+  ]) {
+    assert.equal(matchCharacterPrefab(prompt)?.id, 'dragon', prompt);
+  }
+});
+
+test('dragon aliases still require whole-word matches', () => {
+  assert.equal(matchCharacterPrefab('a heroic dragonfly'), null);
+});
+
+test('prefab response builder returns the complete dragon API fields', () => {
+  assert.equal(typeof buildPrefabCharacterResponse, 'function');
+  const response = buildPrefabCharacterResponse(
+    'a knight riding a wyvern',
+    matchCharacterPrefab('a knight riding a wyvern')
+  );
+
+  assert.deepEqual(
+    {
+      model_url: response.model_url,
+      size: response.size,
+      source: response.source,
+    },
+    {
+      model_url: '/models/red-metal-dragon.glb',
+      size: 28,
+      source: 'prefab',
+    }
+  );
+});
+
+test('generate-character route delegates prefab responses to the tested builder', () => {
+  const route = fs.readFileSync('app/api/ai/generate-character/route.ts', 'utf8');
+
+  assert.match(route, /NextResponse\.json\(buildPrefabCharacterResponse\(prompt, prefab\)\)/);
 });
 
 test('model prefab size flows to sprite data and properties', () => {

@@ -3,6 +3,12 @@ export type PreviewCanvasKind = 'model' | 'primitive';
 interface PreviewCanvasBudgetOptions {
   maximum?: number;
   reservedModelSlots?: number;
+  retirementGraceMs?: number;
+  scheduler?: PreviewRetirementScheduler;
+}
+
+export interface PreviewRetirementScheduler {
+  schedule(callback: () => void, delayMs: number): void;
 }
 
 interface PreviewCanvasLeaseControllerOptions {
@@ -19,24 +25,54 @@ interface PreviewCanvasLeaseControllerOptions {
  */
 export class PreviewCanvasBudget {
   private readonly allocations = new Map<string, PreviewCanvasKind>();
+  private readonly retirements = new Map<number, { id: string; kind: PreviewCanvasKind }>();
   private readonly listeners = new Set<() => void>();
   private readonly maximum: number;
   private readonly primitiveMaximum: number;
+  private readonly retirementGraceMs: number;
+  private readonly scheduler: PreviewRetirementScheduler;
+  private nextRetirementId = 1;
 
-  constructor({ maximum = 8, reservedModelSlots = 1 }: PreviewCanvasBudgetOptions = {}) {
+  constructor({
+    maximum = 6,
+    reservedModelSlots = 1,
+    retirementGraceMs = 650,
+    scheduler = {
+      schedule: (callback, delayMs) => {
+        globalThis.setTimeout(callback, delayMs);
+      },
+    },
+  }: PreviewCanvasBudgetOptions = {}) {
     if (!Number.isInteger(maximum) || maximum < 1) {
       throw new Error('Preview canvas maximum must be a positive integer.');
     }
     if (!Number.isInteger(reservedModelSlots) || reservedModelSlots < 0 || reservedModelSlots >= maximum) {
       throw new Error('Reserved model slots must be an integer smaller than the maximum.');
     }
+    if (!Number.isFinite(retirementGraceMs) || retirementGraceMs < 0) {
+      throw new Error('Preview retirement grace must be a non-negative number.');
+    }
 
     this.maximum = maximum;
     this.primitiveMaximum = maximum - reservedModelSlots;
+    this.retirementGraceMs = retirementGraceMs;
+    this.scheduler = scheduler;
+  }
+
+  get capacity() {
+    return this.maximum;
   }
 
   get size() {
+    return this.activeSize + this.retiringSize;
+  }
+
+  get activeSize() {
     return this.allocations.size;
+  }
+
+  get retiringSize() {
+    return this.retirements.size;
   }
 
   has(id: string) {
@@ -46,8 +82,10 @@ export class PreviewCanvasBudget {
   acquire(id: string, kind: PreviewCanvasKind) {
     if (this.allocations.has(id)) return true;
 
-    const limit = kind === 'model' ? this.maximum : this.primitiveMaximum;
-    if (this.allocations.size >= limit) return false;
+    if (this.size >= this.maximum) return false;
+    if (kind === 'primitive' && this.primitiveCount >= this.primitiveMaximum) {
+      return false;
+    }
 
     this.allocations.set(id, kind);
     this.notify();
@@ -55,8 +93,15 @@ export class PreviewCanvasBudget {
   }
 
   release(id: string) {
-    if (!this.allocations.delete(id)) return;
-    this.notify();
+    const kind = this.allocations.get(id);
+    if (!kind || !this.allocations.delete(id)) return;
+
+    const retirementId = this.nextRetirementId++;
+    this.retirements.set(retirementId, { id, kind });
+    this.scheduler.schedule(() => {
+      if (!this.retirements.delete(retirementId)) return;
+      this.notify();
+    }, this.retirementGraceMs);
   }
 
   subscribe(listener: () => void) {
@@ -68,6 +113,17 @@ export class PreviewCanvasBudget {
 
   private notify() {
     this.listeners.forEach((listener) => listener());
+  }
+
+  private get primitiveCount() {
+    let count = 0;
+    this.allocations.forEach((kind) => {
+      if (kind === 'primitive') count += 1;
+    });
+    this.retirements.forEach(({ kind }) => {
+      if (kind === 'primitive') count += 1;
+    });
+    return count;
   }
 }
 
@@ -116,4 +172,4 @@ export class PreviewCanvasLeaseController {
   }
 }
 
-export const selectorPreviewCanvasBudget = new PreviewCanvasBudget();
+export const selectorPreviewCanvasBudget = new PreviewCanvasBudget({ maximum: 6 });

@@ -1,12 +1,15 @@
 'use client';
 
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { modelCache } from '../../lib/utils/modelCache';
 import { logger } from '../../lib/utils/logger';
+import {
+  mountOwnedMaterialScene,
+  type OwnedMaterialScene,
+} from './modelMaterialOwnership';
 
 interface AnimatedModelProps {
   url: string;
@@ -70,9 +73,14 @@ function GLTFAnimatedModel({
   onAnimationsLoaded,
 }: AnimatedModelProps) {
   const { scene: sourceScene, animations } = useGLTF(url);
-  const instance = useMemo(() => SkeletonUtils.clone(sourceScene), [sourceScene]);
-  const { actions, mixer } = useAnimations(animations, instance);
-  const groupRef = useRef<THREE.Group>(null);
+  const [committedInstance, setCommittedInstance] = useState<{
+    sourceScene: THREE.Group;
+    owned: OwnedMaterialScene<THREE.Group>;
+  } | null>(null);
+
+  useEffect(() => mountOwnedMaterialScene(sourceScene, (owned) => {
+    setCommittedInstance({ sourceScene, owned });
+  }), [sourceScene]);
   
   useEffect(() => {
     if (animations.length > 0) {
@@ -85,6 +93,38 @@ function GLTFAnimatedModel({
       logger.debug('[GLTF/GLB Model] No animations found in this model');
     }
   }, [animations, onAnimationsLoaded]);
+
+  if (!committedInstance || committedInstance.sourceScene !== sourceScene) {
+    return null;
+  }
+
+  return (
+    <GLTFAnimatedModelInstance
+      url={url}
+      instance={committedInstance.owned.scene}
+      animations={animations}
+      position={position}
+      rotation={rotation}
+      scale={scale}
+      animationState={animationState}
+      playAnimation={playAnimation}
+    />
+  );
+}
+
+function GLTFAnimatedModelInstance({
+  instance,
+  animations,
+  position,
+  scale,
+  animationState,
+  playAnimation,
+}: AnimatedModelProps & {
+  instance: THREE.Group;
+  animations: THREE.AnimationClip[];
+}) {
+  const { actions } = useAnimations(animations, instance);
+  const groupRef = useRef<THREE.Group>(null);
   
   useEffect(() => {
     if (!actions) return;
@@ -124,12 +164,6 @@ function GLTFAnimatedModel({
       });
     };
   }, [actions, animationState, playAnimation]);
-  
-  useFrame((state, delta) => {
-    if (mixer) {
-      mixer.update(delta);
-    }
-  });
   
   // Rotation is handled by the parent group in SceneView, so we don't apply it here
   // This ensures TransformControls rotates around the correct pivot point
