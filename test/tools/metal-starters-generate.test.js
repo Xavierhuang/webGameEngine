@@ -135,12 +135,18 @@ fi
   };
   let runNumber = 0;
 
+  function childEnvironment(options) {
+    const childEnv = { ...env, ...options.env };
+    for (const name of options.unsetEnv || []) delete childEnv[name];
+    return childEnv;
+  }
+
   async function execute(arguments_, options = {}) {
     try {
       const result = await execFileAsync('bash', [
         'tools/metal-starters/generate.sh',
         ...arguments_,
-      ], { env: { ...env, ...options.env }, timeout: options.timeout });
+      ], { env: childEnvironment(options), timeout: options.timeout });
       return { code: 0, stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
       return {
@@ -156,7 +162,8 @@ fi
       'tools/metal-starters/generate.sh',
       ...arguments_,
     ], {
-      env: { ...env, ...options.env },
+      detached: options.detached || false,
+      env: childEnvironment(options),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -304,6 +311,344 @@ fi
       if (Date.now() >= deadline) throw new Error(`timed out waiting for ${file}`);
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
+  }
+
+  function fileLineCount(file) {
+    if (!fs.existsSync(file)) return 0;
+    const contents = fs.readFileSync(file, 'utf8').trim();
+    return contents === '' ? 0 : contents.split('\n').length;
+  }
+
+  async function waitForLockState(acquireLog, acquireCount, waitLog) {
+    const deadline = Date.now() + 2000;
+    while (Date.now() < deadline) {
+      if (fileLineCount(acquireLog) >= acquireCount) return 'acquired';
+      if (fs.existsSync(waitLog)) return 'waiting';
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error(`timed out waiting for lock state in ${acquireLog} or ${waitLog}`);
+  }
+
+  async function waitForLineCount(file, count) {
+    const deadline = Date.now() + 2000;
+    while (fileLineCount(file) < count) {
+      if (Date.now() >= deadline) {
+        throw new Error(`timed out waiting for ${count} lines in ${file}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  async function nonblockingLockCode(lockPath) {
+    try {
+      await execFileAsync('/usr/bin/lockf', [
+        '-s', '-t', '0', '-k', lockPath, '/usr/bin/true',
+      ]);
+      return 0;
+    } catch (error) {
+      return error.code;
+    }
+  }
+
+  function killProcessGroup(child) {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    try {
+      process.kill(-child.pid, 'SIGKILL');
+    } catch (error) {
+      if (error.code !== 'ESRCH') throw error;
+    }
+  }
+
+  async function verifyConcurrentDualLockOrder({
+    name,
+    outputDirectory,
+    firstMetadata,
+    secondMetadata,
+    firstEnvironment = {},
+    secondEnvironment = {},
+    unsetEnv = [],
+  }) {
+    const firstAcquireLog = path.join(sandbox, `${name}-first-acquires.log`);
+    const secondAcquireLog = path.join(sandbox, `${name}-second-acquires.log`);
+    const firstWaitLog = path.join(sandbox, `${name}-first-waits.log`);
+    const secondWaitLog = path.join(sandbox, `${name}-second-waits.log`);
+    const first = spawnExecution([
+      '--all', '--output-dir', outputDirectory, '--metadata', firstMetadata,
+    ], { detached: true, env: {
+      ...firstEnvironment,
+      METAL_STARTERS_LOCK_ACQUIRE_LOG: firstAcquireLog,
+      METAL_STARTERS_LOCK_WAIT_LOG: firstWaitLog,
+      METAL_STARTERS_STOP_AFTER_LOCK: '1',
+    }, unsetEnv });
+    let second;
+    try {
+      await waitForLineCount(firstAcquireLog, 1);
+      second = spawnExecution([
+        '--all', '--output-dir', outputDirectory, '--metadata', secondMetadata,
+      ], { detached: true, env: {
+        ...secondEnvironment,
+        METAL_STARTERS_LOCK_ACQUIRE_LOG: secondAcquireLog,
+        METAL_STARTERS_LOCK_WAIT_LOG: secondWaitLog,
+        METAL_STARTERS_STOP_AFTER_LOCK: '1',
+      }, unsetEnv });
+
+      const secondInitialState = await waitForLockState(
+        secondAcquireLog, 1, secondWaitLog
+      );
+      if (secondInitialState === 'acquired') {
+        assert.equal(first.child.kill('SIGCONT'), true);
+        assert.equal(second.child.kill('SIGCONT'), true);
+        await Promise.all([waitForFile(firstWaitLog), waitForFile(secondWaitLog)]);
+        killProcessGroup(first.child);
+        killProcessGroup(second.child);
+      } else {
+        assert.equal(first.child.kill('SIGCONT'), true);
+        await waitForLineCount(firstAcquireLog, 2);
+        assert.equal(first.child.kill('SIGCONT'), true);
+        await waitForLineCount(secondAcquireLog, 1);
+        assert.equal(second.child.kill('SIGCONT'), true);
+        await waitForLineCount(secondAcquireLog, 2);
+        assert.equal(second.child.kill('SIGCONT'), true);
+      }
+
+      const results = await Promise.all([first.completion, second.completion]);
+      assert.deepEqual(
+        results.map(({ code, signal }) => ({ code, signal })),
+        [{ code: 0, signal: null }, { code: 0, signal: null }],
+        results.map(({ stderr }) => stderr).join('')
+      );
+    } finally {
+      killProcessGroup(first.child);
+      if (second) killProcessGroup(second.child);
+      await first.completion;
+      if (second) await second.completion;
+    }
+  }
+
+  async function verifyMixedCaseConcurrentPublishers() {
+    const outputDirectory = path.join(sandbox, 'mixed-case-lock-output');
+    const upperMetadata = path.join(outputDirectory, 'Zoo');
+    const lowerMetadata = path.join(outputDirectory, 'zoo');
+    fs.mkdirSync(outputDirectory);
+    fs.writeFileSync(upperMetadata, 'case probe\n');
+    const caseInsensitive = fs.existsSync(lowerMetadata);
+    fs.unlinkSync(upperMetadata);
+    if (!caseInsensitive) return;
+    await verifyConcurrentDualLockOrder({
+      name: 'mixed-case',
+      outputDirectory,
+      firstMetadata: upperMetadata,
+      secondMetadata: lowerMetadata,
+    });
+  }
+
+  async function verifyLocaleIndependentDualLockOrder() {
+    const outputDirectory = path.join(sandbox, 'éA');
+    const metadataDirectory = path.join(sandbox, 'ÉB');
+    const metadataFile = path.join(metadataDirectory, 'catalog.ts');
+    fs.mkdirSync(outputDirectory);
+    fs.mkdirSync(metadataDirectory);
+    await verifyConcurrentDualLockOrder({
+      name: 'mixed-locale',
+      outputDirectory,
+      firstMetadata: metadataFile,
+      secondMetadata: metadataFile,
+      firstEnvironment: { LANG: 'C' },
+      secondEnvironment: { LANG: 'en_US.UTF-8' },
+      unsetEnv: ['LC_ALL', 'LC_CTYPE', 'LC_COLLATE'],
+    });
+  }
+
+  async function verifyBlockedHelperDoesNotInheritFirstLock() {
+    const outputDirectory = path.join(sandbox, 'fd-a-output');
+    const metadataDirectory = path.join(sandbox, 'fd-z-metadata');
+    const metadataFile = path.join(metadataDirectory, 'catalog.ts');
+    const acquireLog = path.join(sandbox, 'fd-owner-acquires.log');
+    const waitLog = path.join(sandbox, 'fd-owner-waits.log');
+    const blockHelperMarker = path.join(sandbox, 'fd-block-helper.marker');
+    fs.mkdirSync(outputDirectory);
+    fs.mkdirSync(metadataDirectory);
+    const firstLock = path.join(
+      fs.realpathSync(outputDirectory), '.lingplay-metal-starters.output.lock'
+    );
+    const secondLock = path.join(
+      fs.realpathSync(metadataDirectory),
+      '.lingplay-metal-starters.catalog.ts.lock'
+    );
+    fs.writeFileSync(secondLock, 'persistent lock inode\n');
+
+    const blocker = spawn('/usr/bin/lockf', [
+      '-s', '-k', secondLock, '/bin/sleep', '30',
+    ], { detached: true, stdio: 'ignore' });
+    const blockerCompletion = new Promise((resolve) => {
+      blocker.on('close', (code, signal) => resolve({ code, signal }));
+    });
+    let owner;
+    try {
+      const blockerDeadline = Date.now() + 2000;
+      while (await nonblockingLockCode(secondLock) !== 75) {
+        if (Date.now() >= blockerDeadline) {
+          throw new Error(`timed out waiting for blocker on ${secondLock}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      owner = spawnExecution([
+        '--all', '--output-dir', outputDirectory, '--metadata', metadataFile,
+      ], { env: {
+        METAL_STARTERS_LOCK_ACQUIRE_LOG: acquireLog,
+        METAL_STARTERS_LOCK_BLOCK_HELPER_MARKER: blockHelperMarker,
+        METAL_STARTERS_LOCK_WAIT_LOG: waitLog,
+      } });
+      await waitForLineCount(acquireLog, 1);
+      assert.equal(fs.readFileSync(acquireLog, 'utf8').trim(), firstLock);
+      await waitForFile(waitLog);
+      await waitForFile(blockHelperMarker);
+      assert.equal(await nonblockingLockCode(firstLock), 75);
+
+      const ownerExit = new Promise((resolve) => owner.child.once('exit', resolve));
+      assert.equal(owner.child.kill('SIGKILL'), true);
+      await ownerExit;
+      assert.equal(
+        blocker.exitCode === null && blocker.signalCode === null,
+        true,
+        'the unrelated second-lock blocker must remain alive'
+      );
+      assert.equal(await nonblockingLockCode(secondLock), 75);
+      assert.equal(
+        await nonblockingLockCode(firstLock),
+        0,
+        'killing the owner shell must immediately release its first lock'
+      );
+    } finally {
+      if (owner && owner.child.exitCode === null && owner.child.signalCode === null) {
+        owner.child.kill('SIGKILL');
+      }
+      if (blocker.exitCode === null && blocker.signalCode === null) {
+        blocker.kill('SIGKILL');
+      }
+      await blockerCompletion;
+      if (owner) await owner.completion;
+      for (const directory of [outputDirectory, metadataDirectory]) {
+        for (const name of fs.readdirSync(directory)) {
+          if (name.startsWith('.lingplay-metal-starters.publish.')) {
+            fs.rmSync(path.join(directory, name), { recursive: true, force: true });
+          }
+        }
+      }
+    }
+  }
+
+  function inodeIdentity(file) {
+    const stat = fs.statSync(file);
+    return { dev: stat.dev, ino: stat.ino };
+  }
+
+  function buildLogContents() {
+    return fs.existsSync(buildLog) ? fs.readFileSync(buildLog, 'utf8') : '';
+  }
+
+  async function verifyMetadataLockPathsAreRejected() {
+    const pathCases = [
+      { name: 'direct', spelling: (directory) => (
+        path.join(directory, '.lingplay-metal-starters.output.lock')
+      ), precreate: false },
+      { name: 'normalized', spelling: (directory) => (
+        `${directory}/nested/../.lingplay-metal-starters.output.lock`
+      ), precreate: true },
+      { name: 'case-variant', spelling: (directory) => (
+        path.join(directory, '.LINGPLAY-METAL-STARTERS.OUTPUT.LOCK')
+      ), precreate: true, requiresCaseInsensitive: true },
+    ];
+
+    for (const pathCase of pathCases) {
+      const outputDirectory = path.join(
+        sandbox, `metadata-output-lock-${pathCase.name}`
+      );
+      fs.mkdirSync(outputDirectory);
+      const outputLock = path.join(
+        fs.realpathSync(outputDirectory), '.lingplay-metal-starters.output.lock'
+      );
+      if (pathCase.precreate) fs.writeFileSync(outputLock, 'persistent lock inode\n');
+      const metadataFile = pathCase.spelling(outputDirectory);
+      if (pathCase.requiresCaseInsensitive && !fs.existsSync(metadataFile)) continue;
+      const beforeInode = pathCase.precreate ? inodeIdentity(outputLock) : null;
+      const buildsBefore = buildLogContents();
+
+      const result = await execute([
+        '--all', '--output-dir', outputDirectory, '--metadata', metadataFile,
+      ]);
+      assert.deepEqual({ code: result.code, stderr: result.stderr }, {
+        code: 1,
+        stderr: `Metadata path aliases publication lock: ${outputLock}\n`,
+      });
+      assert.equal(buildLogContents(), buildsBefore);
+      if (beforeInode) {
+        assert.deepEqual(inodeIdentity(outputLock), beforeInode);
+      } else {
+        assert.equal(fs.existsSync(outputLock), false);
+      }
+    }
+  }
+
+  async function verifyMetadataLockInodesAreRejected() {
+    for (const aliasKind of ['output', 'metadata']) {
+      const outputDirectory = path.join(sandbox, `metadata-inode-${aliasKind}-output`);
+      const metadataDirectory = path.join(sandbox, `metadata-inode-${aliasKind}-target`);
+      const metadataFile = path.join(metadataDirectory, 'catalog.ts');
+      fs.mkdirSync(outputDirectory);
+      fs.mkdirSync(metadataDirectory);
+      const outputLock = path.join(
+        fs.realpathSync(outputDirectory), '.lingplay-metal-starters.output.lock'
+      );
+      const metadataLock = path.join(
+        fs.realpathSync(metadataDirectory),
+        '.lingplay-metal-starters.catalog.ts.lock'
+      );
+      const aliasedLock = aliasKind === 'output' ? outputLock : metadataLock;
+      fs.writeFileSync(aliasedLock, 'persistent lock inode\n');
+      fs.linkSync(aliasedLock, metadataFile);
+      const beforeInode = inodeIdentity(aliasedLock);
+      const buildsBefore = buildLogContents();
+
+      const result = await execute([
+        '--all', '--output-dir', outputDirectory, '--metadata', metadataFile,
+      ]);
+      assert.deepEqual({ code: result.code, stderr: result.stderr }, {
+        code: 1,
+        stderr: `Metadata path aliases publication lock: ${aliasedLock}\n`,
+      });
+      assert.equal(buildLogContents(), buildsBefore);
+      assert.deepEqual(inodeIdentity(aliasedLock), beforeInode);
+    }
+  }
+
+  async function verifySuccessfulPublicationPreservesLockInodes() {
+    const outputDirectory = path.join(sandbox, 'persistent-lock-output');
+    const metadataDirectory = path.join(sandbox, 'persistent-lock-metadata');
+    const metadataFile = path.join(metadataDirectory, 'catalog.ts');
+    const arguments_ = [
+      '--all', '--output-dir', outputDirectory, '--metadata', metadataFile,
+    ];
+    const first = await execute(arguments_);
+    assert.equal(first.code, 0, first.stderr);
+    const outputLock = path.join(
+      fs.realpathSync(outputDirectory), '.lingplay-metal-starters.output.lock'
+    );
+    const metadataLock = path.join(
+      fs.realpathSync(metadataDirectory),
+      '.lingplay-metal-starters.catalog.ts.lock'
+    );
+    const before = {
+      output: inodeIdentity(outputLock),
+      metadata: inodeIdentity(metadataLock),
+    };
+
+    const second = await execute(arguments_);
+    assert.equal(second.code, 0, second.stderr);
+    assert.deepEqual({
+      output: inodeIdentity(outputLock),
+      metadata: inodeIdentity(metadataLock),
+    }, before);
   }
 
   async function verifyAdvisoryLockSerialization() {
@@ -536,6 +881,12 @@ fi
     await verifyHardlinkedLockFailsClosed();
     await verifyOwnedLockSignalAndErrorCleanup();
     await verifyCanonicalDualLockAcquisitionOrder();
+    await verifyMixedCaseConcurrentPublishers();
+    await verifyLocaleIndependentDualLockOrder();
+    await verifyBlockedHelperDoesNotInheritFirstLock();
+    await verifyMetadataLockPathsAreRejected();
+    await verifyMetadataLockInodesAreRejected();
+    await verifySuccessfulPublicationPreservesLockInodes();
     assert.deepEqual(publicationArtifacts(), []);
     await verifyRecoverableRollbackFailure();
   } finally {

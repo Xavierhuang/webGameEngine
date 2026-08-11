@@ -59,6 +59,8 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd -P)"
+OUTPUT_LOCK="$OUTPUT_DIR/.lingplay-metal-starters.output.lock"
+METADATA_LOCK=''
 if [ "$MODE" = 'all' ]; then
   METADATA_PARENT="$(dirname "$METADATA_FILE")"
   METADATA_BASENAME="$(basename "$METADATA_FILE")"
@@ -71,12 +73,23 @@ if [ "$MODE" = 'all' ]; then
   fi
   METADATA_PARENT="$(dirname "$METADATA_FILE")"
   METADATA_BASENAME="$(basename "$METADATA_FILE")"
+  METADATA_LOCK="$METADATA_PARENT/.lingplay-metal-starters.$METADATA_BASENAME.lock"
   METADATA_CASE_FOLDED="$(printf '%s' "$METADATA_FILE" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
   for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero; do
     GENERATED_FILE="$OUTPUT_DIR/$id.glb"
     GENERATED_CASE_FOLDED="$(printf '%s' "$GENERATED_FILE" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
     if [ "$METADATA_CASE_FOLDED" = "$GENERATED_CASE_FOLDED" ]; then
       printf 'Metadata path aliases generated starter output: %s\n' "$GENERATED_FILE" >&2
+      exit 1
+    fi
+  done
+  for PUBLICATION_LOCK in "$OUTPUT_LOCK" "$METADATA_LOCK"; do
+    PUBLICATION_LOCK_CASE_FOLDED="$(printf '%s' "$PUBLICATION_LOCK" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+    if [ "$METADATA_CASE_FOLDED" = "$PUBLICATION_LOCK_CASE_FOLDED" ] || {
+      [ -e "$METADATA_FILE" ] && [ -e "$PUBLICATION_LOCK" ] &&
+        [ "$METADATA_FILE" -ef "$PUBLICATION_LOCK" ]
+    }; then
+      printf 'Metadata path aliases publication lock: %s\n' "$PUBLICATION_LOCK" >&2
       exit 1
     fi
   done
@@ -171,6 +184,24 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+run_lockf_helper() (
+  local descriptor="$1" blocking="$2"
+  case "$descriptor" in
+    8) exec 9>&- ;;
+    9) exec 8>&- ;;
+    *) return 64 ;;
+  esac
+  if [ "$blocking" -eq 1 ] && \
+      [ -n "${METAL_STARTERS_LOCK_BLOCK_HELPER_MARKER:-}" ]; then
+    : > "$METAL_STARTERS_LOCK_BLOCK_HELPER_MARKER"
+  fi
+  if [ "$blocking" -eq 1 ]; then
+    exec /usr/bin/lockf -s "$descriptor"
+  else
+    exec /usr/bin/lockf -s -t 0 "$descriptor"
+  fi
+)
+
 acquire_lock() {
   local lock_file="$1" descriptor="$2" status=0 link_count=''
   if [ ! -x /usr/bin/lockf ]; then
@@ -205,7 +236,7 @@ acquire_lock() {
     return 77
   fi
 
-  if /usr/bin/lockf -s -t 0 "$descriptor"; then
+  if run_lockf_helper "$descriptor" 0; then
     status=0
   else
     status=$?
@@ -214,7 +245,7 @@ acquire_lock() {
     if [ -n "${METAL_STARTERS_LOCK_WAIT_LOG:-}" ]; then
       printf '%s\n' "$lock_file" >> "$METAL_STARTERS_LOCK_WAIT_LOG"
     fi
-    if /usr/bin/lockf -s "$descriptor"; then
+    if run_lockf_helper "$descriptor" 1; then
       status=0
     else
       status=$?
@@ -266,11 +297,17 @@ register_target() {
 # unlocked readers during the rename window are outside that guarantee.
 publish_transaction() {
   local LC_ALL=C
-  local output_lock metadata_lock first_lock second_lock index target backup
-  output_lock="$OUTPUT_DIR/.lingplay-metal-starters.output.lock"
+  local output_lock metadata_lock output_lock_key metadata_lock_key
+  local first_lock second_lock index target backup
+  output_lock="$OUTPUT_LOCK"
   if [ "$MODE" = 'all' ]; then
-    metadata_lock="$METADATA_PARENT/.lingplay-metal-starters.$METADATA_BASENAME.lock"
-    if [[ "$output_lock" < "$metadata_lock" ]]; then
+    metadata_lock="$METADATA_LOCK"
+    output_lock_key="$(printf '%s' "$output_lock" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+    metadata_lock_key="$(printf '%s' "$metadata_lock" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+    if [[ "$output_lock_key" < "$metadata_lock_key" ]] || {
+      [ "$output_lock_key" = "$metadata_lock_key" ] &&
+        [[ "$output_lock" < "$metadata_lock" ]]
+    }; then
       first_lock="$output_lock"; second_lock="$metadata_lock"
     else
       first_lock="$metadata_lock"; second_lock="$output_lock"
