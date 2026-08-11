@@ -88,7 +88,6 @@ OUTPUT_TRANSACTION_DIR=''
 METADATA_TRANSACTION_DIR=''
 TRANSACTION_ACTIVE=0
 LOCK_DIRECTORIES=()
-LOCK_OWNER_CANDIDATES=()
 TARGETS=()
 NEW_FILES=()
 BACKUPS=()
@@ -96,16 +95,29 @@ ORIGINAL_MARKERS=()
 ABSENT_MARKERS=()
 
 release_locks() {
-  local index
+  local index lock_directory owner failed=0
   for ((index = ${#LOCK_DIRECTORIES[@]} - 1; index >= 0; index--)); do
-    rm -f -- "${LOCK_DIRECTORIES[$index]}/owner"
-    rmdir -- "${LOCK_DIRECTORIES[$index]}" 2>/dev/null || true
+    lock_directory="${LOCK_DIRECTORIES[$index]}"
+    if [ -L "$lock_directory" ]; then
+      owner="$(readlink "$lock_directory" 2>/dev/null || true)"
+      if [ "$owner" = "$$" ]; then
+        if ! rm -f -- "$lock_directory"; then
+          printf 'Could not release owned publication lock: %s\n' "$lock_directory" >&2
+          failed=1
+        fi
+      else
+        printf 'Publication lock ownership changed; left intact: %s (owner %s)\n' \
+          "$lock_directory" "${owner:-unknown}" >&2
+        failed=1
+      fi
+    elif [ -e "$lock_directory" ]; then
+      printf 'Publication lock ownership changed; left intact: %s (not a symlink)\n' \
+        "$lock_directory" >&2
+      failed=1
+    fi
   done
   LOCK_DIRECTORIES=()
-  for ((index = ${#LOCK_OWNER_CANDIDATES[@]} - 1; index >= 0; index--)); do
-    rm -f -- "${LOCK_OWNER_CANDIDATES[$index]}"
-  done
-  LOCK_OWNER_CANDIDATES=()
+  return "$failed"
 }
 
 rollback_publication() {
@@ -153,7 +165,9 @@ cleanup() {
       status=75
     fi
   fi
-  release_locks
+  if ! release_locks; then
+    [ "$status" -ne 0 ] || status=77
+  fi
   if [ "$rollback_failed" -eq 0 ]; then
     [ -z "$OUTPUT_TRANSACTION_DIR" ] || rm -rf -- "$OUTPUT_TRANSACTION_DIR"
     [ -z "$METADATA_TRANSACTION_DIR" ] || rm -rf -- "$METADATA_TRANSACTION_DIR"
@@ -172,68 +186,49 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 acquire_lock() {
-  local lock_directory="$1" owner='' owner_candidate ownerless_checks=0
-  local ownerless_limit="${METAL_STARTERS_OWNERLESS_LOCK_RETRIES:-20}"
+  local lock_directory="$1" owner='' observed_owner=''
   local retry_delay="${METAL_STARTERS_LOCK_RETRY_DELAY:-0.05}"
-  case "$ownerless_limit" in
-    ''|*[!0-9]*) ownerless_limit=20 ;;
-  esac
-  [ "$ownerless_limit" -gt 0 ] || ownerless_limit=1
-  owner_candidate="$lock_directory.owner.$$"
-  LOCK_OWNER_CANDIDATES+=("$owner_candidate")
-  if ! printf '%s\n' "$$" > "$owner_candidate"; then
-    printf 'Could not prepare publication lock owner: %s\n' "$owner_candidate" >&2
-    return 76
-  fi
   while true; do
-    if mkdir -- "$lock_directory" 2>/dev/null; then
-      # Record ownership in memory before any fallible initialization step.
-      # The prepared owner file is then renamed atomically into the lock.
+    if ln -s "$$" "$lock_directory" 2>/dev/null; then
       LOCK_DIRECTORIES+=("$lock_directory")
-      if [ "${METAL_STARTERS_FAIL_LOCK_INITIALIZATION:-0}" = '1' ]; then
-        printf 'Injected publication lock initialization failure: %s\n' \
-          "$lock_directory" >&2
-        return 76
+      if [ -n "${METAL_STARTERS_LOCK_ACQUIRED_MARKER:-}" ]; then
+        : > "$METAL_STARTERS_LOCK_ACQUIRED_MARKER"
       fi
-      if [ -n "${METAL_STARTERS_LOCK_INIT_MARKER:-}" ]; then
-        : > "$METAL_STARTERS_LOCK_INIT_MARKER"
+      if [ -n "${METAL_STARTERS_LOCK_HOLD_DELAY:-}" ]; then
+        sleep "$METAL_STARTERS_LOCK_HOLD_DELAY"
       fi
-      if [ -n "${METAL_STARTERS_LOCK_INIT_DELAY:-}" ]; then
-        sleep "$METAL_STARTERS_LOCK_INIT_DELAY"
-      fi
-      if [ "${METAL_STARTERS_SIGNAL_DURING_LOCK_INIT:-0}" = '1' ]; then
+      if [ "${METAL_STARTERS_SIGNAL_AFTER_LOCK:-0}" = '1' ]; then
         kill -TERM "$$"
       fi
-      if ! mv -f -- "$owner_candidate" "$lock_directory/owner"; then
-        printf 'Could not initialize publication lock owner: %s\n' "$lock_directory" >&2
+      if [ "${METAL_STARTERS_FAIL_AFTER_LOCK:-0}" = '1' ]; then
+        printf 'Injected publication failure after lock acquisition: %s\n' \
+          "$lock_directory" >&2
         return 76
       fi
       return 0
     fi
-    if [ -f "$lock_directory/owner" ]; then
-      ownerless_checks=0
-      owner="$(sed -n '1p' "$lock_directory/owner" 2>/dev/null || true)"
-      case "$owner" in ''|*[!0-9]*) owner='' ;; esac
-      if [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then
-        rm -f -- "$lock_directory/owner"
-        rmdir -- "$lock_directory" 2>/dev/null || true
-        continue
-      fi
-    else
-      # A new owner gets a grace window. Reclaim only with rmdir, which is
-      # atomic and succeeds only while the lock is still genuinely empty.
-      ownerless_checks=$((ownerless_checks + 1))
-      if [ -n "${METAL_STARTERS_OWNERLESS_WAIT_LOG:-}" ]; then
-        printf '%s\n' "$lock_directory" >> "$METAL_STARTERS_OWNERLESS_WAIT_LOG"
-      fi
-      if [ "$ownerless_checks" -ge "$ownerless_limit" ]; then
-        if rmdir -- "$lock_directory" 2>/dev/null; then
-          ownerless_checks=0
-          continue
-        fi
-      fi
+    if [ ! -L "$lock_directory" ]; then
+      [ -e "$lock_directory" ] || continue
+      printf 'Publication lock is not an owner symlink: %s\n' "$lock_directory" >&2
+      return 77
     fi
-    sleep "$retry_delay"
+
+    observed_owner="$(readlink "$lock_directory" 2>/dev/null || true)"
+    owner="$observed_owner"
+    case "$owner" in ''|*[!0-9]*|0|1) owner='' ;; esac
+    if [ -n "$owner" ] && kill -0 "$owner" 2>/dev/null; then
+      if [ -n "${METAL_STARTERS_LOCK_WAIT_LOG:-}" ]; then
+        printf '%s owner=%s\n' "$lock_directory" "$owner" >> "$METAL_STARTERS_LOCK_WAIT_LOG"
+      fi
+      sleep "$retry_delay"
+      continue
+    fi
+
+    # Re-read immediately before unlinking so a changed owner is never
+    # intentionally removed. All cooperating publishers use this protocol.
+    if [ "$(readlink "$lock_directory" 2>/dev/null || true)" = "$observed_owner" ]; then
+      rm -f -- "$lock_directory"
+    fi
   done
 }
 
@@ -294,7 +289,9 @@ publish_transaction() {
     rm -rf -- "$METADATA_TRANSACTION_DIR"
     METADATA_TRANSACTION_DIR=''
   fi
-  release_locks
+  if ! release_locks; then
+    return 77
+  fi
 }
 
 BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/lingplay-metal-starters.XXXXXX")"

@@ -275,34 +275,6 @@ fi
     return concurrentDirectories.filter((directory) => fs.existsSync(directory));
   }
 
-  async function verifyLockInitializationSignalCleanup() {
-    const outputDirectory = path.join(sandbox, 'lock-signal-output');
-    const result = await execute([
-      '--character', 'robot', '--output-dir', outputDirectory,
-    ], { env: { METAL_STARTERS_SIGNAL_DURING_LOCK_INIT: '1' } });
-    assert.equal(result.code, 143, result.stderr);
-    assert.equal(
-      fs.existsSync(path.join(outputDirectory, '.lingplay-metal-starters.output.lock')),
-      false
-    );
-  }
-
-  async function verifyLockInitializationErrorCleanup() {
-    const outputDirectory = path.join(sandbox, 'lock-error-output');
-    const result = await execute([
-      '--character', 'robot', '--output-dir', outputDirectory,
-    ], { env: { METAL_STARTERS_FAIL_LOCK_INITIALIZATION: '1' } });
-    const canonicalLock = path.join(
-      fs.realpathSync(outputDirectory),
-      '.lingplay-metal-starters.output.lock'
-    );
-    assert.deepEqual({ code: result.code, stderr: result.stderr }, {
-      code: 76,
-      stderr: `Injected publication lock initialization failure: ${canonicalLock}\n`,
-    });
-    assert.equal(fs.existsSync(canonicalLock), false);
-  }
-
   async function waitForFile(file) {
     const deadline = Date.now() + 2000;
     while (!fs.existsSync(file)) {
@@ -311,44 +283,118 @@ fi
     }
   }
 
-  async function verifyShortOwnerlessInitializationWindow() {
-    const outputDirectory = path.join(sandbox, 'lock-initialization-output');
-    const marker = path.join(sandbox, 'lock-initialization.marker');
-    const waitLog = path.join(sandbox, 'ownerless-waits.log');
+  async function verifyAtomicOwnerLockSerialization() {
+    const outputDirectory = path.join(sandbox, 'atomic-lock-output');
+    const marker = path.join(sandbox, 'atomic-lock.marker');
+    const waitLog = path.join(sandbox, 'live-lock-waits.log');
     const first = execute([
       '--character', 'robot', '--output-dir', outputDirectory,
     ], { env: {
-      METAL_STARTERS_LOCK_INIT_DELAY: '0.4',
-      METAL_STARTERS_LOCK_INIT_MARKER: marker,
+      METAL_STARTERS_LOCK_HOLD_DELAY: '0.4',
+      METAL_STARTERS_LOCK_ACQUIRED_MARKER: marker,
     } });
     await waitForFile(marker);
+    const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+    assert.equal(fs.lstatSync(lockPath).isSymbolicLink(), true);
+    assert.match(fs.readlinkSync(lockPath), /^[0-9]+$/);
     const second = execute([
       '--character', 'robot', '--output-dir', outputDirectory,
-    ], { env: { METAL_STARTERS_OWNERLESS_WAIT_LOG: waitLog } });
+    ], { env: { METAL_STARTERS_LOCK_WAIT_LOG: waitLog } });
     const results = await Promise.all([first, second]);
     assert.deepEqual(results.map(({ code }) => code), [0, 0]);
     assert.match(fs.readFileSync(waitLog, 'utf8'), /\.lingplay-metal-starters\.output\.lock/);
-    assert.equal(
-      fs.existsSync(path.join(outputDirectory, '.lingplay-metal-starters.output.lock')),
-      false
-    );
+    assert.equal(fs.existsSync(lockPath), false);
   }
 
-  async function verifyStaleOwnerlessLockRecovery() {
-    const outputDirectory = path.join(sandbox, 'stale-lock-output');
+  async function verifyDeadAndMalformedLockRecovery() {
+    const outputDirectory = path.join(sandbox, 'stale-symlink-lock-output');
+    fs.mkdirSync(outputDirectory);
     const lockDirectory = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
-    fs.mkdirSync(lockDirectory, { recursive: true });
+    fs.symlinkSync('99999999', lockDirectory);
+    const deadResult = await execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { timeout: 1500 });
+    assert.equal(deadResult.code, 0, deadResult.stderr);
+    assert.equal(fs.existsSync(lockDirectory), false);
+
+    fs.symlinkSync('not-a-pid', lockDirectory);
+    const malformedResult = await execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { timeout: 1500 });
+    assert.equal(malformedResult.code, 0, malformedResult.stderr);
+    assert.equal(fs.existsSync(lockDirectory), false);
+  }
+
+  async function verifyNonSymlinkLockIsPreserved() {
+    const outputDirectory = path.join(sandbox, 'foreign-lock-output');
+    fs.mkdirSync(outputDirectory);
+    const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+    fs.writeFileSync(lockPath, 'foreign lock\n');
     const result = await execute([
       '--character', 'robot', '--output-dir', outputDirectory,
-    ], {
-      env: {
-        METAL_STARTERS_OWNERLESS_LOCK_RETRIES: '2',
-        METAL_STARTERS_LOCK_RETRY_DELAY: '0.01',
-      },
-      timeout: 1500,
+    ], { timeout: 1500 });
+    const canonicalLock = path.join(
+      fs.realpathSync(outputDirectory),
+      '.lingplay-metal-starters.output.lock'
+    );
+    assert.deepEqual({ code: result.code, stderr: result.stderr }, {
+      code: 77,
+      stderr: `Publication lock is not an owner symlink: ${canonicalLock}\n`,
     });
-    assert.equal(result.code, 0, result.stderr);
-    assert.equal(fs.existsSync(lockDirectory), false);
+    assert.equal(fs.readFileSync(lockPath, 'utf8'), 'foreign lock\n');
+    fs.rmSync(lockPath);
+  }
+
+  async function verifyOwnedLockSignalAndErrorCleanup() {
+    for (const [environment, expectedCode] of [
+      [{ METAL_STARTERS_SIGNAL_AFTER_LOCK: '1' }, 143],
+      [{ METAL_STARTERS_FAIL_AFTER_LOCK: '1' }, 76],
+    ]) {
+      const outputDirectory = path.join(sandbox, `owned-lock-cleanup-${expectedCode}`);
+      const result = await execute([
+        '--character', 'robot', '--output-dir', outputDirectory,
+      ], { env: environment });
+      assert.equal(result.code, expectedCode, result.stderr);
+      assert.equal(
+        fs.existsSync(path.join(outputDirectory, '.lingplay-metal-starters.output.lock')),
+        false
+      );
+    }
+  }
+
+  async function verifyLiveForeignLockCannotBeRemovedOrOverwritten() {
+    const outputDirectory = path.join(sandbox, 'live-foreign-lock-output');
+    fs.mkdirSync(outputDirectory);
+    const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+    fs.symlinkSync(String(process.pid), lockPath);
+    const result = await execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { timeout: 500 });
+    assert.equal(result.code, 143, result.stderr);
+    assert.equal(fs.readlinkSync(lockPath), String(process.pid));
+    fs.unlinkSync(lockPath);
+  }
+
+  async function verifyCleanupPreservesReplacementOwner() {
+    const outputDirectory = path.join(sandbox, 'replacement-owner-output');
+    const marker = path.join(sandbox, 'replacement-owner.marker');
+    const first = execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { env: {
+      METAL_STARTERS_LOCK_HOLD_DELAY: '0.4',
+      METAL_STARTERS_LOCK_ACQUIRED_MARKER: marker,
+      METAL_STARTERS_FAIL_AFTER_LOCK: '1',
+    } });
+    await waitForFile(marker);
+    const lockPath = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+    assert.equal(fs.lstatSync(lockPath).isSymbolicLink(), true);
+    fs.unlinkSync(lockPath);
+    fs.symlinkSync(String(process.pid), lockPath);
+    const result = await first;
+    assert.equal(result.code, 76, result.stderr);
+    assert.equal(fs.readlinkSync(lockPath), String(process.pid));
+    assert.match(result.stderr, /Publication lock ownership changed; left intact:/);
+    fs.unlinkSync(lockPath);
   }
 
   try {
@@ -384,10 +430,12 @@ fi
     assert.equal(new Set(await concurrentBuildDirectories()).size, 2);
     assert.deepEqual(await remainingBuildDirectories(), []);
     assert.deepEqual(publicationArtifacts(), []);
-    await verifyLockInitializationSignalCleanup();
-    await verifyLockInitializationErrorCleanup();
-    await verifyShortOwnerlessInitializationWindow();
-    await verifyStaleOwnerlessLockRecovery();
+    await verifyAtomicOwnerLockSerialization();
+    await verifyDeadAndMalformedLockRecovery();
+    await verifyNonSymlinkLockIsPreserved();
+    await verifyOwnedLockSignalAndErrorCleanup();
+    await verifyLiveForeignLockCannotBeRemovedOrOverwritten();
+    await verifyCleanupPreservesReplacementOwner();
     assert.deepEqual(publicationArtifacts(), []);
     await verifyRecoverableRollbackFailure();
   } finally {
