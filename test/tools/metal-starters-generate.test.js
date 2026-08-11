@@ -72,9 +72,15 @@ fi
   fs.writeFileSync(fakeMv, `#!/usr/bin/env bash
 set -euo pipefail
 is_publish=0
+is_restore=0
+source_path=''
+next_is_source=0
 for argument in "$@"; do
-  case "$argument" in */new/*) is_publish=1 ;; esac
+  if [ "$next_is_source" = '1' ]; then source_path="$argument"; break; fi
+  [ "$argument" != '--' ] || next_is_source=1
 done
+case "$source_path" in */new/*) is_publish=1 ;; esac
+case "$source_path" in */backup/*.glb) is_restore=1 ;; esac
 if [ "$is_publish" = '1' ] && [ -n "\${METAL_STARTERS_FAIL_PUBLISH_AFTER:-}" ]; then
   count=0
   [ ! -f "$METAL_STARTERS_MV_LOG" ] || count="$(cat "$METAL_STARTERS_MV_LOG")"
@@ -84,6 +90,14 @@ if [ "$is_publish" = '1' ] && [ -n "\${METAL_STARTERS_FAIL_PUBLISH_AFTER:-}" ]; 
     printf 'forced publish failure\n' >&2
     exit 73
   fi
+fi
+if [ "$is_restore" = '1' ] && [ -n "\${METAL_STARTERS_FAIL_RESTORE_NAME:-}" ]; then
+  case "$source_path" in
+    */backup/"$METAL_STARTERS_FAIL_RESTORE_NAME")
+      printf 'forced restore failure for %s\n' "$source_path" >&2
+      exit 74
+      ;;
+  esac
 fi
 exec /bin/mv "$@"
 `);
@@ -124,7 +138,7 @@ fi
       const result = await execFileAsync('bash', [
         'tools/metal-starters/generate.sh',
         ...arguments_,
-      ], { env: { ...env, ...options.env } });
+      ], { env: { ...env, ...options.env }, timeout: options.timeout });
       return { code: 0, stdout: result.stdout, stderr: result.stderr };
     } catch (error) {
       return {
@@ -208,6 +222,41 @@ fi
     return artifacts.sort();
   }
 
+  const rollbackFailureOutput = path.join(sandbox, 'rollback-failure-output');
+  const rollbackFailureMetadata = path.join(sandbox, 'rollback-failure-metadata.ts');
+  fs.mkdirSync(rollbackFailureOutput);
+  for (const id of expectedIds) {
+    fs.writeFileSync(path.join(rollbackFailureOutput, `${id}.glb`), `previous:${id}\n`);
+  }
+  fs.writeFileSync(rollbackFailureMetadata, 'previous metadata\n');
+
+  async function verifyRecoverableRollbackFailure() {
+    fs.rmSync(env.METAL_STARTERS_MV_LOG, { force: true });
+    const result = await execute([
+      '--all', '--output-dir', rollbackFailureOutput,
+      '--metadata', rollbackFailureMetadata,
+    ], { env: {
+      METAL_STARTERS_FAIL_PUBLISH_AFTER: '4',
+      METAL_STARTERS_FAIL_RESTORE_NAME: 'robot.glb',
+    } });
+    assert.equal(result.code, 75, result.stderr);
+    assert.match(result.stderr, /Rollback failed restoring backup .*\/backup\/robot\.glb to .*\/rollback-failure-output\/robot\.glb\n/);
+    assert.match(result.stderr, /Rollback incomplete; recovery artifacts preserved at:/);
+
+    const recoveryDirectories = fs.readdirSync(rollbackFailureOutput)
+      .filter((name) => name.startsWith('.lingplay-metal-starters.publish.'));
+    assert.equal(recoveryDirectories.length, 1);
+    const recoveryDirectory = path.join(rollbackFailureOutput, recoveryDirectories[0]);
+    assert.equal(
+      fs.readFileSync(path.join(recoveryDirectory, 'backup', 'robot.glb'), 'utf8'),
+      'previous:robot\n'
+    );
+    assert.equal(
+      fs.existsSync(path.join(recoveryDirectory, 'journal', 'robot.glb.original')),
+      true
+    );
+  }
+
   let concurrentDirectories = [];
   async function concurrentBuildDirectories() {
     const first = path.join(sandbox, 'concurrent-one');
@@ -226,6 +275,82 @@ fi
     return concurrentDirectories.filter((directory) => fs.existsSync(directory));
   }
 
+  async function verifyLockInitializationSignalCleanup() {
+    const outputDirectory = path.join(sandbox, 'lock-signal-output');
+    const result = await execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { env: { METAL_STARTERS_SIGNAL_DURING_LOCK_INIT: '1' } });
+    assert.equal(result.code, 143, result.stderr);
+    assert.equal(
+      fs.existsSync(path.join(outputDirectory, '.lingplay-metal-starters.output.lock')),
+      false
+    );
+  }
+
+  async function verifyLockInitializationErrorCleanup() {
+    const outputDirectory = path.join(sandbox, 'lock-error-output');
+    const result = await execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { env: { METAL_STARTERS_FAIL_LOCK_INITIALIZATION: '1' } });
+    const canonicalLock = path.join(
+      fs.realpathSync(outputDirectory),
+      '.lingplay-metal-starters.output.lock'
+    );
+    assert.deepEqual({ code: result.code, stderr: result.stderr }, {
+      code: 76,
+      stderr: `Injected publication lock initialization failure: ${canonicalLock}\n`,
+    });
+    assert.equal(fs.existsSync(canonicalLock), false);
+  }
+
+  async function waitForFile(file) {
+    const deadline = Date.now() + 2000;
+    while (!fs.existsSync(file)) {
+      if (Date.now() >= deadline) throw new Error(`timed out waiting for ${file}`);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  async function verifyShortOwnerlessInitializationWindow() {
+    const outputDirectory = path.join(sandbox, 'lock-initialization-output');
+    const marker = path.join(sandbox, 'lock-initialization.marker');
+    const waitLog = path.join(sandbox, 'ownerless-waits.log');
+    const first = execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { env: {
+      METAL_STARTERS_LOCK_INIT_DELAY: '0.4',
+      METAL_STARTERS_LOCK_INIT_MARKER: marker,
+    } });
+    await waitForFile(marker);
+    const second = execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], { env: { METAL_STARTERS_OWNERLESS_WAIT_LOG: waitLog } });
+    const results = await Promise.all([first, second]);
+    assert.deepEqual(results.map(({ code }) => code), [0, 0]);
+    assert.match(fs.readFileSync(waitLog, 'utf8'), /\.lingplay-metal-starters\.output\.lock/);
+    assert.equal(
+      fs.existsSync(path.join(outputDirectory, '.lingplay-metal-starters.output.lock')),
+      false
+    );
+  }
+
+  async function verifyStaleOwnerlessLockRecovery() {
+    const outputDirectory = path.join(sandbox, 'stale-lock-output');
+    const lockDirectory = path.join(outputDirectory, '.lingplay-metal-starters.output.lock');
+    fs.mkdirSync(lockDirectory, { recursive: true });
+    const result = await execute([
+      '--character', 'robot', '--output-dir', outputDirectory,
+    ], {
+      env: {
+        METAL_STARTERS_OWNERLESS_LOCK_RETRIES: '2',
+        METAL_STARTERS_LOCK_RETRY_DELAY: '0.01',
+      },
+      timeout: 1500,
+    });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(fs.existsSync(lockDirectory), false);
+  }
+
   try {
     assert.deepEqual(await run(['--character', 'spaceship']), {
       code: 1,
@@ -237,6 +362,7 @@ fi
     for (const metadataAlias of [
       path.join(aliasOutput, 'robot.glb'),
       path.join(aliasOutput, '..', 'starters', 'robot.glb'),
+      path.join(aliasOutput, 'ROBOT.glb'),
     ]) {
       const result = await execute([
         '--all', '--output-dir', aliasOutput, '--metadata', metadataAlias,
@@ -258,6 +384,12 @@ fi
     assert.equal(new Set(await concurrentBuildDirectories()).size, 2);
     assert.deepEqual(await remainingBuildDirectories(), []);
     assert.deepEqual(publicationArtifacts(), []);
+    await verifyLockInitializationSignalCleanup();
+    await verifyLockInitializationErrorCleanup();
+    await verifyShortOwnerlessInitializationWindow();
+    await verifyStaleOwnerlessLockRecovery();
+    assert.deepEqual(publicationArtifacts(), []);
+    await verifyRecoverableRollbackFailure();
   } finally {
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
