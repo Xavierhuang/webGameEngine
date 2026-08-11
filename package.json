@@ -16,7 +16,8 @@
     "test:safety": "tsc lib/safety/keyword-scan.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/safety/keyword-scan.test.js",
     "test:prefabs": "tsc lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/prefabs/characters.test.js && node test/prefabs/minion-assets.test.mjs",
     "test:model-lifecycle": "tsc lib/utils/modelCache.ts lib/utils/asyncResourceLifecycle.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/utils/model-resource-lifecycle.test.mjs",
-    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:model-lifecycle"
+    "test:preview": "tsc components/editor/ShapePreview.tsx --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --jsx react-jsx --esModuleInterop --skipLibCheck && node test/editor/shape-preview.test.mjs",
+    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:model-lifecycle && npm run test:preview"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
