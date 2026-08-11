@@ -16,3 +16,8 @@ test('preview and runtime clone cached GLTF scenes', () => {
   assert.match(animated, /SkeletonUtils\.clone/);
   assert.doesNotMatch(animated, /<primitive object=\{scene\}/);
 });
+
+test('selector lazily allocates WebGL previews for visible tiles', () => {
+  assert.match(preview, /IntersectionObserver/);
+  assert.match(preview, /if \(!isVisible\)/);
+});

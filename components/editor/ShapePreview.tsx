@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, Suspense, useEffect, useMemo, type ReactNode } from 'react';
+import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -168,10 +168,34 @@ function PreviewCanvas({ children }: { children: ReactNode }) {
 }
 
 export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewProps) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const element = previewRef.current;
+    if (!element) return;
+
+    if (!('IntersectionObserver' in window)) {
+      setIsVisible(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { rootMargin: '120px' }
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
   const capsuleFallback = <PreviewCanvas><ShapeMesh shape="capsule" color={color} /></PreviewCanvas>;
 
+  if (!isVisible) {
+    return <div ref={previewRef} className="h-full w-full" aria-hidden="true" />;
+  }
+
   return (
-    <div style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}>
+    <div ref={previewRef} style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}>
       {modelUrl ? (
         <PreviewErrorBoundary key={modelUrl} fallback={capsuleFallback}>
           <PreviewCanvas>
@@ -197,7 +221,6 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
     </div>
   );
 }
-
 
 
 
