@@ -400,6 +400,56 @@ const ctxIdle = {
   eq(fresh?.items?.join(','), 'first', 'show_list before add: promotes to list');
 }
 
+// --- Scene switching blocks ---
+{
+  const switched = [];
+  let nexts = 0;
+  const ctxScene = {
+    getKeys: () => ({}),
+    move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+    switchScene: (name) => switched.push(name),
+    nextScene: () => { nexts++; },
+  };
+  const v = new VariableStore();
+  const rt = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 's', block_type: 'switch_to_scene', inputs: { name: 'Level 2' } },
+    { id: 'n', block_type: 'next_scene' },
+    { id: 'after', block_type: 'set_variable', inputs: { name: 'alive', value: 1 } },
+  ], v, ctxScene);
+  rt.step(0.016, 0);
+  eq(switched.join(','), 'Level 2', 'switch_to_scene: ctx called with name');
+  eq(nexts, 1, 'next_scene: ctx called');
+  eq(v.get('o', 'alive'), 1, 'scene blocks do not kill the script (no-op switch continues)');
+
+  // when_scene_starts fires once like on_start, and not for clones
+  const v2 = new VariableStore();
+  const rt2 = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'when_scene_starts' },
+    { id: 'a', block_type: 'change_variable', inputs: { name: 'entered', value: 1 } },
+  ], v2, ctxScene);
+  rt2.step(0.016, 0);
+  rt2.step(0.016, 0.016);
+  eq(v2.get('o', 'entered'), 1, 'when_scene_starts: fires once per runtime');
+  const rtClone = new ObjectRuntime('c', [
+    { id: 'h', block_type: 'when_scene_starts' },
+    { id: 'a', block_type: 'change_variable', inputs: { name: 'entered', value: 1 } },
+  ], v2, ctxScene, undefined, { isClone: true });
+  rtClone.step(0.016, 0);
+  eq(v2.get('o', 'entered'), 1, 'when_scene_starts: clones do not refire');
+
+  // ctx without scene callbacks: blocks are safe no-ops
+  const v3 = new VariableStore();
+  const rt3 = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 's', block_type: 'switch_to_scene', inputs: { name: 'X' } },
+    { id: 'n', block_type: 'next_scene' },
+    { id: 'a', block_type: 'set_variable', inputs: { name: 'ok', value: 1 } },
+  ], v3, ctxIdle);
+  rt3.step(0.016, 0);
+  eq(v3.get('o', 'ok'), 1, 'scene blocks: no-op without ctx callbacks');
+}
+
 // --- Phase 3: clones ---
 {
   const w = new RuntimeWorld();

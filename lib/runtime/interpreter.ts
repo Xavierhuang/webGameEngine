@@ -383,6 +383,9 @@ export class RuntimeWorld {
   /** Player hooks: spawn/despawn the clone's visual object. */
   onSpawnClone?: (sourceId: string, cloneId: string) => void;
   onDespawnClone?: (cloneId: string) => void;
+  /** Scene switching — set by the player; per-object ctx delegates here. */
+  onSwitchScene?: (name: string) => void;
+  onNextScene?: () => void;
 
   register(id: string, hooks: WorldObjectHooks) {
     this.objects.set(id, hooks);
@@ -561,6 +564,12 @@ export interface RuntimeContext {
   // --- Phase 5c: AI ---
   /** Fire an async AI call; the callback fires once with the response text. */
   askAI?(prompt: string, cb: (result: string) => void, options?: { choices?: string[] }): void;
+
+  // --- Scene switching (Scratch backdrop-switch analog) ---
+  /** Activate the scene with this name (case-insensitive). Unknown name is a no-op. */
+  switchScene?(name: string): void;
+  /** Activate the next scene by order_index, wrapping at the end. */
+  nextScene?(): void;
 }
 
 interface ScriptState {
@@ -575,7 +584,7 @@ interface ScriptState {
   pendingStart: boolean;
 }
 
-export const HAT_TYPES = new Set(['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'define_custom_block']);
+export const HAT_TYPES = new Set(['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'when_scene_starts', 'define_custom_block']);
 
 /** Parse a define_custom_block hat into its name + parameter list. */
 function definitionSpec(hat: LogicBlock): { name: string; params: string[] } {
@@ -711,6 +720,10 @@ export class ObjectRuntime {
     if (!script.hat) return true; // implicit always-on
     switch (script.hat.block_type) {
       case 'on_start':
+      // when_scene_starts: the player remounts a scene's objects on activation,
+      // creating fresh runtimes — so "fires once per runtime" = "fires on every
+      // scene entry", which is the intended Scratch backdrop-hat behavior.
+      case 'when_scene_starts':
         // Clones don't run the green-flag scripts — they run when_clone_start.
         return !this.options?.isClone && !script.startFired;
       case 'when_clone_start':
@@ -760,7 +773,7 @@ export class ObjectRuntime {
         script.waitRemaining = 0;
         script.pendingStart = false;
         // A stopped one-shot hat stays consumed — it must not refire next frame.
-        if (script.hat?.block_type === 'on_start' || script.hat?.block_type === 'when_clone_start') script.startFired = true;
+        if (script.hat?.block_type === 'on_start' || script.hat?.block_type === 'when_clone_start' || script.hat?.block_type === 'when_scene_starts') script.startFired = true;
       }
     }
   }
@@ -786,7 +799,7 @@ export class ObjectRuntime {
       } catch (e) {
         if (e === STOP_SCRIPT) {
           script.gen = null;
-          if (script.hat?.block_type === 'on_start' || script.hat?.block_type === 'when_clone_start') script.startFired = true;
+          if (script.hat?.block_type === 'on_start' || script.hat?.block_type === 'when_clone_start' || script.hat?.block_type === 'when_scene_starts') script.startFired = true;
           return;
         }
         throw e;
@@ -794,7 +807,7 @@ export class ObjectRuntime {
       const { done, value } = result;
       if (done) {
         script.gen = null;
-        if (script.hat?.block_type === 'on_start' || script.hat?.block_type === 'when_clone_start') script.startFired = true;
+        if (script.hat?.block_type === 'on_start' || script.hat?.block_type === 'when_clone_start' || script.hat?.block_type === 'when_scene_starts') script.startFired = true;
         return;
       }
       if (value && value.type === 'wait') {
@@ -1124,6 +1137,16 @@ export class ObjectRuntime {
           return;
         case 'set_color':
           this.ctx.setColor?.(String(getInput(block, 'hex', env, getInput(block, 'value', env, '#ffffff'))));
+          return;
+
+        // --- Scene switching ---
+        // If the switch succeeds the player unmounts this object (killing the
+        // runtime); if the name is unknown it's a no-op and the script continues.
+        case 'switch_to_scene':
+          this.ctx.switchScene?.(String(getInput(block, 'name', env, '')));
+          return;
+        case 'next_scene':
+          this.ctx.nextScene?.();
           return;
 
         // --- Phase 5c: AI blocks ---

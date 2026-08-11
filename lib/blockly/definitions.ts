@@ -79,6 +79,14 @@ const statementDefs: object[] = [
     nextStatement: null, colour: COLOUR.event,
   },
   { type: 'when_clone_start', message0: 'when I start as a clone', nextStatement: null, colour: COLOUR.clone },
+  { type: 'when_scene_starts', message0: 'when scene starts', nextStatement: null, colour: COLOUR.event },
+
+  // Scene switching (Scratch backdrop-switch analog)
+  {
+    type: 'switch_to_scene', message0: 'switch to scene %1', args0: [text('name', 'Scene 2')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  { type: 'next_scene', message0: 'next scene', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
 
   // Actions
   {
@@ -402,6 +410,8 @@ export const TOOLBOX = {
         blk('change_size_by', { delta: numShadow(10) }),
         blk('scale', { factor: numShadow(2) }),
         blk('set_color'),
+        blk('switch_to_scene'),
+        blk('next_scene'),
         blk('expr_size'),
         blk('expr_visible'),
       ],
@@ -413,7 +423,7 @@ export const TOOLBOX = {
     {
       kind: 'category', name: 'Events', colour: String(COLOUR.event),
       contents: [
-        ...['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start'].map((t) => blk(t)),
+        ...['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'when_scene_starts'].map((t) => blk(t)),
         blk('broadcast'),
         blk('broadcast_and_wait'),
       ],

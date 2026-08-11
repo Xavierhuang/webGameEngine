@@ -97,13 +97,35 @@ interface GamePlayerProps {
 
 export default function GamePlayer({ project }: GamePlayerProps) {
   const [keys, setKeys] = useState<KeyState>({});
-  const scene = project.scenes?.[0];
+  // Scene switching: scenes arrive ordered by order_index; blocks change the
+  // active index. Variables/broadcast state persist across switches (Scratch
+  // semantics); the scene's objects remount fresh via the key below.
+  const scenes = project.scenes ?? [];
+  const [sceneIndex, setSceneIndex] = useState(0);
+  const scene = scenes[Math.min(sceneIndex, Math.max(scenes.length - 1, 0))];
   // Shared runtime world: variables, broadcasts, and touch/click sensing.
   const worldRef = useRef<RuntimeWorld | null>(null);
   if (!worldRef.current) worldRef.current = new RuntimeWorld();
   const world = worldRef.current;
   const vars = world.vars;
-  
+
+  useEffect(() => {
+    world.onSwitchScene = (name: string) => {
+      const wanted = name.trim().toLowerCase();
+      const idx = scenes.findIndex((s) => (s.name ?? '').trim().toLowerCase() === wanted);
+      if (idx >= 0) setSceneIndex(idx);
+      else logger.warn('[GamePlayer] switch_to_scene: no scene named', name);
+    };
+    world.onNextScene = () => {
+      if (scenes.length > 0) setSceneIndex((cur) => (cur + 1) % scenes.length);
+    };
+    return () => {
+      world.onSwitchScene = undefined;
+      world.onNextScene = undefined;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, project.scenes]);
+
   useEffect(() => {
     if (scene) {
       logger.debug('[GamePlayer] Scene background_color from database:', scene.background_color);
@@ -194,7 +216,7 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             position={SCENE.GRID_POSITION}
           />
           {scene && (
-            <GameScene scene={scene} keys={keys} world={world} />
+            <GameScene key={(scene as any).id ?? sceneIndex} scene={scene} keys={keys} world={world} />
           )}
             </Canvas>
           </ErrorBoundary>
@@ -284,12 +306,12 @@ const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { gam
   }, [world]);
   
   useEffect(() => {
-    logger.debug('[GameScene] Component mounted, setting background to sky blue');
-    threeScene.background = new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR);
-    
-    if (scene?.background_color) {
-      logger.debug('[GameScene] Scene has background_color in DB:', scene.background_color, '- using sky blue instead');
-    }
+    // Per-scene background: use the scene's DB color, falling back to sky blue.
+    // skyBlueColor doubles as the enforced color in the useFrame guard below.
+    const bg = scene?.background_color || SCENE.DEFAULT_BACKGROUND_COLOR;
+    logger.debug('[GameScene] Component mounted, setting background to', bg);
+    skyBlueColor.current = new THREE.Color(bg);
+    threeScene.background = new THREE.Color(bg);
     
     // Check if sky dome is in the scene (debug only)
     if (logger.isDevelopment) {
@@ -315,16 +337,15 @@ const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { gam
   }, [threeScene, scene]);
   
   useFrame(() => {
-    // Ensure background stays sky blue
+    // Ensure background stays the scene's color
     checkCount.current++;
     const currentBg = threeScene.background;
-    const skyBlue = skyBlueColor.current;
-    
-    // If background is not sky blue, set it
-    if (!(currentBg instanceof THREE.Color) || currentBg.getHex() !== skyBlue.getHex()) {
-      threeScene.background = skyBlue;
+    const sceneBg = skyBlueColor.current;
+
+    if (!(currentBg instanceof THREE.Color) || currentBg.getHex() !== sceneBg.getHex()) {
+      threeScene.background = sceneBg;
       if (checkCount.current % 300 === 0) { // Log every 5 seconds (60fps * 5) to avoid spam
-        logger.debug(`[GameScene] Frame ${checkCount.current}: Background reset to sky blue`);
+        logger.debug(`[GameScene] Frame ${checkCount.current}: Background reset to scene color`);
       }
     }
   });
@@ -773,6 +794,9 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
             cb('');
           });
       },
+      // Scene switching — delegate to the player-level handlers on the world.
+      switchScene: (name) => world.onSwitchScene?.(name),
+      nextScene: () => world.onNextScene?.(),
     };
   }
 
