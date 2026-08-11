@@ -56,8 +56,11 @@ private func vertexCount(for part: StarterPart) throws -> Int {
   guard part.rings > 0, part.segments > 2 else {
     throw starterError(10, "Part \(part.name) has invalid tessellation")
   }
-  let count = (UInt64(part.rings) + 1) * (UInt64(part.segments) + 1)
-  guard count <= UInt64(Int.max) else {
+  let (ringCount, ringOverflow) = UInt64(part.rings).addingReportingOverflow(1)
+  let (segmentCount, segmentOverflow) = UInt64(part.segments).addingReportingOverflow(1)
+  let (count, multiplicationOverflow) = ringCount.multipliedReportingOverflow(by: segmentCount)
+  guard !ringOverflow, !segmentOverflow, !multiplicationOverflow,
+        count <= UInt64(Int.max) else {
     throw starterError(11, "Part \(part.name) has too many vertices")
   }
   return Int(count)
@@ -86,10 +89,11 @@ private func validate(character: StarterCharacter) throws -> Int {
       throw starterError(15, "Part \(part.name) has an invalid material index")
     }
     let count = try vertexCount(for: part)
-    guard total <= Int(UInt32.max) - count else {
+    let (nextTotal, additionOverflow) = total.addingReportingOverflow(count)
+    guard !additionOverflow, nextTotal <= Int(UInt32.max) else {
       throw starterError(16, "Character \(character.id) exceeds the Metal vertex limit")
     }
-    total += count
+    total = nextTotal
   }
   return total
 }
@@ -116,7 +120,12 @@ func generateVertices(character: StarterCharacter, libraryURL: URL) throws -> [V
   metalParts.reserveCapacity(character.parts.count)
   for part in character.parts {
     metalParts.append(MTLPart(part: part, vertexOffset: vertexOffset))
-    vertexOffset += UInt32(try vertexCount(for: part))
+    let partVertexCount = UInt32(try vertexCount(for: part))
+    let (nextOffset, overflow) = vertexOffset.addingReportingOverflow(partVertexCount)
+    guard !overflow else {
+      throw starterError(16, "Character \(character.id) exceeds the Metal vertex limit")
+    }
+    vertexOffset = nextOffset
   }
 
   guard let partsBuffer = device.makeBuffer(

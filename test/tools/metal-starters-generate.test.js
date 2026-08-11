@@ -36,6 +36,7 @@ test('starter generator has a deterministic catalog and atomic isolated orchestr
   const fakeBin = path.join(sandbox, 'bin');
   const buildLog = path.join(sandbox, 'build-dirs.log');
   const fakeGenerator = path.join(fakeBin, 'fake-generator');
+  const fakeMv = path.join(fakeBin, 'mv');
   const fakeXcrun = path.join(fakeBin, 'xcrun');
   fs.mkdirSync(fakeBin);
   fs.writeFileSync(fakeGenerator, `#!/usr/bin/env bash
@@ -68,6 +69,24 @@ else
   printf '{"generated":true}\\n' > "$metadata"
 fi
 `);
+  fs.writeFileSync(fakeMv, `#!/usr/bin/env bash
+set -euo pipefail
+is_publish=0
+for argument in "$@"; do
+  case "$argument" in */new/*) is_publish=1 ;; esac
+done
+if [ "$is_publish" = '1' ] && [ -n "\${METAL_STARTERS_FAIL_PUBLISH_AFTER:-}" ]; then
+  count=0
+  [ ! -f "$METAL_STARTERS_MV_LOG" ] || count="$(cat "$METAL_STARTERS_MV_LOG")"
+  count=$((count + 1))
+  printf '%s\n' "$count" > "$METAL_STARTERS_MV_LOG"
+  if [ "$count" -eq "$METAL_STARTERS_FAIL_PUBLISH_AFTER" ]; then
+    printf 'forced publish failure\n' >&2
+    exit 73
+  fi
+fi
+exec /bin/mv "$@"
+`);
   fs.writeFileSync(fakeXcrun, `#!/usr/bin/env bash
 set -euo pipefail
 mode=''
@@ -87,6 +106,7 @@ else
 fi
 `);
   fs.chmodSync(fakeGenerator, 0o755);
+  fs.chmodSync(fakeMv, 0o755);
   fs.chmodSync(fakeXcrun, 0o755);
 
   const env = {
@@ -95,6 +115,7 @@ fi
     TMPDIR: sandbox,
     METAL_STARTERS_TEST_LOG: buildLog,
     METAL_STARTERS_FAKE_EXECUTABLE: fakeGenerator,
+    METAL_STARTERS_MV_LOG: path.join(sandbox, 'mv-count.log'),
   };
   let runNumber = 0;
 
@@ -152,16 +173,53 @@ fi
     return snapshot(failureOutput, failureMetadata);
   }
 
+  const publishFailureOutput = path.join(sandbox, 'publish-failure-output');
+  const publishFailureMetadata = path.join(sandbox, 'publish-failure-metadata.ts');
+  fs.mkdirSync(publishFailureOutput);
+  for (const id of expectedIds) {
+    fs.writeFileSync(path.join(publishFailureOutput, `${id}.glb`), `previous:${id}\n`);
+  }
+  fs.writeFileSync(publishFailureMetadata, 'previous metadata\n');
+  const outputsBeforePublishFailure = snapshot(publishFailureOutput, publishFailureMetadata);
+
+  async function outputsAfterPublishFailure() {
+    fs.rmSync(env.METAL_STARTERS_MV_LOG, { force: true });
+    const result = await execute([
+      '--all', '--output-dir', publishFailureOutput,
+      '--metadata', publishFailureMetadata,
+    ], { env: { METAL_STARTERS_FAIL_PUBLISH_AFTER: '4' } });
+    assert.equal(result.code, 73, result.stderr);
+    return snapshot(publishFailureOutput, publishFailureMetadata);
+  }
+
+  function publicationArtifacts() {
+    const artifacts = [];
+    const pending = [sandbox];
+    while (pending.length > 0) {
+      const directory = pending.pop();
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        const entryPath = path.join(directory, entry.name);
+        if (entry.name.startsWith('.lingplay-metal-starters')) {
+          artifacts.push(path.relative(sandbox, entryPath));
+        }
+        if (entry.isDirectory()) pending.push(entryPath);
+      }
+    }
+    return artifacts.sort();
+  }
+
   let concurrentDirectories = [];
   async function concurrentBuildDirectories() {
     const first = path.join(sandbox, 'concurrent-one');
     const second = path.join(sandbox, 'concurrent-two');
-    await Promise.all([
+    fs.writeFileSync(buildLog, '');
+    const results = await Promise.all([
       execute(['--character', 'robot', '--output-dir', first]),
       execute(['--character', 'robot', '--output-dir', second]),
     ]);
+    assert.deepEqual(results.map(({ code }) => code), [0, 0]);
     concurrentDirectories = fs.readFileSync(buildLog, 'utf8').trim().split('\n');
-    return concurrentDirectories.slice(-2);
+    return concurrentDirectories;
   }
 
   async function remainingBuildDirectories() {
@@ -175,14 +233,97 @@ fi
     });
     const swiftCatalogSource = fs.readFileSync('tools/metal-starters/StarterCatalog.swift', 'utf8');
     assert.deepEqual(parseCatalogIds(swiftCatalogSource), expectedIds);
+    const aliasOutput = path.join(sandbox, 'alias-parent', 'starters');
+    for (const metadataAlias of [
+      path.join(aliasOutput, 'robot.glb'),
+      path.join(aliasOutput, '..', 'starters', 'robot.glb'),
+    ]) {
+      const result = await execute([
+        '--all', '--output-dir', aliasOutput, '--metadata', metadataAlias,
+      ]);
+      const canonicalAlias = path.join(fs.realpathSync(aliasOutput), 'robot.glb');
+      assert.deepEqual({ code: result.code, stderr: result.stderr }, {
+        code: 1,
+        stderr: `Metadata path aliases generated starter output: ${canonicalAlias}\n`,
+      });
+    }
+    assert.equal(fs.existsSync(buildLog), false, 'metadata aliases must fail before compilation');
     assert.deepEqual(await generatedNames(['--character', 'robot']), ['robot.glb']);
     assert.deepEqual(await generatedNames(['--all']), [
       'astronaut.glb', 'dinosaur.glb', 'knight.glb', 'ninja.glb', 'princess.glb',
       'puppy.glb', 'robot.glb', 'superhero.glb', 'unicorn.glb', 'wizard.glb',
     ]);
     assert.deepEqual(await outputsAfterForcedFailure(), outputsBeforeForcedFailure);
+    assert.deepEqual(await outputsAfterPublishFailure(), outputsBeforePublishFailure);
     assert.equal(new Set(await concurrentBuildDirectories()).size, 2);
     assert.deepEqual(await remainingBuildDirectories(), []);
+    assert.deepEqual(publicationArtifacts(), []);
+  } finally {
+    fs.rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test('starter geometry validation reports vertex-count overflow without trapping', {
+  skip: process.platform !== 'darwin' ? 'requires the macOS Swift and Metal SDKs' : false,
+}, async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'lingplay-metal-overflow-test-'));
+  const harness = path.join(sandbox, 'OverflowHarness.swift');
+  const executable = path.join(sandbox, 'overflow-test');
+  fs.writeFileSync(harness, `import Foundation
+import simd
+
+@main
+struct OverflowHarness {
+  static func main() {
+    let character = StarterCharacter(
+      id: "overflow",
+      displayName: "Overflow",
+      description: "Overflow fixture",
+      aliases: [],
+      defaultSize: 1,
+      materials: [StarterMaterial(
+        name: "Fixture",
+        color: SIMD4(1, 1, 1, 1),
+        metallic: 0,
+        roughness: 1
+      )],
+      parts: [StarterPart(
+        name: "Overflow",
+        center: SIMD3(0, 0, 0),
+        radius: SIMD3(1, 1, 1),
+        rotation: SIMD3(0, 0, 0),
+        rings: UInt32.max,
+        segments: UInt32.max,
+        material: 0
+      )]
+    )
+    do {
+      _ = try generateVertices(
+        character: character,
+        libraryURL: URL(fileURLWithPath: "/missing.metallib")
+      )
+      fputs("validation unexpectedly succeeded\\n", stderr)
+      exit(2)
+    } catch {
+      print(error.localizedDescription)
+    }
+  }
+}
+`);
+
+  try {
+    await execFileAsync('/usr/bin/xcrun', [
+      '-sdk', 'macosx', 'swiftc',
+      '-module-cache-path', path.join(sandbox, 'swift-cache'),
+      'tools/metal-starters/StarterCatalog.swift',
+      'tools/metal-starters/GLBWriter.swift',
+      harness,
+      '-framework', 'Metal',
+      '-o', executable,
+    ]);
+    const result = await execFileAsync(executable);
+    assert.equal(result.stdout, 'Part Overflow has too many vertices\n');
+    assert.equal(result.stderr, '');
   } finally {
     fs.rmSync(sandbox, { recursive: true, force: true });
   }
