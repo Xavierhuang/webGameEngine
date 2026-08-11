@@ -4,6 +4,7 @@ import { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { repairMinionMaterials } from '../../lib/models/minionMaterials';
 import { modelCache, type CachedModelResource } from '../../lib/utils/modelCache';
 import {
   startAsyncResourceLifecycle,
@@ -189,6 +190,7 @@ function FBXAnimatedModel({
   loadHandlersRef.current = {
     onLoad: ({ model, animations: cachedAnimations }) => {
       const fbx = model.clone() as THREE.Group;
+      repairMinionMaterials(fbx, url);
       const animations = cachedAnimations ? [...cachedAnimations] : [];
 
       if (!groupRef.current) return;
