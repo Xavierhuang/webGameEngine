@@ -1,3 +1,5 @@
+const fs = require('node:fs');
+const path = require('node:path');
 const { matchCharacterPrefab, extractColor, CHARACTER_TEMPLATES, BASIC_SHAPES } = require('../.build/lib/prefabs/characters.js');
 
 let failures = 0;
@@ -13,6 +15,8 @@ eq(matchCharacterPrefab('Wizard')?.id, 'wizard', 'exact name (title case)');
 eq(matchCharacterPrefab('ROBOT')?.id, 'robot', 'exact id (uppercase)');
 eq(matchCharacterPrefab('Hero')?.id, 'hero', 'exact name Hero');
 eq(matchCharacterPrefab('astronaut')?.id, 'astronaut', 'exact astronaut');
+eq(matchCharacterPrefab('minion')?.id, 'minion', 'exact Minion match');
+eq(matchCharacterPrefab('a cheerful yellow minion')?.id, 'minion', 'descriptive Minion prompt');
 
 // --- alias hits (case-insensitive whole-word) ---
 eq(matchCharacterPrefab('mage')?.id, 'wizard', 'alias mage → wizard');
@@ -76,7 +80,22 @@ eq(extractColor('nothing colorful here'), null, 'no color word → null');
 eq(extractColor(''), null, 'empty → null');
 
 // --- library sanity ---
-eq(CHARACTER_TEMPLATES.length, 17, 'templates count (added 9 creature archetypes)');
+const minion = CHARACTER_TEMPLATES.find((template) => template.id === 'minion');
+eq(minion?.shape, 'model', 'Minion uses a model shape');
+eq(minion?.model_url, '/models/minion/FBX/Minion_FBX.fbx', 'Minion uses local FBX URL');
+eq(minion?.preview_scale, 0.01, 'Minion preview scale');
+eq(Array.isArray(minion?.preview_rotation), true, 'Minion preview rotation is defined');
+
+const root = path.resolve(__dirname, '../..');
+for (const asset of [
+  'public/models/minion/FBX/Minion_FBX.fbx',
+  'public/models/minion/Textures/jeans_texture4807.jpg',
+  'public/models/minion/Textures/brown-eye.png',
+]) {
+  eq(fs.existsSync(path.join(root, asset)), true, `${asset} exists`);
+}
+
+eq(CHARACTER_TEMPLATES.length, 18, 'templates count (added Minion starter)');
 eq(BASIC_SHAPES.length, 7, 'basic shapes count');
 eq(CHARACTER_TEMPLATES.every(t => t.aliases && t.aliases.length > 0), true, 'every template has aliases');
 

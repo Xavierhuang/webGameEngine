@@ -17,6 +17,9 @@ export interface CharacterPrefab {
   description: string;
   /** Extra keywords that also count as a match (case-insensitive). */
   aliases?: string[];
+  model_url?: string;
+  preview_scale?: number;
+  preview_rotation?: [number, number, number];
 }
 
 /** Named starter characters. Order matters for the picker grid. */
@@ -92,6 +95,18 @@ export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
     size: 60,
     description: 'Space explorer',
     aliases: ['spaceman', 'cosmonaut', 'space explorer'],
+  },
+  {
+    id: 'minion',
+    name: 'Minion',
+    color: '#FACC15',
+    shape: 'model',
+    size: 1,
+    description: 'Cheerful yellow helper',
+    aliases: ['yellow helper', 'banana buddy'],
+    model_url: '/models/minion/FBX/Minion_FBX.fbx',
+    preview_scale: 0.01,
+    preview_rotation: [0, Math.PI, 0],
   },
   // Creatures — best-effort shapes until real GLB models ship. Colors are
   // overridden by any color word in the prompt (see extractColor below).
