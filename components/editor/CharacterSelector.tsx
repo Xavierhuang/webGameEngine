@@ -6,6 +6,7 @@ import ModelBuilder from './ModelBuilder';
 import ShapePreview from './ShapePreview';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
+import { CHARACTER_TEMPLATES, BASIC_SHAPES } from '../../lib/prefabs/characters';
 
 interface CharacterSelectorProps {
   isOpen: boolean;
@@ -14,31 +15,9 @@ interface CharacterSelectorProps {
   projectId: string;
 }
 
-// Basic primitive shapes — the honest starting point. Each is what it looks
-// like: a cube, a sphere, etc.
-const BASIC_SHAPES = [
-  { id: 'cube', name: 'Cube', color: '#60A5FA', shape: 'box', size: 60, description: 'Boxy character' },
-  { id: 'sphere', name: 'Ball', color: '#F59E0B', shape: 'sphere', size: 60, description: 'Round rolling ball' },
-  { id: 'cylinder', name: 'Barrel', color: '#34D399', shape: 'cylinder', size: 60, description: 'Barrel-shaped body' },
-  { id: 'cone', name: 'Cone', color: '#A78BFA', shape: 'cone', size: 60, description: 'Pointy top' },
-  { id: 'pyramid', name: 'Pyramid', color: '#F472B6', shape: 'pyramid', size: 60, description: 'Four-sided pyramid' },
-  { id: 'torus', name: 'Ring', color: '#FBBF24', shape: 'torus', size: 60, description: 'Donut ring' },
-  { id: 'capsule', name: 'Capsule', color: '#60A5FA', shape: 'capsule', size: 60, description: 'Standing pill' },
-];
-
-// Pre-built character templates — each uses a DIFFERENT shape so the tile
-// preview actually looks distinct. The stored `shape` here is what the
-// runtime renders in the scene (until real GLB thumbnails ship).
-const CHARACTER_TEMPLATES = [
-  { id: 'hero', name: 'Hero', color: '#60A5FA', shape: 'capsule', size: 60, description: 'Standing hero' },
-  { id: 'knight', name: 'Knight', color: '#3B82F6', shape: 'box', size: 60, description: 'Armoured warrior' },
-  { id: 'wizard', name: 'Wizard', color: '#8B5CF6', shape: 'cone', size: 60, description: 'Pointy-hatted mage' },
-  { id: 'robot', name: 'Robot', color: '#6B7280', shape: 'box', size: 60, description: 'Mechanical body' },
-  { id: 'ninja', name: 'Ninja', color: '#1F2937', shape: 'capsule', size: 55, description: 'Stealthy runner' },
-  { id: 'alien', name: 'Alien', color: '#10B981', shape: 'sphere', size: 55, description: 'Round friendly alien' },
-  { id: 'princess', name: 'Princess', color: '#EC4899', shape: 'pyramid', size: 60, description: 'Regal pyramid gown' },
-  { id: 'astronaut', name: 'Astronaut', color: '#F3F4F6', shape: 'capsule', size: 60, description: 'Space explorer' },
-];
+// CHARACTER_TEMPLATES and BASIC_SHAPES live in lib/prefabs/characters.ts —
+// the same module the /api/ai/generate-character route uses. Any prefab a kid
+// can pick by hand is also what the AI returns when the prompt matches.
 
 export default function CharacterSelector({
   isOpen,
