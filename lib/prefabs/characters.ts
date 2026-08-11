@@ -93,7 +93,118 @@ export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
     description: 'Space explorer',
     aliases: ['spaceman', 'cosmonaut', 'space explorer'],
   },
+  // Creatures — best-effort shapes until real GLB models ship. Colors are
+  // overridden by any color word in the prompt (see extractColor below).
+  {
+    id: 'dragon',
+    name: 'Dragon',
+    color: '#DC2626',
+    shape: 'capsule',
+    size: 65,
+    description: 'Fire-breathing dragon',
+    aliases: ['drake', 'wyrm', 'wyvern'],
+  },
+  {
+    id: 'monster',
+    name: 'Monster',
+    color: '#7C3AED',
+    shape: 'sphere',
+    size: 60,
+    description: 'Blob monster',
+    aliases: ['creature', 'beast', 'ogre', 'troll', 'goblin', 'blob'],
+  },
+  {
+    id: 'ghost',
+    name: 'Ghost',
+    color: '#E5E7EB',
+    shape: 'capsule',
+    size: 55,
+    description: 'Floaty spirit',
+    aliases: ['spirit', 'phantom', 'spook', 'boo'],
+  },
+  {
+    id: 'fish',
+    name: 'Fish',
+    color: '#60A5FA',
+    shape: 'capsule',
+    size: 40,
+    description: 'Tiny swimmer',
+    aliases: ['minnow', 'guppy', 'goldfish', 'trout'],
+  },
+  {
+    id: 'dog',
+    name: 'Dog',
+    color: '#F59E0B',
+    shape: 'capsule',
+    size: 45,
+    description: 'Loyal pup',
+    aliases: ['puppy', 'pup', 'doggy', 'hound', 'canine'],
+  },
+  {
+    id: 'cat',
+    name: 'Cat',
+    color: '#F97316',
+    shape: 'capsule',
+    size: 45,
+    description: 'Sneaky feline',
+    aliases: ['kitten', 'kitty', 'feline'],
+  },
+  {
+    id: 'bird',
+    name: 'Bird',
+    color: '#38BDF8',
+    shape: 'sphere',
+    size: 35,
+    description: 'Small bird',
+    aliases: ['sparrow', 'robin', 'chick', 'chirper'],
+  },
+  {
+    id: 'tree',
+    name: 'Tree',
+    color: '#16A34A',
+    shape: 'cone',
+    size: 90,
+    description: 'Leafy tree',
+    aliases: ['bush', 'shrub', 'pine', 'fir'],
+  },
+  {
+    id: 'rock',
+    name: 'Rock',
+    color: '#57534E',
+    shape: 'sphere',
+    size: 55,
+    description: 'Boulder',
+    aliases: ['stone', 'pebble'],
+  },
 ];
+
+/**
+ * A tiny color-word extractor for prompt strings. Used by the AI-character
+ * route when neither a prefab match nor Meshy nor Claude produces a real
+ * color — instead of picking a random one, we honor the color word the kid
+ * actually typed.
+ *
+ * Returns null when no color word is present.
+ */
+export function extractColor(prompt: string): string | null {
+  const t = prompt.toLowerCase();
+  const map: Array<[RegExp, string]> = [
+    [/\bred\b|\bcrimson\b|\bruby\b|\bscarlet\b/, '#EF4444'],
+    [/\borange\b|\bamber\b/, '#F97316'],
+    [/\byellow\b|\bgold(en)?\b/, '#FACC15'],
+    [/\bgreen\b|\bemerald\b|\blime\b/, '#22C55E'],
+    [/\bblue\b|\bazure\b|\bsapphire\b|\bnavy\b/, '#3B82F6'],
+    [/\bpurple\b|\bviolet\b|\bindigo\b|\bmagenta\b/, '#8B5CF6'],
+    [/\bpink\b|\brose\b/, '#EC4899'],
+    [/\bwhite\b|\bsnow\b|\bpale\b/, '#F3F4F6'],
+    [/\bblack\b|\bshadow\b|\bdark\b/, '#111827'],
+    [/\bgrey\b|\bgray\b|\bsilver\b/, '#9CA3AF'],
+    [/\bbrown\b|\btan\b/, '#92400E'],
+    [/\bcyan\b|\bturquoise\b|\bteal\b/, '#06B6D4'],
+  ];
+  for (const [re, hex] of map) if (re.test(t)) return hex;
+  return null;
+}
 
 /** Raw primitive shapes — matched when the prompt names a shape directly. */
 export const BASIC_SHAPES: CharacterPrefab[] = [

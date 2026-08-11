@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatWithAI } from '@/lib/ai/claude';
 import { generateTextTo3D } from '@/lib/ai/meshy';
-import { matchCharacterPrefab } from '@/lib/prefabs/characters';
+import { matchCharacterPrefab, extractColor } from '@/lib/prefabs/characters';
 
 /**
  * Character generation, cheapest-tier-first:
@@ -28,8 +28,12 @@ export async function POST(request: NextRequest) {
     // 1. Prefab lookup — try our built-in library first.
     const prefab = matchCharacterPrefab(prompt);
     if (prefab) {
+      // Honor a color word from the prompt over the prefab's default, so
+      // "a red dragon" gets a red dragon (not the default orange).
+      const promptColor = extractColor(prompt);
       return NextResponse.json({
         ...prefab,
+        color: promptColor ?? prefab.color,
         // Use the user's phrasing as the display name so their intent stays visible
         // (e.g. prompt="a brave hero" → name="a brave hero", but shape="capsule" from
         // the Hero prefab). Falls back to the prefab's own name for short prompts.
@@ -87,16 +91,18 @@ Make the color vibrant and appropriate for the character. Keep it simple for a 3
       }
     }
 
-    // Final fallback: random-color box so the user always gets something usable.
+    // Final fallback: something the user always gets. Try to honor a color
+    // word from the prompt before falling back to a random palette pick.
     const colors = ['#60A5FA', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#EF4444'];
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    const color =
+      extractColor(prompt) ?? colors[Math.floor(Math.random() * colors.length)];
     return NextResponse.json({
       id: prompt.toLowerCase().replace(/\s+/g, '-'),
       name: prompt,
-      color: randomColor,
+      color,
       shape: 'box',
       size: 50,
-      description: `A ${prompt}`,
+      description: prompt,
       source: 'fallback',
     });
   } catch (error: any) {

@@ -1,4 +1,4 @@
-const { matchCharacterPrefab, CHARACTER_TEMPLATES, BASIC_SHAPES } = require('../.build/lib/prefabs/characters.js');
+const { matchCharacterPrefab, extractColor, CHARACTER_TEMPLATES, BASIC_SHAPES } = require('../.build/lib/prefabs/characters.js');
 
 let failures = 0;
 function eq(actual, expected, label) {
@@ -39,7 +39,7 @@ eq(matchCharacterPrefab('sneaky ninja assassin')?.id, 'ninja', 'ninja inside phr
 // --- non-matches: prompt is too vague or doesn\'t hit any keyword ---
 eq(matchCharacterPrefab('a shiny thing'), null, 'vague prompt → no match');
 eq(matchCharacterPrefab('unicorn'), null, 'no prefab for unicorn');
-eq(matchCharacterPrefab('dragon'), null, 'no prefab for dragon');
+// dragon used to be a non-match; now covered by the creature archetypes below.
 eq(matchCharacterPrefab(''), null, 'empty prompt → null');
 eq(matchCharacterPrefab('   '), null, 'whitespace-only → null');
 
@@ -48,8 +48,35 @@ eq(matchCharacterPrefab('   '), null, 'whitespace-only → null');
 eq(matchCharacterPrefab('heroic'), null, 'substring "heroic" is not whole-word match for hero');
 eq(matchCharacterPrefab('robotic'), null, 'substring "robotic" is not whole-word match for robot');
 
+// --- creature archetypes (new) ---
+eq(matchCharacterPrefab('dragon')?.id, 'dragon', 'dragon');
+eq(matchCharacterPrefab('a fire-breathing dragon')?.id, 'dragon', 'dragon inside phrase');
+eq(matchCharacterPrefab('wyvern')?.id, 'dragon', 'alias wyvern → dragon');
+eq(matchCharacterPrefab('ghost')?.id, 'ghost', 'ghost');
+eq(matchCharacterPrefab('a spooky phantom')?.id, 'ghost', 'phantom → ghost');
+eq(matchCharacterPrefab('goldfish')?.id, 'fish', 'goldfish → fish');
+eq(matchCharacterPrefab('a puppy')?.id, 'dog', 'puppy → dog');
+eq(matchCharacterPrefab('kitty')?.id, 'cat', 'kitty → cat');
+eq(matchCharacterPrefab('sparrow')?.id, 'bird', 'sparrow → bird');
+eq(matchCharacterPrefab('pine')?.id, 'tree', 'pine → tree');
+eq(matchCharacterPrefab('a pebble')?.id, 'rock', 'pebble → rock');
+eq(matchCharacterPrefab('a big scary monster')?.id, 'monster', 'monster');
+eq(matchCharacterPrefab('an ogre')?.id, 'monster', 'ogre → monster');
+
+// --- extractColor ---
+eq(extractColor('a red dragon'), '#EF4444', 'red');
+eq(extractColor('a fire-red creature'), '#EF4444', 'red inside compound word not required — whole word red');
+eq(extractColor('sky blue orb'), '#3B82F6', 'blue');
+eq(extractColor('emerald forest'), '#22C55E', 'emerald → green');
+eq(extractColor('a golden knight'), '#FACC15', 'golden → yellow');
+eq(extractColor('crimson wizard'), '#EF4444', 'crimson → red');
+eq(extractColor('violet potion'), '#8B5CF6', 'violet → purple');
+eq(extractColor('teal fish'), '#06B6D4', 'teal');
+eq(extractColor('nothing colorful here'), null, 'no color word → null');
+eq(extractColor(''), null, 'empty → null');
+
 // --- library sanity ---
-eq(CHARACTER_TEMPLATES.length, 8, 'templates count');
+eq(CHARACTER_TEMPLATES.length, 17, 'templates count (added 9 creature archetypes)');
 eq(BASIC_SHAPES.length, 7, 'basic shapes count');
 eq(CHARACTER_TEMPLATES.every(t => t.aliases && t.aliases.length > 0), true, 'every template has aliases');
 
