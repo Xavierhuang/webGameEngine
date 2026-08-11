@@ -212,6 +212,8 @@ export interface EvalEnv {
   locals?: Array<Record<string, Value>>;
   /** Per-object runtime context; used by position/rotation/size reporters. */
   ctx?: RuntimeContext;
+  /** Per-object sound volume (0-100); provided by ObjectRuntime. */
+  getVolume?(): number;
 }
 
 export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Value {
@@ -270,6 +272,7 @@ export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Valu
     case 'rotation_y': return env.ctx?.getRotation?.().y ?? 0;
     case 'rotation_z': return env.ctx?.getRotation?.().z ?? 0;
     case 'size': return env.ctx?.getSize?.() ?? 100;
+    case 'volume': return env.getVolume?.() ?? 100;
     case 'visible': return env.ctx?.getVisible?.() ?? true;
     // Other-object position/rotation reporters
     case 'object_x':
@@ -533,7 +536,13 @@ export interface RuntimeContext {
   rotate(xDeg: number, yDeg: number, zDeg: number): void;
   /** Multiply uniform scale. */
   scaleBy(factor: number): void;
-  playSound(name: string): void;
+  /**
+   * Play a sound at the given volume (0-1). May return the sound's duration in
+   * seconds so `play sound until done` knows how long to wait.
+   */
+  playSound(name: string, volume?: number): number | void;
+  /** Stop all currently playing sounds (Scratch `stop all sounds`). */
+  stopAllSounds?(): void;
 
   // --- Phase 5a: motion writers / readers ---
   /** Read self position in world units. */
@@ -648,6 +657,8 @@ function legacyHatBody(hat: LogicBlock): LogicBlock | null {
 export class ObjectRuntime {
   private scripts: ScriptState[] = [];
   private frameDelta = 0;
+  /** Per-object sound volume, 0-100 (Scratch semantics). */
+  private volume = 100;
   /** Custom-block definitions (Scratch "My Blocks"), keyed by lowercase name. Per-object, like Scratch. */
   private definitions = new Map<string, { params: string[]; body: LogicBlock[] }>();
   /** Parameter frames for in-flight custom-block calls (innermost last). */
@@ -694,7 +705,7 @@ export class ObjectRuntime {
   }
 
   private env(time: number): EvalEnv {
-    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack, ctx: this.ctx };
+    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack, ctx: this.ctx, getVolume: () => this.volume };
   }
 
   step(delta: number, time: number) {
@@ -858,7 +869,23 @@ export class ObjectRuntime {
           return;
         }
         case 'play_sound':
-          this.ctx.playSound(String(getInput(block, 'sound', env, getInput(block, 'name', env, 'click'))));
+          this.ctx.playSound(String(getInput(block, 'sound', env, getInput(block, 'name', env, 'click'))), this.volume / 100);
+          return;
+        case 'play_sound_until_done': {
+          const name = String(getInput(block, 'sound', env, getInput(block, 'name', env, 'click')));
+          const duration = this.ctx.playSound(name, this.volume / 100);
+          const seconds = typeof duration === 'number' && isFinite(duration) ? Math.max(0, duration) : 0;
+          if (seconds > 0) yield { type: 'wait', seconds };
+          return;
+        }
+        case 'stop_all_sounds':
+          this.ctx.stopAllSounds?.();
+          return;
+        case 'set_volume':
+          this.volume = Math.max(0, Math.min(100, toNumber(getInput(block, 'value', env, 100))));
+          return;
+        case 'change_volume_by':
+          this.volume = Math.max(0, Math.min(100, this.volume + toNumber(getInput(block, 'value', env, -10))));
           return;
         case 'wait': {
           const seconds = toNumber(getInput(block, 'seconds', env, toNumber(getInput(block, 'duration', env, 1))));

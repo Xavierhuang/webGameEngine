@@ -837,5 +837,67 @@ const ctxIdle = {
   eq(w2.vars.get('o', 'v'), 'yes', 'ai_decide: answer stored');
 }
 
+// --- Sound blocks: volume, play-until-done, stop all sounds ---
+{
+  const calls = [];
+  let stopped = 0;
+  const ctx = {
+    getKeys: () => ({}),
+    move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {},
+    playSound: (name, volume) => { calls.push({ name, volume }); },
+    stopAllSounds: () => { stopped++; },
+  };
+  const w = new RuntimeWorld();
+  const rt = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'v1', block_type: 'set_volume', inputs: { value: 50 } },
+    { id: 'p1', block_type: 'play_sound', inputs: { sound: 'click' } },
+    { id: 'v2', block_type: 'change_volume_by', inputs: { value: -30 } },
+    { id: 'v3', block_type: 'change_volume_by', inputs: { value: -100 } }, // clamps to 0
+    { id: 'v4', block_type: 'set_volume', inputs: { value: 250 } },        // clamps to 100
+    { id: 'p2', block_type: 'play_sound', inputs: { sound: 'pop' } },
+    { id: 'st', block_type: 'stop_all_sounds' },
+    { id: 'sv', block_type: 'set_variable', inputs: { name: 'vol', value: { op: 'volume' } } },
+  ], w.vars, ctx, w);
+  rt.step(0.016, 0);
+  eq(calls[0].name, 'click', 'sound: play_sound passes name');
+  eq(calls[0].volume, 0.5, 'sound: volume 50 -> 0.5 passed to ctx');
+  eq(calls[1].volume, 1, 'sound: set_volume clamps 250 -> 100');
+  eq(stopped, 1, 'sound: stop_all_sounds calls ctx');
+  eq(w.vars.get('o', 'vol'), 100, 'sound: volume reporter reads runtime volume');
+
+  // play_sound_until_done suspends for the duration returned by ctx.playSound
+  const played = [];
+  const ctx2 = {
+    getKeys: () => ({}),
+    move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {},
+    playSound: (name) => { played.push(name); return 0.5; },
+  };
+  const w2 = new RuntimeWorld();
+  const rt2 = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'p', block_type: 'play_sound_until_done', inputs: { sound: 'long' } },
+    { id: 's', block_type: 'set_variable', inputs: { name: 'after', value: 1 } },
+  ], w2.vars, ctx2, w2);
+  rt2.step(0.016, 0);
+  eq(played[0], 'long', 'until_done: sound played immediately');
+  eq(w2.vars.get('o', 'after'), 0, 'until_done: suspended while sound plays');
+  rt2.step(0.3, 0.016);
+  eq(w2.vars.get('o', 'after'), 0, 'until_done: still suspended at 0.3s of 0.5s');
+  rt2.step(0.3, 0.316);
+  eq(w2.vars.get('o', 'after'), 1, 'until_done: resumed after duration elapsed');
+
+  // ctx.playSound returning nothing (legacy void) -> no wait, script continues
+  const ctx3 = { getKeys: () => ({}), move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {} };
+  const w3 = new RuntimeWorld();
+  const rt3 = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'p', block_type: 'play_sound_until_done', inputs: { sound: 'click' } },
+    { id: 's', block_type: 'set_variable', inputs: { name: 'after', value: 1 } },
+  ], w3.vars, ctx3, w3);
+  rt3.step(0.016, 0);
+  eq(w3.vars.get('o', 'after'), 1, 'until_done: void duration -> continues immediately');
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

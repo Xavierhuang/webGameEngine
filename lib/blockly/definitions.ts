@@ -110,6 +110,22 @@ const statementDefs: object[] = [
     previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {
+    type: 'play_sound_until_done', message0: 'play sound %1 until done', args0: [text('sound', 'click')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.sound,
+  },
+  {
+    type: 'stop_all_sounds', message0: 'stop all sounds',
+    previousStatement: null, nextStatement: null, colour: COLOUR.sound,
+  },
+  {
+    type: 'set_volume', message0: 'set volume to %1 %%', args0: [value('value')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.sound,
+  },
+  {
+    type: 'change_volume_by', message0: 'change volume by %1', args0: [value('value')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.sound,
+  },
+  {
     type: 'broadcast', message0: 'broadcast %1', args0: [text('message', 'message1')],
     previousStatement: null, nextStatement: null, colour: COLOUR.event,
   },
@@ -350,6 +366,7 @@ const exprDefs: object[] = [
   { type: 'expr_object_z', message0: 'z of %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
   // Phase 5b: looks reporters
   { type: 'expr_size', message0: 'size', output: null, colour: COLOUR.looks },
+  { type: 'expr_volume', message0: 'volume', output: null, colour: COLOUR.sound },
   { type: 'expr_visible', message0: 'visible ?', output: null, colour: COLOUR.looks },
 ];
 
@@ -418,7 +435,14 @@ export const TOOLBOX = {
     },
     {
       kind: 'category', name: 'Sound', colour: String(COLOUR.sound),
-      contents: [blk('play_sound')],
+      contents: [
+        blk('play_sound'),
+        blk('play_sound_until_done'),
+        blk('stop_all_sounds'),
+        blk('set_volume', { value: numShadow(100) }),
+        blk('change_volume_by', { value: numShadow(-10) }),
+        blk('expr_volume'),
+      ],
     },
     {
       kind: 'category', name: 'Events', colour: String(COLOUR.event),

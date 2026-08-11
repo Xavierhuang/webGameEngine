@@ -7,6 +7,8 @@ class AudioManager {
   private beatInterval: number | null = null;
   private beatBpm: number = 120;
   private isBeatRunning = false;
+  /** Live SFX sources so `stop all sounds` can silence them. */
+  private activeSources = new Set<AudioScheduledSourceNode>();
 
   static get(): AudioManager {
     if (!AudioManager.instance) {
@@ -33,9 +35,13 @@ class AudioManager {
     if (this.masterGain) this.masterGain.gain.value = Math.max(0, Math.min(1, volume));
   }
 
-  playSfx(type: string) {
+  /**
+   * Play a synthesized SFX. `volume` is 0-1 and scales this one sound.
+   * Returns the sound's duration in seconds (for `play sound until done`).
+   */
+  playSfx(type: string, volume: number = 1): number {
     this.ensureContext();
-    if (!this.context || !this.masterGain) return;
+    if (!this.context || !this.masterGain) return 0;
     const now = this.context.currentTime;
 
     // Simple synthesized SFX by type
@@ -86,11 +92,24 @@ class AudioManager {
 
     osc.type = typeWave;
     osc.frequency.setValueAtTime(frequency, now);
+    const peak = Math.max(0.0001, 0.6 * Math.max(0, Math.min(1, volume)));
     gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.6, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(peak, now + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     osc.start(now);
     osc.stop(now + duration + 0.02);
+    this.activeSources.add(osc);
+    osc.onended = () => this.activeSources.delete(osc);
+    return duration;
+  }
+
+  /** Stop every playing SFX and the beat loop (Scratch `stop all sounds`). */
+  stopAllSfx() {
+    for (const src of this.activeSources) {
+      try { src.stop(); } catch { /* already stopped */ }
+    }
+    this.activeSources.clear();
+    this.stopBeat();
   }
 
   startBeat(loopName: string, bpm: number = 120) {

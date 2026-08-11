@@ -704,11 +704,19 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       scaleBy: (factor) => {
         if (factor > 0) sizeMultiplierRef.current *= factor;
       },
-      playSound: (name) => {
+      playSound: (name, volume) => {
         try {
-          AudioManager.get().playSfx(name);
+          return AudioManager.get().playSfx(name, volume ?? 1);
         } catch (e) {
           logger.warn('[GamePlayer] playSfx failed:', e);
+          return 0;
+        }
+      },
+      stopAllSounds: () => {
+        try {
+          AudioManager.get().stopAllSfx();
+        } catch (e) {
+          logger.warn('[GamePlayer] stopAllSfx failed:', e);
         }
       },
       // Phase 5a: motion writers/readers
