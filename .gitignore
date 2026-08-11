@@ -62,6 +62,11 @@ public/uploads/models/
 *.stl
 *.dae
 
+# Bundled starter models — small, deterministic, generated from
+# tools/metal-starters. Keep them in-tree so the app ships with them.
+!public/models/starters/*.glb
+!public/models/red-metal-dragon.glb
+
 # local tooling
 .codex/
 .lingcode/
