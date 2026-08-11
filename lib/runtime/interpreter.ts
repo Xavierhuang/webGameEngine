@@ -136,6 +136,15 @@ export class VariableStore {
     return list.some((v) => String(v).toLowerCase() === wanted);
   }
 
+  /** 1-based index of first case-insensitive match, or 0 if not found (Scratch behavior). */
+  listIndexOf(objectId: string, name: string, item: Value): number {
+    const list = this.listFor(objectId, name, 'global', false);
+    if (!list) return 0;
+    const wanted = String(item).toLowerCase();
+    const i = list.findIndex((v) => String(v).toLowerCase() === wanted);
+    return i >= 0 ? i + 1 : 0;
+  }
+
   set(objectId: string, name: string, value: Value, scope: VariableScope = 'global') {
     const m = this.scopeMap(objectId, scope);
     const entry = m.get(name);
@@ -248,6 +257,10 @@ export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Valu
     case 'list_contains': {
       const item = expr.args?.[0] !== undefined ? evalExpr(expr.args[0], env) : '';
       return env.vars.listContains(env.objectId, String(expr.value ?? ''), item);
+    }
+    case 'list_index_of': {
+      const item = expr.args?.[0] !== undefined ? evalExpr(expr.args[0], env) : '';
+      return env.vars.listIndexOf(env.objectId, String(expr.value ?? ''), item);
     }
     // Self position/rotation/size reporters (Phase 5a/5b)
     case 'position_x': return env.ctx?.getPosition?.().x ?? 0;
@@ -961,6 +974,25 @@ export class ObjectRuntime {
             String(getInput(block, 'name', env, 'list')),
             getInput(block, 'index', env, 1),
             getInput(block, 'item', env, getInput(block, 'value', env, '')),
+            String(getInput(block, 'scope', env, 'global')) === 'object' ? 'object' : 'global'
+          );
+          return;
+        case 'delete_all_of_list':
+          this.vars.listDelete(
+            this.objectId,
+            String(getInput(block, 'name', env, 'list')),
+            'all',
+            String(getInput(block, 'scope', env, 'global')) === 'object' ? 'object' : 'global'
+          );
+          return;
+        case 'show_list':
+        case 'hide_list':
+          // Reuses variable visibility: the watcher overlay renders list rows
+          // when the underlying VariableEntry has visible=true and value is an array.
+          this.vars.setVisible(
+            this.objectId,
+            String(getInput(block, 'name', env, 'list')),
+            block.block_type === 'show_list',
             String(getInput(block, 'scope', env, 'global')) === 'object' ? 'object' : 'global'
           );
           return;

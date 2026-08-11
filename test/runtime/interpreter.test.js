@@ -355,6 +355,51 @@ const ctxIdle = {
   eq(v2.get('o', 'q'), 'wyZ', 'list blocks: delete/insert/replace applied');
 }
 
+// --- Scratch list parity: index-of, delete-all block, show/hide list ---
+{
+  const v = new VariableStore();
+  v.listAdd('o', 'inv', 'sword');
+  v.listAdd('o', 'inv', 'shield');
+  v.listAdd('o', 'inv', 'potion');
+  eq(v.listIndexOf('o', 'inv', 'SHIELD'), 2, 'listIndexOf: 1-based, case-insensitive');
+  eq(v.listIndexOf('o', 'inv', 'stick'), 0, 'listIndexOf: not found is 0');
+  eq(v.listIndexOf('o', 'nope', 'x'), 0, 'listIndexOf: missing list is 0');
+
+  const v2 = new VariableStore();
+  const rt = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'a1', block_type: 'add_to_list', inputs: { name: 'q', item: 'x' } },
+    { id: 'a2', block_type: 'add_to_list', inputs: { name: 'q', item: 'y' } },
+    { id: 'ix', block_type: 'set_variable', inputs: { name: 'where', value: { op: 'list_index_of', value: 'q', args: [{ op: 'literal', value: 'Y' }] } } },
+    { id: 'sh', block_type: 'show_list', inputs: { name: 'q' } },
+    { id: 'da', block_type: 'delete_all_of_list', inputs: { name: 'q' } },
+  ], v2, ctxIdle);
+  rt.step(0.016, 0);
+  eq(v2.get('o', 'where'), 2, 'list_index_of expr via block');
+  eq(v2.listLength('o', 'q'), 0, 'delete_all_of_list block clears');
+  const shown = v2.watcherSnapshot().find((x) => x.label === 'q');
+  eq(shown?.value, 0, 'show_list: watcher visible with length value');
+  eq(Array.isArray(shown?.items), true, 'show_list: watcher renders items rows');
+
+  const rt2 = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'hd', block_type: 'hide_list', inputs: { name: 'q' } },
+  ], v2, ctxIdle);
+  rt2.step(0.016, 0);
+  eq(v2.watcherSnapshot().find((x) => x.label === 'q'), undefined, 'hide_list: watcher removed');
+
+  // show_list before any items: entry promotes 0 -> [] on first add
+  const v3 = new VariableStore();
+  const rt3 = new ObjectRuntime('o', [
+    { id: 'h', block_type: 'on_start' },
+    { id: 'sh', block_type: 'show_list', inputs: { name: 'fresh' } },
+    { id: 'a', block_type: 'add_to_list', inputs: { name: 'fresh', item: 'first' } },
+  ], v3, ctxIdle);
+  rt3.step(0.016, 0);
+  const fresh = v3.watcherSnapshot().find((x) => x.label === 'fresh');
+  eq(fresh?.items?.join(','), 'first', 'show_list before add: promotes to list');
+}
+
 // --- Phase 3: clones ---
 {
   const w = new RuntimeWorld();

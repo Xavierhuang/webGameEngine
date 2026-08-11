@@ -153,6 +153,21 @@ const statementDefs: object[] = [
     args0: [value('index'), text('name', 'my list'), value('item'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.list,
   },
+  {
+    type: 'delete_all_of_list', message0: 'delete all of list %1 %2',
+    args0: [text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.list,
+  },
+  {
+    type: 'show_list', message0: 'show list %1 %2',
+    args0: [text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.list,
+  },
+  {
+    type: 'hide_list', message0: 'hide list %1 %2',
+    args0: [text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    previousStatement: null, nextStatement: null, colour: COLOUR.list,
+  },
 
   // Clones
   {
@@ -311,6 +326,10 @@ const exprDefs: object[] = [
     type: 'expr_list_contains', message0: 'list %1 contains %2 ?', args0: [text('value', 'my list'), value('arg0')],
     output: null, colour: COLOUR.list,
   },
+  {
+    type: 'expr_list_index_of', message0: 'item # of %2 in list %1', args0: [text('value', 'my list'), value('arg0')],
+    output: null, colour: COLOUR.list,
+  },
   // Phase 5a: motion reporters
   { type: 'expr_position_x', message0: 'x position', output: null, colour: COLOUR.sensing },
   { type: 'expr_position_y', message0: 'y position', output: null, colour: COLOUR.sensing },
@@ -433,11 +452,15 @@ export const TOOLBOX = {
       contents: [
         blk('add_to_list', { item: textShadow('apple') }),
         blk('delete_from_list', { index: numShadow(1) }),
+        blk('delete_all_of_list'),
         blk('insert_into_list', { index: numShadow(1), item: textShadow('apple') }),
         blk('replace_in_list', { index: numShadow(1), item: textShadow('apple') }),
+        blk('show_list'),
+        blk('hide_list'),
         blk('expr_list_item', { arg0: numShadow(1) }),
         blk('expr_list_length'),
         blk('expr_list_contains', { arg0: textShadow('apple') }),
+        blk('expr_list_index_of', { arg0: textShadow('apple') }),
       ],
     },
     {
