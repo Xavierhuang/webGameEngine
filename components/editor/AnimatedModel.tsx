@@ -6,6 +6,7 @@ import { useAnimations, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { modelCache } from '../../lib/utils/modelCache';
 import { logger } from '../../lib/utils/logger';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 
 interface AnimatedModelProps {
   url: string;
@@ -35,7 +36,7 @@ export default function AnimatedModel({
   
   // For GLTF/GLB files, use drei's useAnimations
   if (ext === 'glb' || ext === 'gltf') {
-    return <GLTFAnimatedModel 
+    const model = <GLTFAnimatedModel
       url={url} 
       position={position} 
       rotation={rotation} 
@@ -46,6 +47,16 @@ export default function AnimatedModel({
       onLoad={onLoad}
       onError={onError}
     />;
+
+    if (onError) {
+      return (
+        <ErrorBoundary key={url} fallback={<></>} onError={(error) => onError(error)}>
+          {model}
+        </ErrorBoundary>
+      );
+    }
+
+    return model;
   }
   
   // For FBX files, use manual animation extraction

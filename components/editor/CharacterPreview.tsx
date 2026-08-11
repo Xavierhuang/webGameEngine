@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import type { CharacterPrefab } from '../../lib/prefabs/characters';
 import AnimatedModel from './AnimatedModel';
@@ -9,6 +9,11 @@ import ShapePreview from './ShapePreview';
 export default function CharacterPreview({ character }: { character: CharacterPrefab }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [character.model_url]);
 
   if (!character.model_url) {
     return <ShapePreview shape={character.shape} color={character.color} />;
