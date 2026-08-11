@@ -16,7 +16,7 @@
     "test:safety": "tsc lib/safety/keyword-scan.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/safety/keyword-scan.test.js",
     "test:prefabs": "tsc lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/prefabs/characters.test.js",
     "test:dragon-editor": "tsc lib/prefabs/characters.ts lib/prefabs/characterPayload.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/prefabs/dragon-editor.test.js",
-    "test:dragon-rendering": "node --test test/editor/dragon-model-rendering.test.js",
+    "test:dragon-rendering": "tsc components/editor/previewCanvasBudget.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/editor/dragon-model-rendering.test.js test/editor/preview-canvas-budget.test.js",
     "generate:dragon": "bash tools/metal-dragon/generate.sh",
     "test:dragon-asset": "node --test test/assets/red-metal-dragon.test.js",
     "test:dragon-page": "node --test test/showcase/red-metal-dragon-page.test.js",

@@ -1,10 +1,11 @@
 'use client';
 
-import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, Suspense, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { selectorPreviewCanvasBudget, type PreviewCanvasKind } from './previewCanvasBudget';
 
 interface ShapePreviewProps {
   shape: string;
@@ -169,7 +170,10 @@ function PreviewCanvas({ children }: { children: ReactNode }) {
 
 export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
+  const previewId = useId();
   const [isVisible, setIsVisible] = useState(false);
+  const [hasCanvas, setHasCanvas] = useState(false);
+  const previewKind: PreviewCanvasKind = modelUrl ? 'model' : 'primitive';
 
   useEffect(() => {
     const element = previewRef.current;
@@ -188,10 +192,32 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const syncCanvasLease = () => {
+      if (!isVisible) {
+        selectorPreviewCanvasBudget.release(previewId);
+        setHasCanvas(false);
+        return;
+      }
+      setHasCanvas(selectorPreviewCanvasBudget.acquire(previewId, previewKind));
+    };
+
+    syncCanvasLease();
+    return selectorPreviewCanvasBudget.subscribe(syncCanvasLease);
+  }, [isVisible, previewId, previewKind]);
+
+  useEffect(() => () => {
+    selectorPreviewCanvasBudget.release(previewId);
+  }, [previewId]);
+
   const capsuleFallback = <PreviewCanvas><ShapeMesh shape="capsule" color={color} /></PreviewCanvas>;
 
-  if (!isVisible) {
-    return <div ref={previewRef} className="h-full w-full" aria-hidden="true" />;
+  if (!isVisible || !hasCanvas) {
+    return (
+      <div ref={previewRef} className="flex h-full w-full items-center justify-center" aria-hidden="true">
+        {isVisible && <span className="text-[10px] font-medium text-slate-400">Loading preview…</span>}
+      </div>
+    );
   }
 
   return (
@@ -221,7 +247,6 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
     </div>
   );
 }
-
 
 
 
