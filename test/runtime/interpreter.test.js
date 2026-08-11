@@ -991,5 +991,128 @@ const ctxIdle = {
   }
 }
 
+// --- Strengthening tests: cross-block sequences + edge cases for the four parity subsystems ---
+{
+  // Sound: change_volume_by mid-script → later play_sound sees the NEW volume
+  // (proves the runtime reads its volume per-call, not cached at script start)
+  {
+    const calls = [];
+    const ctx = {
+      getKeys: () => ({}), move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {},
+      playSound: (name, volume) => { calls.push({ name, volume }); },
+    };
+    const w = new RuntimeWorld();
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 'v0', block_type: 'set_volume', inputs: { value: 80 } },
+      { id: 'p1', block_type: 'play_sound', inputs: { sound: 'a' } },
+      { id: 'vc', block_type: 'change_volume_by', inputs: { value: -30 } },
+      { id: 'p2', block_type: 'play_sound', inputs: { sound: 'b' } },
+    ], w.vars, ctx, w);
+    rt.step(0.016, 0);
+    eq(calls[0].volume, 0.8, 'sound seq: first call uses volume 80');
+    eq(calls[1].volume, 0.5, 'sound seq: second call sees volume after change_volume_by');
+  }
+
+  // Sound: play_sound_until_done with explicit 0 duration falls through same frame
+  {
+    const w = new RuntimeWorld();
+    const ctx = {
+      getKeys: () => ({}), move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {},
+      playSound: () => 0, // explicit zero — sound already finished / not found
+    };
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 'p', block_type: 'play_sound_until_done', inputs: { sound: 'x' } },
+      { id: 's', block_type: 'set_variable', inputs: { name: 'after', value: 1 } },
+    ], w.vars, ctx, w);
+    rt.step(0.016, 0);
+    eq(w.vars.get('o', 'after'), 1, 'sound until_done: 0 duration continues same frame');
+  }
+
+  // Costume: duplicate names → switch_costume_to picks the FIRST match (Scratch semantics)
+  {
+    const state = { index: 2, names: ['red', 'green', 'red', 'blue'] };
+    const ctx = {
+      getKeys: () => ({}), move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+      switchCostume: (name) => {
+        const wanted = String(name || '').trim().toLowerCase();
+        const i = state.names.findIndex((n) => String(n).trim().toLowerCase() === wanted);
+        if (i >= 0) state.index = i;
+      },
+      getCostume: () => ({ number: state.index + 1, name: state.names[state.index] }),
+    };
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 's', block_type: 'switch_costume_to', inputs: { name: 'red' } },
+    ], new VariableStore(), ctx);
+    rt.step(0.016, 0);
+    eq(state.index, 0, 'costume: duplicate names → first match wins');
+  }
+
+  // Costume: reporter reads flow into set_variable expressions in the same script
+  // (proves the reporter is wired through evalExpr, not just standalone evaluation)
+  {
+    const state = { index: 1, names: ['idle', 'walk', 'run'] };
+    const ctx = {
+      getKeys: () => ({}), move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+      getCostume: () => ({ number: state.index + 1, name: state.names[state.index] }),
+      nextCostume: () => { state.index = (state.index + 1) % state.names.length; },
+    };
+    const w = new RuntimeWorld();
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 's1', block_type: 'set_variable', inputs: { name: 'before_n', value: { op: 'costume_number' } } },
+      { id: 's2', block_type: 'set_variable', inputs: { name: 'before_name', value: { op: 'costume_name' } } },
+      { id: 'nx', block_type: 'next_costume' },
+      { id: 's3', block_type: 'set_variable', inputs: { name: 'after_n', value: { op: 'costume_number' } } },
+      { id: 's4', block_type: 'set_variable', inputs: { name: 'after_name', value: { op: 'costume_name' } } },
+    ], w.vars, ctx, w);
+    rt.step(0.016, 0);
+    eq(w.vars.get('o', 'before_n'), 2, 'costume reporter in expr: number before next');
+    eq(w.vars.get('o', 'before_name'), 'walk', 'costume reporter in expr: name before next');
+    eq(w.vars.get('o', 'after_n'), 3, 'costume reporter in expr: number after next');
+    eq(w.vars.get('o', 'after_name'), 'run', 'costume reporter in expr: name after next');
+  }
+
+  // Scene: switch_to_scene passes the trimmed input verbatim to ctx.switchScene
+  // (verifies argument plumbing when the name comes from an expression, not a literal)
+  {
+    const received = [];
+    const ctx = {
+      getKeys: () => ({}), move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+      switchScene: (name) => { received.push(name); },
+    };
+    const w = new RuntimeWorld();
+    w.vars.set('o', 'target', 'Level 2');
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 's', block_type: 'switch_to_scene', inputs: { name: { op: 'var', value: 'target' } } },
+    ], w.vars, ctx, w);
+    rt.step(0.016, 0);
+    eq(received[0], 'Level 2', 'scene: switch_to_scene forwards value from variable expression');
+  }
+
+  // List: list_index_of composes inside a larger expression tree (arithmetic)
+  {
+    const v = new VariableStore();
+    v.listAdd('o', 'nums', 'alpha');
+    v.listAdd('o', 'nums', 'beta');
+    v.listAdd('o', 'nums', 'gamma');
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      // (index_of 'beta') + 10  → 2 + 10 → 12
+      { id: 's', block_type: 'set_variable', inputs: { name: 'sum', value: {
+        op: 'add', args: [
+          { op: 'list_index_of', value: 'nums', args: [{ op: 'literal', value: 'beta' }] },
+          { op: 'literal', value: 10 },
+        ],
+      } } },
+    ], v, ctxIdle);
+    rt.step(0.016, 0);
+    eq(v.get('o', 'sum'), 12, 'list_index_of composes inside an arithmetic expression');
+  }
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);
