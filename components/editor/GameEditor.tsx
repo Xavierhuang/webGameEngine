@@ -19,7 +19,7 @@ import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { buildCharacterVisualData } from '../../lib/prefabs/characters';
-import { shouldHandleFocusShortcut } from '../../lib/editor/cameraFocus';
+import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 
 // Blockly needs the DOM — load the block editor client-side only.
 const BlockEditor = dynamic(() => import('./BlockEditor'), {
@@ -153,15 +153,15 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     ]);
   };
 
-  // Keyboard shortcuts for camera focus and undo/redo
+  useEffect(() => listenForFocusShortcut(
+    window,
+    editorMode,
+    () => setFocusRequest((request) => request + 1),
+  ), [editorMode]);
+
+  // Keyboard shortcuts for undo/redo
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (shouldHandleFocusShortcut(e, editorMode)) {
-        e.preventDefault();
-        setFocusRequest((request) => request + 1);
-        return;
-      }
-
       const isMod = e.metaKey || e.ctrlKey;
       if (!isMod) return;
       if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
@@ -174,7 +174,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [history, project, currentScene, editorMode]);
+  }, [history, project, currentScene]);
 
   // Initialize current scene from initial data
   useEffect(() => {

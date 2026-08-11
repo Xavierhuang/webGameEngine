@@ -6,7 +6,7 @@ import { Box, Sphere, useGLTF, TransformControls } from '@react-three/drei';
 import { Suspense } from 'react';
 import * as THREE from 'three';
 import AnimatedModel from './AnimatedModel';
-import { calculatePerspectiveFrame } from '../../lib/editor/cameraFocus';
+import { focusSceneCamera } from '../../lib/editor/cameraFocus';
 
 interface SceneViewProps {
   scene: any;
@@ -45,34 +45,7 @@ function CameraFocusController({
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
     if (!controls || !perspectiveCamera.isPerspectiveCamera) return;
 
-    const objectRoots: THREE.Object3D[] = [];
-    scene.traverse((object) => {
-      const gameObjectId = object.userData.gameObjectId;
-      if (gameObjectId !== undefined
-        && (selectedObjectId === undefined || gameObjectId === selectedObjectId)) {
-        objectRoots.push(object);
-      }
-    });
-
-    const bounds = new THREE.Box3();
-    for (const objectRoot of objectRoots) {
-      const objectBounds = new THREE.Box3().setFromObject(objectRoot);
-      if (!objectBounds.isEmpty()) bounds.union(objectBounds);
-    }
-
-    const frame = calculatePerspectiveFrame(
-      bounds,
-      perspectiveCamera.position,
-      controls.target,
-      perspectiveCamera.fov,
-      perspectiveCamera.aspect,
-    );
-    if (!frame) return;
-
-    perspectiveCamera.position.copy(frame.position);
-    controls.target.copy(frame.target);
-    perspectiveCamera.updateProjectionMatrix();
-    controls.update();
+    focusSceneCamera(scene, perspectiveCamera, controls, selectedObjectId);
   }, [camera, focusRequest, orbitRef, scene, selectedObjectId]);
 
   return null;
