@@ -160,18 +160,21 @@ export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
   // Creatures — colors are overridden by any color word in the prompt (see
   // extractColor below). The dragon uses the checked-in Metal-generated GLB;
   // the others fall back to primitives until real models ship.
+  // Dragon — bounds/URL come from the Metal starter generator (see
+  // lib/prefabs/generatedStarterModels.ts). Regenerate with
+  // `npm run generate:starters -- --all --output-dir public/models/starters --metadata lib/prefabs/generatedStarterModels.ts`.
   {
     id: 'dragon',
     name: 'Red Metal Dragon',
     color: '#DC2626',
     shape: 'capsule',
-    model_url: '/models/red-metal-dragon.glb',
+    model_url: '/models/starters/dragon.glb',
     model_bounds: {
-      min: { x: -2.982, y: -1.836, z: -1.983 },
-      max: { x: 2.82, y: 2.362, z: 1.983 },
+      min: { x: -0.95, y: -0.75, z: -0.611 },
+      max: { x: 0.95, y: 0.75, z: 0.611 },
     },
-    model_origin_offset: { x: 0, y: 1.836, z: 0 },
-    size: 28,
+    model_origin_offset: { x: 0, y: 0.75, z: 0 },
+    size: 1,
     description: 'Fire-breathing dragon',
     aliases: ['drake', 'wyrm', 'wyvern'],
   },

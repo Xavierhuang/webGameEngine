@@ -111,5 +111,13 @@ func starterCatalog() -> [StarterCharacter] {
       materials: material("Hero Blue", SIMD4(0.05, 0.24, 0.72, 1)),
       parts: body()
     ),
+    // Dragon — sized so the wide-body radius reads as a creature, not a ball.
+    // Red is the default; extractColor() in the prefab route lets kids override it.
+    StarterCharacter(
+      id: "dragon", displayName: "Dragon", description: "A fierce toy dragon.",
+      aliases: ["drake", "wyrm", "wyvern"], defaultSize: 1.0,
+      materials: material("Dragon Ruby", SIMD4(0.72, 0.12, 0.10, 1)),
+      parts: body(radius: SIMD3(0.95, 0.75, 0.62))
+    ),
   ]
 }
