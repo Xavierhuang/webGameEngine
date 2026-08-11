@@ -19,6 +19,7 @@ import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { buildCharacterVisualData } from '../../lib/prefabs/characters';
+import { shouldHandleFocusShortcut } from '../../lib/editor/cameraFocus';
 
 // Blockly needs the DOM — load the block editor client-side only.
 const BlockEditor = dynamic(() => import('./BlockEditor'), {
@@ -88,6 +89,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [showObstacleSelector, setShowObstacleSelector] = useState(false);
   const [showSoundSelector, setShowSoundSelector] = useState(false);
   const [transformMode, setTransformMode] = useState<'translate' | 'scale' | 'rotate'>('translate');
+  const [focusRequest, setFocusRequest] = useState(0);
   const orbitRef = useRef<any>(null);
 
   // Commit helper: push current project to history, set next project, reset future
@@ -151,9 +153,15 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     ]);
   };
 
-  // Keyboard shortcuts for undo/redo
+  // Keyboard shortcuts for camera focus and undo/redo
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (shouldHandleFocusShortcut(e, editorMode)) {
+        e.preventDefault();
+        setFocusRequest((request) => request + 1);
+        return;
+      }
+
       const isMod = e.metaKey || e.ctrlKey;
       if (!isMod) return;
       if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
@@ -166,7 +174,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [history, project, currentScene]);
+  }, [history, project, currentScene, editorMode]);
 
   // Initialize current scene from initial data
   useEffect(() => {
@@ -478,6 +486,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 <SceneView
                   scene={currentScene}
                   selectedObject={selectedObject}
+                  focusRequest={focusRequest}
                   onSelectObject={setSelectedObject}
                   orbitRef={orbitRef}
                   transformMode={transformMode}

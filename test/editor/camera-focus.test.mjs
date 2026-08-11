@@ -1,4 +1,5 @@
 import { Box3, Vector3 } from 'three';
+import { readFileSync } from 'node:fs';
 import {
   calculatePerspectiveFrame,
   shouldHandleFocusShortcut,
@@ -22,6 +23,36 @@ function eq(actual, expected, label) {
 function near(actual, expected, label, tolerance = 0.000001) {
   ok(actual.distanceTo(expected) < tolerance, label);
 }
+
+const gameEditorSource = readFileSync(
+  new URL('../../components/editor/GameEditor.tsx', import.meta.url),
+  'utf8',
+);
+const sceneViewSource = readFileSync(
+  new URL('../../components/editor/SceneView.tsx', import.meta.url),
+  'utf8',
+);
+
+ok(
+  gameEditorSource.includes('shouldHandleFocusShortcut(e, editorMode)'),
+  'GameEditor checks whether F should request focus',
+);
+ok(
+  gameEditorSource.includes('setFocusRequest((request) => request + 1)'),
+  'GameEditor increments the focus request',
+);
+ok(
+  gameEditorSource.includes('focusRequest={focusRequest}'),
+  'GameEditor passes the focus request to SceneView',
+);
+ok(
+  sceneViewSource.includes('<group userData={{ gameObjectId: object.id }}>{content}</group>'),
+  'SceneView tags only rendered object content, excluding editor controls',
+);
+ok(
+  sceneViewSource.includes('<CameraFocusController'),
+  'SceneView mounts the camera focus controller',
+);
 
 function boundsFitInCamera(frame, bounds, verticalFovDegrees, aspect) {
   const halfVerticalFov = (verticalFovDegrees * Math.PI) / 360;

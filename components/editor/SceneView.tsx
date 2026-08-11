@@ -1,15 +1,17 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Box, Sphere, useGLTF, TransformControls } from '@react-three/drei';
 import { Suspense } from 'react';
 import * as THREE from 'three';
 import AnimatedModel from './AnimatedModel';
+import { calculatePerspectiveFrame } from '../../lib/editor/cameraFocus';
 
 interface SceneViewProps {
   scene: any;
   selectedObject?: any;
+  focusRequest: number;
   onSelectObject: (object: any) => void;
   orbitRef?: any;
   transformMode?: 'translate' | 'scale' | 'rotate';
@@ -21,6 +23,59 @@ interface SceneViewProps {
   ) => void;
   onRotationChange?: (id: string, rotationDegrees: { x: number; y: number; z: number }) => void;
   onAnimationsDetected?: (objectId: string, animations: string[]) => void;
+}
+
+function CameraFocusController({
+  focusRequest,
+  selectedObjectId,
+  orbitRef,
+}: {
+  focusRequest: number;
+  selectedObjectId?: string;
+  orbitRef?: any;
+}) {
+  const { camera, scene } = useThree();
+  const previousFocusRequest = useRef(focusRequest);
+
+  useEffect(() => {
+    if (focusRequest === previousFocusRequest.current) return;
+    previousFocusRequest.current = focusRequest;
+
+    const controls = orbitRef?.current;
+    const perspectiveCamera = camera as THREE.PerspectiveCamera;
+    if (!controls || !perspectiveCamera.isPerspectiveCamera) return;
+
+    const objectRoots: THREE.Object3D[] = [];
+    scene.traverse((object) => {
+      const gameObjectId = object.userData.gameObjectId;
+      if (gameObjectId !== undefined
+        && (selectedObjectId === undefined || gameObjectId === selectedObjectId)) {
+        objectRoots.push(object);
+      }
+    });
+
+    const bounds = new THREE.Box3();
+    for (const objectRoot of objectRoots) {
+      const objectBounds = new THREE.Box3().setFromObject(objectRoot);
+      if (!objectBounds.isEmpty()) bounds.union(objectBounds);
+    }
+
+    const frame = calculatePerspectiveFrame(
+      bounds,
+      perspectiveCamera.position,
+      controls.target,
+      perspectiveCamera.fov,
+      perspectiveCamera.aspect,
+    );
+    if (!frame) return;
+
+    perspectiveCamera.position.copy(frame.position);
+    controls.target.copy(frame.target);
+    perspectiveCamera.updateProjectionMatrix();
+    controls.update();
+  }, [camera, focusRequest, orbitRef, scene, selectedObjectId]);
+
+  return null;
 }
 
 // Sky dome component - renders a large sphere as the sky
@@ -38,7 +93,7 @@ function SkyDome() {
   );
 }
 
-export default function SceneView({ scene, selectedObject, onSelectObject, orbitRef, transformMode, onCommitPosition, onRotationChange, onAnimationsDetected }: SceneViewProps) {
+export default function SceneView({ scene, selectedObject, focusRequest, onSelectObject, orbitRef, transformMode, onCommitPosition, onRotationChange, onAnimationsDetected }: SceneViewProps) {
   // Autoplay any beat loops requested by sound objects
   // This is a simple side-effect trigger in render; guard to only start once per render batch.
   if (scene?.game_objects) {
@@ -56,9 +111,14 @@ export default function SceneView({ scene, selectedObject, onSelectObject, orbit
   }
   return (
     <>
+      <CameraFocusController
+        focusRequest={focusRequest}
+        selectedObjectId={selectedObject?.id}
+        orbitRef={orbitRef}
+      />
       <SkyDome />
       {/* Render game objects */}
-      {scene?.game_objects?.map((obj: any) => (
+      {scene?.game_objects?.map((obj: any) => obj.type === 'sound' ? null : (
         <GameObject
           key={obj.id}
           object={obj}
@@ -526,7 +586,7 @@ function GameObject({
   // Render both the object and controls separately
   return (
     <>
-      {content}
+      <group userData={{ gameObjectId: object.id }}>{content}</group>
       {isSelected && (
         <TransformControls
           object={meshRef}
@@ -649,4 +709,3 @@ function GameObject({
     </>
   );
 }
-
