@@ -12,14 +12,13 @@ Copy the supplied FBX into the application's public assets at:
 public/models/minion/FBX/Minion_FBX.fbx
 ```
 
-The FBX refers to its jeans texture through `../Textures/jeans_texture4807.jpg`, so its associated textures will be copied to:
+The FBX stores a Windows-style relative filename for `..\Textures\jeans_texture4807.jpg`, but Three.js `FBXLoader` intentionally strips external texture paths to their basename before loading them. With the model URL above, the browser therefore requests:
 
 ```text
-public/models/minion/Textures/jeans_texture4807.jpg
-public/models/minion/Textures/brown-eye.png
+public/models/minion/FBX/jeans_texture4807.jpg
 ```
 
-This preserves the FBX-relative texture layout and allows Next.js to serve the model from `/models/minion/FBX/Minion_FBX.fbx`. The original files under `models/Minion/` remain source assets and are not modified.
+The supplied FBX contains no embedded image and references only the jeans texture. It does not reference the supplied `brown-eye.png`, so that unused asset is not shipped. Keeping the one referenced texture beside the FBX makes preview, editor, and player loads all resolve through the unmodified generic `FBXLoader` path. The original files under `models/Minion/` remain source assets and are not modified.
 
 ## Prefab Data
 
@@ -53,7 +52,7 @@ If the FBX or a texture cannot be loaded, the existing renderer logging remains 
 - Minion appears as one additional starter without replacing existing entries.
 - Its picker tile shows the supplied 3D model or a clear fallback during a load failure.
 - Selecting it creates a model-backed character using the local FBX URL.
-- The jeans and eye textures load from local public assets.
+- The FBX loader resolves its one jeans texture from a local public asset.
 - Existing primitive starters and AI prefab matching continue to work.
 
 ## Out of Scope

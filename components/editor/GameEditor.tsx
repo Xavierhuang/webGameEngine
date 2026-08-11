@@ -18,6 +18,7 @@ import CollectibleSelector from './CollectibleSelector';
 import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+import { buildCharacterVisualData } from '../../lib/prefabs/characters';
 
 // Blockly needs the DOM — load the block editor client-side only.
 const BlockEditor = dynamic(() => import('./BlockEditor'), {
@@ -851,6 +852,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               return;
             }
 
+            const characterVisualData = buildCharacterVisualData(character);
+
             const response = await fetch('/api/ai/apply-update', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -863,21 +866,10 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                     type: 'character',
                     name: character.name,
                     position: { x: 500, y: 300, z: 0 },
-                    // Keep a lightweight sprite preview for non-models
-                    sprite_data: character.model_url
-                      ? { shape: 'model', model_url: character.model_url, thumbnail_url: character.thumbnail_url, size: 1 }
-                      : { shape: character.shape || 'box', color: character.color, size: character.size || 50 },
+                    sprite_data: characterVisualData.sprite_data,
                     // Persist full properties; include composite children if provided by builder
                     properties: {
-                      ...(character.model_url
-                        ? { shape: 'model', model_url: character.model_url, thumbnail_url: character.thumbnail_url, size: 1 }
-                        : {
-                            // for primitives or composites from builder
-                            ...(character.properties ? { ...character.properties } : {}),
-                            shape: character.shape || 'box',
-                            color: character.color,
-                            size: character.size || 50,
-                          }),
+                      ...characterVisualData.properties,
                       characterType: character.id,
                     },
                   },
@@ -1162,4 +1154,3 @@ function TransformButton({
     </button>
   );
 }
-

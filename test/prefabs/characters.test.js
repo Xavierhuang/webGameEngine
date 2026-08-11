@@ -1,6 +1,10 @@
-const fs = require('node:fs');
-const path = require('node:path');
-const { matchCharacterPrefab, extractColor, CHARACTER_TEMPLATES, BASIC_SHAPES } = require('../.build/lib/prefabs/characters.js');
+const {
+  matchCharacterPrefab,
+  extractColor,
+  buildCharacterVisualData,
+  CHARACTER_TEMPLATES,
+  BASIC_SHAPES,
+} = require('../.build/lib/prefabs/characters.js');
 
 let failures = 0;
 function eq(actual, expected, label) {
@@ -83,16 +87,21 @@ eq(extractColor(''), null, 'empty → null');
 const minion = CHARACTER_TEMPLATES.find((template) => template.id === 'minion');
 eq(minion?.shape, 'model', 'Minion uses a model shape');
 eq(minion?.model_url, '/models/minion/FBX/Minion_FBX.fbx', 'Minion uses local FBX URL');
-eq(minion?.preview_scale, 0.01, 'Minion preview scale');
+eq(minion?.preview_scale, 0.14, 'Minion preview scale');
 eq(Array.isArray(minion?.preview_rotation), true, 'Minion preview rotation is defined');
 
-const root = path.resolve(__dirname, '../..');
-for (const asset of [
-  'public/models/minion/FBX/Minion_FBX.fbx',
-  'public/models/minion/Textures/jeans_texture4807.jpg',
-  'public/models/minion/Textures/brown-eye.png',
-]) {
-  eq(fs.existsSync(path.join(root, asset)), true, `${asset} exists`);
+eq(typeof buildCharacterVisualData, 'function', 'character selections expose persisted visual data');
+if (typeof buildCharacterVisualData === 'function') {
+  const minionVisualData = buildCharacterVisualData(minion);
+  eq(minionVisualData.sprite_data.size, 14, 'Minion size reaches persisted sprite data');
+  eq(minionVisualData.properties.size, 14, 'Minion size reaches persisted object properties');
+
+  const uploadedModelVisualData = buildCharacterVisualData({
+    shape: 'model',
+    model_url: '/uploads/custom.fbx',
+  });
+  eq(uploadedModelVisualData.sprite_data.size, 1, 'generic uploaded models retain the default size');
+  eq(uploadedModelVisualData.properties.size, 1, 'generic uploaded model properties retain the default size');
 }
 
 eq(CHARACTER_TEMPLATES.length, 18, 'templates count (added Minion starter)');

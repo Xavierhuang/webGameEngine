@@ -4,7 +4,7 @@
 
 **Goal:** Add the supplied textured FBX Minion as one model-backed starter character without changing the existing starters.
 
-**Architecture:** Preserve the FBX's relative texture layout under Next.js public assets, then describe Minion in the shared prefab catalog so manual and AI selection use the same local model. Add a focused preview component that chooses between the existing primitive preview and a live `AnimatedModel`, with explicit load/error callbacks providing a visible fallback.
+**Architecture:** Publish the jeans texture at the basename URL Three.js `FBXLoader` actually derives beside the FBX, then describe Minion in the shared prefab catalog so manual and AI selection use the same local model. Add a focused preview component that chooses between the existing primitive preview and a live `AnimatedModel`, with explicit load/error callbacks providing a visible fallback.
 
 **Tech Stack:** Next.js 14, React 18, TypeScript, React Three Fiber, Three.js `FBXLoader`, existing Node-based prefab test harness.
 
@@ -13,7 +13,8 @@
 - Keep every existing starter character unchanged and add exactly one `minion` starter.
 - Serve the original FBX directly; do not convert it to GLB.
 - Keep source files under `models/Minion/` unchanged.
-- Preserve `FBX/Minion_FBX.fbx` next to `Textures/` so `../Textures/jeans_texture4807.jpg` resolves.
+- Keep `jeans_texture4807.jpg` beside `FBX/Minion_FBX.fbx`; Three.js strips the FBX's stored `..\Textures\` prefix before resolving the texture URL.
+- Do not ship `brown-eye.png`: the supplied FBX does not reference it.
 - Do not change the database schema, upload flow, rig, materials, or animations.
 - Do not add runtime dependencies.
 
@@ -27,46 +28,44 @@
 - `components/editor/CharacterSelector.tsx` — delegates starter tiles to `CharacterPreview`.
 - `test/prefabs/characters.test.js` — verifies Minion matching, metadata, catalog count, and deployable assets.
 - `public/models/minion/FBX/Minion_FBX.fbx` — browser-served FBX copied from the supplied source.
-- `public/models/minion/Textures/{jeans_texture4807.jpg,brown-eye.png}` — browser-served textures copied from the supplied source.
+- `public/models/minion/FBX/jeans_texture4807.jpg` — the browser-served texture at the exact URL `FBXLoader` derives.
 
 ### Task 1: Public Assets and Shared Minion Prefab
 
 **Files:**
 - Modify: `test/prefabs/characters.test.js:10-81`
+- Create: `test/prefabs/minion-assets.test.mjs`
 - Modify: `lib/prefabs/characters.ts:11-179`
 - Create: `public/models/minion/FBX/Minion_FBX.fbx`
-- Create: `public/models/minion/Textures/jeans_texture4807.jpg`
-- Create: `public/models/minion/Textures/brown-eye.png`
+- Create: `public/models/minion/FBX/jeans_texture4807.jpg`
 
 **Interfaces:**
-- Consumes: source assets at `models/Minion/FBX/Minion_FBX.fbx` and `models/Minion/Maya/Textures/{jeans_texture4807.jpg,brown-eye.png}`.
+- Consumes: source assets at `models/Minion/FBX/Minion_FBX.fbx` and `models/Minion/Maya/Textures/jeans_texture4807.jpg`.
 - Produces: `CharacterPrefab.model_url?: string`, `CharacterPrefab.preview_scale?: number`, `CharacterPrefab.preview_rotation?: [number, number, number]`, and a `minion` prefab whose URL is `/models/minion/FBX/Minion_FBX.fbx`.
 
 - [ ] **Step 1: Write failing prefab and asset tests**
 
-Add the Node filesystem import and these assertions to `test/prefabs/characters.test.js`:
+Add these prefab assertions to `test/prefabs/characters.test.js`:
 
 ```js
-const fs = require('node:fs');
-const path = require('node:path');
-
 eq(matchCharacterPrefab('minion')?.id, 'minion', 'exact Minion match');
 eq(matchCharacterPrefab('a cheerful yellow minion')?.id, 'minion', 'descriptive Minion prompt');
 
 const minion = CHARACTER_TEMPLATES.find((template) => template.id === 'minion');
 eq(minion?.shape, 'model', 'Minion uses a model shape');
 eq(minion?.model_url, '/models/minion/FBX/Minion_FBX.fbx', 'Minion uses local FBX URL');
-eq(minion?.preview_scale, 0.01, 'Minion preview scale');
+eq(minion?.preview_scale, 0.14, 'Minion preview scale');
 eq(Array.isArray(minion?.preview_rotation), true, 'Minion preview rotation is defined');
 
-const root = path.resolve(__dirname, '../..');
-for (const asset of [
-  'public/models/minion/FBX/Minion_FBX.fbx',
-  'public/models/minion/Textures/jeans_texture4807.jpg',
-  'public/models/minion/Textures/brown-eye.png',
-]) {
-  eq(fs.existsSync(path.join(root, asset)), true, `${asset} exists`);
-}
+```
+
+Create `test/prefabs/minion-assets.test.mjs` with independent expected hashes and the real loader behavior check:
+
+```js
+// A focused loader test parses the real FBX through Three.js FBXLoader and
+// asserts that its sole external request is exactly:
+// /models/minion/FBX/jeans_texture4807.jpg
+// It also checks non-zero sizes and exact SHA-256 hashes for the FBX and JPEG.
 ```
 
 Change the catalog assertion to:
@@ -86,21 +85,19 @@ Expected: FAIL because `matchCharacterPrefab('minion')` is `null`, the Minion me
 Run:
 
 ```bash
-mkdir -p public/models/minion/FBX public/models/minion/Textures
+mkdir -p public/models/minion/FBX
 cp models/Minion/FBX/Minion_FBX.fbx public/models/minion/FBX/Minion_FBX.fbx
-cp models/Minion/Maya/Textures/jeans_texture4807.jpg public/models/minion/Textures/jeans_texture4807.jpg
-cp models/Minion/Maya/Textures/brown-eye.png public/models/minion/Textures/brown-eye.png
+cp models/Minion/Maya/Textures/jeans_texture4807.jpg public/models/minion/FBX/jeans_texture4807.jpg
 ```
 
 Confirm byte-for-byte copies:
 
 ```bash
 cmp models/Minion/FBX/Minion_FBX.fbx public/models/minion/FBX/Minion_FBX.fbx
-cmp models/Minion/Maya/Textures/jeans_texture4807.jpg public/models/minion/Textures/jeans_texture4807.jpg
-cmp models/Minion/Maya/Textures/brown-eye.png public/models/minion/Textures/brown-eye.png
+cmp models/Minion/Maya/Textures/jeans_texture4807.jpg public/models/minion/FBX/jeans_texture4807.jpg
 ```
 
-Expected: all three `cmp` commands exit `0` with no output.
+Expected: both `cmp` commands exit `0` with no output.
 
 - [ ] **Step 4: Add model metadata and the Minion prefab**
 
@@ -129,12 +126,12 @@ Insert this starter after Astronaut and before the primitive creature stand-ins:
   name: 'Minion',
   color: '#FACC15',
   shape: 'model',
-  size: 1,
+  size: 14,
   description: 'Cheerful yellow helper',
   aliases: ['yellow helper', 'banana buddy'],
   model_url: '/models/minion/FBX/Minion_FBX.fbx',
-  preview_scale: 0.01,
-  preview_rotation: [0, Math.PI, 0],
+  preview_scale: 0.14,
+  preview_rotation: [0, 0, 0],
 },
 ```
 
@@ -156,6 +153,9 @@ git commit -m "feat: add Minion starter prefab assets"
 **Files:**
 - Create: `components/editor/CharacterPreview.tsx`
 - Modify: `components/editor/AnimatedModel.tsx:10-235`
+- Modify: `lib/utils/modelCache.ts`
+- Create: `lib/utils/asyncResourceLifecycle.ts`
+- Create: `test/utils/model-resource-lifecycle.test.mjs`
 
 **Interfaces:**
 - Consumes: `CharacterPrefab` and the existing `ShapePreview` and `AnimatedModel` components.
@@ -168,7 +168,7 @@ Create `components/editor/CharacterPreview.tsx` with a primitive fast path and a
 ```tsx
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import type { CharacterPrefab } from '../../lib/prefabs/characters';
 import AnimatedModel from './AnimatedModel';
@@ -177,6 +177,11 @@ import ShapePreview from './ShapePreview';
 export default function CharacterPreview({ character }: { character: CharacterPrefab }) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [character.model_url]);
 
   if (!character.model_url) {
     return <ShapePreview shape={character.shape} color={character.color} />;
@@ -239,7 +244,9 @@ useEffect(() => {
 }, [onLoad, scene]);
 ```
 
-In `FBXAnimatedModel`, call `onLoad?.()` immediately after `groupRef.current.add(fbx)` and call `onError?.(error)` in the existing `catch` block. Include both callbacks in the relevant effect dependency arrays. Do not change animation selection, caching, scale, or runtime rendering.
+In `FBXAnimatedModel`, keep the latest callbacks in a ref and make the acquisition effect depend only on `url`. Acquire a reference-counted cache lease for that URL, call the latest `onLoad` after attaching the clone, call the latest `onError` on failure, and release the lease exactly once on URL change or unmount. Share concurrent loads for the same URL so React development remounts cannot overwrite each other's reference counts. Do not change animation selection, scale, or runtime rendering.
+
+Cover the lifecycle contract in `test/utils/model-resource-lifecycle.test.mjs`: concurrent acquisitions perform one underlying load while owning distinct references; releases are idempotent; callback-ref changes do not reacquire; and a load resolving after unmount is ignored and released.
 
 - [ ] **Step 4: Run TypeScript and production compilation**
 
@@ -318,11 +325,10 @@ In another terminal, run:
 
 ```bash
 curl -I http://localhost:3000/models/minion/FBX/Minion_FBX.fbx
-curl -I http://localhost:3000/models/minion/Textures/jeans_texture4807.jpg
-curl -I http://localhost:3000/models/minion/Textures/brown-eye.png
+curl -I http://localhost:3000/models/minion/FBX/jeans_texture4807.jpg
 ```
 
-Expected: all three responses are `200 OK` with non-zero `Content-Length` values.
+Expected: both responses are `200 OK` with non-zero `Content-Length` values.
 
 - [ ] **Step 4: Perform browser acceptance checks**
 

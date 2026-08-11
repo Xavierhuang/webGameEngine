@@ -4,7 +4,11 @@ import { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import { modelCache } from '../../lib/utils/modelCache';
+import { modelCache, type CachedModelResource } from '../../lib/utils/modelCache';
+import {
+  startAsyncResourceLifecycle,
+  type AsyncResourceHandlers,
+} from '../../lib/utils/asyncResourceLifecycle';
 import { logger } from '../../lib/utils/logger';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 
@@ -178,92 +182,81 @@ function FBXAnimatedModel({
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const currentActionRef = useRef<THREE.AnimationAction | null>(null);
   const animationsRef = useRef<THREE.AnimationClip[]>([]);
-  
-  const fbxLoadedRef = useRef(false);
+  const loadHandlersRef = useRef<AsyncResourceHandlers<CachedModelResource>>({
+    onLoad: () => {},
+  });
+
+  loadHandlersRef.current = {
+    onLoad: ({ model, animations: cachedAnimations }) => {
+      const fbx = model.clone() as THREE.Group;
+      const animations = cachedAnimations ? [...cachedAnimations] : [];
+
+      if (!groupRef.current) return;
+
+      while (groupRef.current.children.length > 0) {
+        groupRef.current.remove(groupRef.current.children[0]);
+      }
+      groupRef.current.add(fbx);
+      onLoad?.();
+
+      animationsRef.current = animations;
+      if (animations.length > 0) {
+        const animationNames = animations.map((clip: THREE.AnimationClip) => clip.name);
+        logger.info(`[FBX Model] Found ${animationNames.length} animation(s):`, animationNames);
+        onAnimationsLoaded?.(animationNames);
+
+        // The mixer must be attached to the cloned object that owns the bones.
+        mixerRef.current = new THREE.AnimationMixer(fbx);
+        logger.debug('[FBX Model] Animation mixer created for FBX root');
+      } else {
+        mixerRef.current = null;
+        logger.warn('[FBX Model] No animations found in this model. Model structure:', {
+          hasAnimations: !!fbx.animations,
+          animationsLength: fbx.animations?.length || 0,
+          children: fbx.children?.length || 0,
+        });
+      }
+    },
+    onError: (error) => {
+      logger.error('Failed to load FBX:', error);
+      onError?.(error);
+    },
+  };
   
   useEffect(() => {
-    // Only load once per URL
-    if (fbxLoadedRef.current) return;
-    
-    const loadFBX = async () => {
-      try {
-        // Check cache first
-        const cached = await modelCache.get(url);
-        let fbx: THREE.Group;
-        let animations: THREE.AnimationClip[] = [];
-        
-        if (cached) {
-          logger.debug('[FBXAnimatedModel] Using cached model:', url);
-          // Clone the cached model to avoid shared mutations
-          fbx = cached.model.clone() as THREE.Group;
-          animations = cached.animations ? [...cached.animations] : [];
-        } else {
-          logger.debug('[FBXAnimatedModel] Loading FBX from URL:', url);
-          const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
-          const loader = new FBXLoader();
-          fbx = await new Promise<THREE.Group>((resolve, reject) => {
-            loader.load(
-              url,
-              (object: THREE.Group) => resolve(object),
-              undefined,
-              (error: any) => reject(error)
-            );
-          });
-          
-          // Extract animations before caching
-          if (fbx.animations && fbx.animations.length > 0) {
-            animations = fbx.animations;
-          }
-          
-          // Cache the model
-          modelCache.set(url, fbx, animations);
-          logger.debug('[FBXAnimatedModel] Cached FBX model:', url);
-        }
-        
-        if (groupRef.current) {
-          // Clear previous model
-          while (groupRef.current.children.length > 0) {
-            groupRef.current.remove(groupRef.current.children[0]);
-          }
-          groupRef.current.add(fbx);
-          onLoad?.();
-          
-          // Extract animations
-          if (animations.length > 0) {
-            animationsRef.current = animations;
-            const animationNames = animations.map((clip: THREE.AnimationClip) => clip.name);
-            logger.info(`[FBX Model] Found ${animationNames.length} animation(s):`, animationNames);
-            if (onAnimationsLoaded) {
-              onAnimationsLoaded(animationNames);
-            }
-            
-            // Create animation mixer - attach to the root FBX object
-            // The mixer needs to be attached to the object that has the skeleton/bones
-            mixerRef.current = new THREE.AnimationMixer(fbx);
-            logger.debug('[FBX Model] Animation mixer created for FBX root');
-            
-            fbxLoadedRef.current = true;
-          } else {
-            logger.warn('[FBX Model] No animations found in this model. Model structure:', {
-              hasAnimations: !!fbx.animations,
-              animationsLength: fbx.animations?.length || 0,
-              children: fbx.children?.length || 0
-            });
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to load FBX:', error);
-        onError?.(error);
-      }
-    };
-    
-    loadFBX();
-    
-    // Cleanup: release cache reference when component unmounts
+    animationsRef.current = [];
+    mixerRef.current = null;
+
+    const stopLifecycle = startAsyncResourceLifecycle(
+      () => modelCache.acquire(url, async () => {
+        logger.debug('[FBXAnimatedModel] Loading FBX from URL:', url);
+        const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
+        const loader = new FBXLoader();
+        const fbx = await new Promise<THREE.Group>((resolve, reject) => {
+          loader.load(
+            url,
+            (object: THREE.Group) => resolve(object),
+            undefined,
+            (error: unknown) => reject(error),
+          );
+        });
+
+        return {
+          model: fbx,
+          animations: fbx.animations?.length > 0 ? fbx.animations : [],
+        };
+      }),
+      loadHandlersRef,
+    );
+
     return () => {
-      modelCache.release(url);
+      stopLifecycle();
+      currentActionRef.current?.stop();
+      currentActionRef.current = null;
+      mixerRef.current?.stopAllAction();
+      mixerRef.current = null;
     };
-  }, [url, onAnimationsLoaded, onLoad, onError]);
+  }, [url]);
   
   const lastAnimationStateRef = useRef<string | null>(null);
   

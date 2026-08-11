@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { logger } from './logger';
+import type { AsyncResourceLease } from './asyncResourceLifecycle';
 
 interface CachedModel {
   url: string;
@@ -15,10 +16,75 @@ interface CachedModel {
   refCount: number; // Reference count for cleanup
 }
 
+export interface CachedModelResource {
+  model: THREE.Object3D | THREE.Group;
+  animations?: THREE.AnimationClip[];
+}
+
 class ModelCache {
   private cache: Map<string, CachedModel> = new Map();
+  private pendingLoads: Map<string, Promise<CachedModel>> = new Map();
   private maxCacheSize: number = 100 * 1024 * 1024; // 100MB default
   private maxAge: number = 30 * 60 * 1000; // 30 minutes
+
+  /**
+   * Acquire one cache reference, sharing an in-flight load for the same URL.
+   * The returned lease is idempotent so every caller can release exactly once.
+   */
+  async acquire(
+    url: string,
+    load: () => Promise<CachedModelResource>,
+  ): Promise<AsyncResourceLease<CachedModelResource>> {
+    let cached = this.cache.get(url);
+
+    if (cached && Date.now() - cached.loadedAt >= this.maxAge && cached.refCount <= 0) {
+      this.remove(url);
+      cached = undefined;
+    }
+
+    if (!cached) {
+      let pending = this.pendingLoads.get(url);
+      if (!pending) {
+        pending = load()
+          .then(({ model, animations }) => {
+            const loaded: CachedModel = {
+              url,
+              model,
+              animations,
+              loadedAt: Date.now(),
+              size: this.estimateSize(model),
+              refCount: 0,
+            };
+            this.cleanupIfNeeded(loaded.size);
+            this.cache.set(url, loaded);
+            logger.debug(`[ModelCache] Cached model ${url} (size: ${(loaded.size / 1024).toFixed(2)}KB)`);
+            return loaded;
+          })
+          .finally(() => {
+            this.pendingLoads.delete(url);
+          });
+        this.pendingLoads.set(url, pending);
+      }
+      cached = await pending;
+    }
+
+    cached.refCount++;
+    logger.debug(`[ModelCache] Acquired ${url} (refCount: ${cached.refCount})`);
+
+    let released = false;
+    return {
+      resource: {
+        model: cached.model,
+        animations: cached.animations,
+      },
+      release: () => {
+        if (released) return;
+        released = true;
+        cached.refCount--;
+        logger.debug(`[ModelCache] Released reference to ${url} (refCount: ${cached.refCount})`);
+      },
+    };
+  }
 
   /**
    * Get a model from cache or load it
@@ -222,7 +288,6 @@ if (typeof window !== 'undefined') {
     modelCache.clear();
   });
 }
-
 
 
 

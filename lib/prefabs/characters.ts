@@ -22,6 +22,47 @@ export interface CharacterPrefab {
   preview_rotation?: [number, number, number];
 }
 
+interface CharacterVisualInput {
+  shape?: string;
+  color?: string;
+  size?: number;
+  model_url?: string;
+  thumbnail_url?: string;
+  properties?: Record<string, unknown>;
+}
+
+/** Build the visual fields persisted when a picker character is selected. */
+export function buildCharacterVisualData(character: CharacterVisualInput) {
+  if (character.model_url) {
+    const size = character.size || 1;
+    const modelData = {
+      shape: 'model',
+      model_url: character.model_url,
+      thumbnail_url: character.thumbnail_url,
+      size,
+    };
+    return {
+      sprite_data: modelData,
+      properties: { ...modelData },
+    };
+  }
+
+  const size = character.size || 50;
+  return {
+    sprite_data: {
+      shape: character.shape || 'box',
+      color: character.color,
+      size,
+    },
+    properties: {
+      ...(character.properties || {}),
+      shape: character.shape || 'box',
+      color: character.color,
+      size,
+    },
+  };
+}
+
 /** Named starter characters. Order matters for the picker grid. */
 export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
   {
@@ -101,12 +142,12 @@ export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
     name: 'Minion',
     color: '#FACC15',
     shape: 'model',
-    size: 1,
+    size: 14,
     description: 'Cheerful yellow helper',
     aliases: ['yellow helper', 'banana buddy'],
     model_url: '/models/minion/FBX/Minion_FBX.fbx',
-    preview_scale: 0.01,
-    preview_rotation: [0, Math.PI, 0],
+    preview_scale: 0.14,
+    preview_rotation: [0, 0, 0],
   },
   // Creatures — best-effort shapes until real GLB models ship. Colors are
   // overridden by any color word in the prompt (see extractColor below).
