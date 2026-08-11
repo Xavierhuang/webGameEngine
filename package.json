@@ -23,8 +23,9 @@
     "test:dragon-asset": "node --test test/assets/red-metal-dragon.test.js",
     "test:dragon-page": "node --test test/showcase/red-metal-dragon-page.test.js",
     "test:dragon-generator": "node --test test/tools/metal-dragon-generate.test.js",
+    "test:starter-generator": "node --test test/tools/metal-starters-generate.test.js",
     "test:dragon-all": "npm run test:dragon-editor && npm run test:dragon-materials && npm run test:dragon-model-contract && npm run test:dragon-rendering && npm run test:dragon-asset && npm run test:dragon-page && npm run test:dragon-generator",
-    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:dragon-all"
+    "test:all": "npm run test:runtime && npm run test:serializer && npm run test:safety && npm run test:prefabs && npm run test:dragon-all && npm run test:starter-generator"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
