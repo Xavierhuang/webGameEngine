@@ -30,8 +30,19 @@ export interface Scale {
   value?: number;
 }
 
+// Costume: an alternate appearance for a game object (Scratch costume analog).
+export interface Costume {
+  name: string;
+  color?: string;
+  shape?: ShapeType;
+  model_url?: string;
+}
+
 // Game Object Properties
 export interface GameObjectProperties {
+  costumes?: Costume[];
+  /** 0-based index into costumes; blocks/reporters use 1-based like Scratch. */
+  current_costume?: number;
   shape?: ShapeType;
   color?: string;
   size?: number | Scale;
@@ -109,6 +120,8 @@ export type LogicBlockType =
   | 'think'
   | 'clear_bubble'
   | 'set_color'
+  | 'switch_costume_to'
+  | 'next_costume'
   // Phase 5c: AI blocks
   | 'ask_ai'
   | 'ai_decide';

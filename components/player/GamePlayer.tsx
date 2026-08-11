@@ -23,7 +23,7 @@ import VariableWatchers from './VariableWatchers';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { ObjectRuntime, RuntimeWorld, type RuntimeContext } from '../../lib/runtime/interpreter';
 import AudioManager from '../../lib/audio/AudioManager';
-import type { Project, GameObject, KeyState, LogicBlock } from '../../types/game';
+import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
 
 // -----------------------------------------------------------------------------
 // Per-extension mesh components. Each one always calls exactly one loader hook,
@@ -652,6 +652,21 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   const sizeMultiplierRef = useRef(1);
   const tintColorRef = useRef<string | null>(null);
   const [bubble, setBubble] = useState<{ text: string; style: 'say' | 'think'; expiresAt: number | null } | null>(null);
+  // Costumes (Scratch analog) — refs feed the runtime callbacks (built once); state drives the appearance re-render.
+  const costumesRef = useRef<Costume[]>([]);
+  const costumeIndexRef = useRef(0);
+  const [costumeIndex, setCostumeIndex] = useState(() => {
+    const raw = typeof object.properties === 'string' ? object.properties : JSON.stringify(object.properties || {});
+    try {
+      const parsed = JSON.parse(raw || '{}');
+      const list: unknown = parsed?.costumes;
+      const n = Array.isArray(list) ? list.length : 0;
+      if (n === 0) return 0;
+      const initial = Number(parsed?.current_costume) || 0;
+      return Math.max(0, Math.min(n - 1, initial));
+    } catch { return 0; }
+  });
+  costumeIndexRef.current = costumeIndex;
   const bubbleRef = useRef(bubble);
   bubbleRef.current = bubble;
 
@@ -805,6 +820,31 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       // Scene switching — delegate to the player-level handlers on the world.
       switchScene: (name) => world.onSwitchScene?.(name),
       nextScene: () => world.onNextScene?.(),
+      // Costumes — mutate the ref immediately (getCostume sees it same frame) and
+      // fire setState so the mesh re-renders with the new appearance.
+      switchCostume: (name) => {
+        const list = costumesRef.current;
+        if (list.length === 0) return;
+        const wanted = String(name || '').trim().toLowerCase();
+        const i = list.findIndex((c) => String(c?.name || '').trim().toLowerCase() === wanted);
+        if (i >= 0) {
+          costumeIndexRef.current = i;
+          setCostumeIndex(i);
+        }
+      },
+      nextCostume: () => {
+        const list = costumesRef.current;
+        if (list.length === 0) return;
+        const next = (costumeIndexRef.current + 1) % list.length;
+        costumeIndexRef.current = next;
+        setCostumeIndex(next);
+      },
+      getCostume: () => {
+        const list = costumesRef.current;
+        if (list.length === 0) return { number: 1, name: '' };
+        const i = Math.max(0, Math.min(list.length - 1, costumeIndexRef.current));
+        return { number: i + 1, name: String(list[i]?.name ?? '') };
+      },
     };
   }
 
@@ -842,8 +882,17 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         }
   );
 
-  // Get color from multiple possible locations
-  const color = object.color
+  // Costumes: sync ref with the object's saved costume list, then resolve the active one.
+  // The active costume's fields layer over the base appearance (Scratch costume semantics).
+  const costumesList: Costume[] = Array.isArray(properties.costumes) ? properties.costumes : [];
+  costumesRef.current = costumesList;
+  const activeCostume: Costume | null = costumesList.length > 0
+    ? costumesList[Math.max(0, Math.min(costumesList.length - 1, costumeIndex))]
+    : null;
+
+  // Get color from multiple possible locations (active costume wins if set)
+  const color = activeCostume?.color
+    || object.color
     || properties.color
     || properties.sprite_data?.color
     || '#6B7280';
@@ -885,9 +934,13 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
     ((rotationFromProps.z || 0) * Math.PI) / 180,
   ];
 
-  // Determine shape from properties
-  const shape = properties.shape || properties.sprite_data?.shape || (properties.model_url ? 'model' : 'box');
-  const modelUrl = properties.model_url || properties.sprite_data?.model_url;
+  // Determine shape from properties (active costume wins if it declares one)
+  const baseModelUrl = properties.model_url || properties.sprite_data?.model_url;
+  const modelUrl = activeCostume?.model_url || baseModelUrl;
+  const shape = activeCostume?.shape
+    || properties.shape
+    || properties.sprite_data?.shape
+    || (modelUrl ? 'model' : 'box');
   const isCharacter = object.type === 'character';
   
   // Debug logging

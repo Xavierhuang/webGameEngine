@@ -385,6 +385,126 @@ export default function PropertiesPanel({
           />
         </div>
 
+        {/* Costumes (Scratch analog — alternate appearances the runtime can switch to) */}
+        {(() => {
+          const props = typeof selectedObject.properties === 'string'
+            ? JSON.parse(selectedObject.properties || '{}')
+            : (selectedObject.properties || {});
+          const costumes: Array<{ name: string; color?: string; shape?: string; model_url?: string }> =
+            Array.isArray(props.costumes) ? props.costumes : [];
+          const current = Math.max(0, Math.min(costumes.length - 1, Number(props.current_costume) || 0));
+          const SHAPES = ['', 'box', 'sphere', 'cylinder', 'cone', 'pyramid', 'torus', 'capsule', 'plane', 'circle', 'model'];
+          const save = (next: typeof costumes, currentIdx = current) => {
+            onUpdate({
+              properties: {
+                ...props,
+                costumes: next,
+                current_costume: next.length > 0 ? Math.max(0, Math.min(next.length - 1, currentIdx)) : 0,
+              },
+            });
+          };
+          return (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Costumes
+                </label>
+                <button
+                  onClick={() => {
+                    const next = [...costumes, { name: `costume${costumes.length + 1}`, color: selectedObject.color || '#4F46E5' }];
+                    save(next, next.length - 1);
+                  }}
+                  className="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+                >
+                  + Add
+                </button>
+              </div>
+              {costumes.length === 0 ? (
+                <p className="text-xs text-gray-500 mt-1">
+                  No costumes yet. Add one to switch appearance with <span className="font-mono">switch costume to</span>.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {costumes.map((c, i) => (
+                    <div
+                      key={i}
+                      className={`p-2 rounded-lg border ${i === current ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white'}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => save(costumes, i)}
+                          title={i === current ? 'Active costume' : 'Set as active'}
+                          className={`w-6 h-6 rounded border ${i === current ? 'border-purple-600' : 'border-gray-300'}`}
+                          style={{ background: c.color || '#cccccc' }}
+                        />
+                        <input
+                          type="text"
+                          value={c.name}
+                          onChange={(e) => {
+                            const next = costumes.slice();
+                            next[i] = { ...c, name: e.target.value };
+                            save(next);
+                          }}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
+                          placeholder="name"
+                        />
+                        <button
+                          onClick={() => {
+                            const next = costumes.filter((_, j) => j !== i);
+                            const nextCurrent = i < current ? current - 1 : current;
+                            save(next, nextCurrent);
+                          }}
+                          className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <input
+                          type="color"
+                          value={c.color || '#4F46E5'}
+                          onChange={(e) => {
+                            const next = costumes.slice();
+                            next[i] = { ...c, color: e.target.value };
+                            save(next);
+                          }}
+                          className="w-full h-8 rounded cursor-pointer"
+                          title="Color"
+                        />
+                        <select
+                          value={c.shape || ''}
+                          onChange={(e) => {
+                            const next = costumes.slice();
+                            next[i] = { ...c, shape: e.target.value || undefined };
+                            save(next);
+                          }}
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
+                          title="Shape"
+                        >
+                          {SHAPES.map((s) => (
+                            <option key={s} value={s}>{s || '(inherit shape)'}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <input
+                        type="text"
+                        value={c.model_url || ''}
+                        onChange={(e) => {
+                          const next = costumes.slice();
+                          next[i] = { ...c, model_url: e.target.value || undefined };
+                          save(next);
+                        }}
+                        placeholder="model URL (optional)"
+                        className="mt-2 w-full px-2 py-1 text-xs border border-gray-300 rounded font-mono"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Animation State (for characters with animated models) */}
         {selectedObject.type === 'character' && (() => {
           const props = typeof selectedObject.properties === 'string'

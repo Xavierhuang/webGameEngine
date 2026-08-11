@@ -88,6 +88,13 @@ const statementDefs: object[] = [
   },
   { type: 'next_scene', message0: 'next scene', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
 
+  // Costumes (Scratch costume analog — per-object alternate appearances)
+  {
+    type: 'switch_costume_to', message0: 'switch costume to %1', args0: [text('name', 'costume1')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  { type: 'next_costume', message0: 'next costume', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
+
   // Actions
   {
     type: 'move', message0: 'move %1 %2', args0: [
@@ -368,6 +375,8 @@ const exprDefs: object[] = [
   { type: 'expr_size', message0: 'size', output: null, colour: COLOUR.looks },
   { type: 'expr_volume', message0: 'volume', output: null, colour: COLOUR.sound },
   { type: 'expr_visible', message0: 'visible ?', output: null, colour: COLOUR.looks },
+  { type: 'expr_costume_number', message0: 'costume #', output: null, colour: COLOUR.looks },
+  { type: 'expr_costume_name', message0: 'costume name', output: null, colour: COLOUR.looks },
 ];
 
 export const BLOCK_DEFINITIONS: object[] = [...statementDefs, ...exprDefs];
@@ -429,8 +438,12 @@ export const TOOLBOX = {
         blk('set_color'),
         blk('switch_to_scene'),
         blk('next_scene'),
+        blk('switch_costume_to'),
+        blk('next_costume'),
         blk('expr_size'),
         blk('expr_visible'),
+        blk('expr_costume_number'),
+        blk('expr_costume_name'),
       ],
     },
     {

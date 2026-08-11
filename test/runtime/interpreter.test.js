@@ -899,5 +899,97 @@ const ctxIdle = {
   eq(w3.vars.get('o', 'after'), 1, 'until_done: void duration -> continues immediately');
 }
 
+// --- Costume blocks: switch_costume_to, next_costume, reporters ---
+{
+  // Emulate the player's ref-backed costume store; ctx callbacks mutate the shared object.
+  function makeCostumeCtx(names) {
+    const state = { index: 0, names: names.slice() };
+    return {
+      state,
+      ctx: {
+        getKeys: () => ({}),
+        move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+        switchCostume: (name) => {
+          const wanted = String(name || '').trim().toLowerCase();
+          const i = state.names.findIndex((n) => String(n).trim().toLowerCase() === wanted);
+          if (i >= 0) state.index = i;
+        },
+        nextCostume: () => {
+          if (state.names.length === 0) return;
+          state.index = (state.index + 1) % state.names.length;
+        },
+        getCostume: () => {
+          if (state.names.length === 0) return { number: 1, name: '' };
+          return { number: state.index + 1, name: state.names[state.index] };
+        },
+      },
+    };
+  }
+
+  // switch_costume_to by name (case-insensitive)
+  {
+    const m = makeCostumeCtx(['normal', 'angry', 'happy']);
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 's', block_type: 'switch_costume_to', inputs: { name: 'ANGRY' } },
+    ], new VariableStore(), m.ctx);
+    rt.step(0.016, 0);
+    eq(m.state.index, 1, 'costume: switch_costume_to picks case-insensitively');
+  }
+
+  // unknown name is a no-op, script continues
+  {
+    const m = makeCostumeCtx(['a', 'b']);
+    const w = new RuntimeWorld();
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 's', block_type: 'switch_costume_to', inputs: { name: 'nope' } },
+      { id: 'v', block_type: 'set_variable', inputs: { name: 'after', value: 1 } },
+    ], w.vars, m.ctx, w);
+    rt.step(0.016, 0);
+    eq(m.state.index, 0, 'costume: unknown name leaves index unchanged');
+    eq(w.vars.get('o', 'after'), 1, 'costume: unknown name is a no-op, script continues');
+  }
+
+  // next_costume wraps
+  {
+    const m = makeCostumeCtx(['a', 'b', 'c']);
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 'n1', block_type: 'next_costume' },
+      { id: 'n2', block_type: 'next_costume' },
+      { id: 'n3', block_type: 'next_costume' }, // wraps back to 0
+    ], new VariableStore(), m.ctx);
+    rt.step(0.016, 0);
+    eq(m.state.index, 0, 'costume: next_costume wraps at end');
+  }
+
+  // reporters: costume_number (1-based) and costume_name
+  {
+    const m = makeCostumeCtx(['red', 'green', 'blue']);
+    m.state.index = 1;
+    const env = { objectId: 'o', vars: new VariableStore(), keys: {}, time: 0, ctx: m.ctx };
+    eq(evalExpr({ op: 'costume_number' }, env), 2, 'costume: reporter costume_number is 1-based');
+    eq(evalExpr({ op: 'costume_name' }, env), 'green', 'costume: reporter costume_name matches active');
+  }
+
+  // no ctx callbacks / empty list -> reporters return safe defaults, blocks no-op
+  {
+    const w = new RuntimeWorld();
+    const idle = { getKeys: () => ({}), move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {} };
+    const rt = new ObjectRuntime('o', [
+      { id: 'h', block_type: 'on_start' },
+      { id: 's', block_type: 'switch_costume_to', inputs: { name: 'x' } },
+      { id: 'n', block_type: 'next_costume' },
+      { id: 'v', block_type: 'set_variable', inputs: { name: 'after', value: 1 } },
+    ], w.vars, idle, w);
+    rt.step(0.016, 0);
+    eq(w.vars.get('o', 'after'), 1, 'costume: no-callback ctx keeps script running');
+    const env = { objectId: 'o', vars: w.vars, keys: {}, time: 0, ctx: idle };
+    eq(evalExpr({ op: 'costume_number' }, env), 1, 'costume: reporter defaults to 1 with no ctx');
+    eq(evalExpr({ op: 'costume_name' }, env), '', 'costume: reporter defaults to empty name with no ctx');
+  }
+}
+
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);

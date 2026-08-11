@@ -272,6 +272,8 @@ export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Valu
     case 'rotation_y': return env.ctx?.getRotation?.().y ?? 0;
     case 'rotation_z': return env.ctx?.getRotation?.().z ?? 0;
     case 'size': return env.ctx?.getSize?.() ?? 100;
+    case 'costume_number': return env.ctx?.getCostume?.().number ?? 1;
+    case 'costume_name': return env.ctx?.getCostume?.().name ?? '';
     case 'volume': return env.getVolume?.() ?? 100;
     case 'visible': return env.ctx?.getVisible?.() ?? true;
     // Other-object position/rotation reporters
@@ -579,6 +581,14 @@ export interface RuntimeContext {
   switchScene?(name: string): void;
   /** Activate the next scene by order_index, wrapping at the end. */
   nextScene?(): void;
+
+  // --- Costumes (Scratch costume analog) ---
+  /** Switch to the costume with this name (case-insensitive). Unknown name is a no-op. */
+  switchCostume?(name: string): void;
+  /** Advance to the next costume in the list, wrapping at the end. */
+  nextCostume?(): void;
+  /** Current costume state; number is 1-based like Scratch. */
+  getCostume?(): { number: number; name: string };
 }
 
 interface ScriptState {
@@ -1174,6 +1184,14 @@ export class ObjectRuntime {
           return;
         case 'next_scene':
           this.ctx.nextScene?.();
+          return;
+
+        // --- Costumes ---
+        case 'switch_costume_to':
+          this.ctx.switchCostume?.(String(getInput(block, 'name', env, '')));
+          return;
+        case 'next_costume':
+          this.ctx.nextCostume?.();
           return;
 
         // --- Phase 5c: AI blocks ---
