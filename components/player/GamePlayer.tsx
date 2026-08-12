@@ -116,9 +116,16 @@ export default function GamePlayer({ project }: GamePlayerProps) {
   const scene = scenes[Math.min(sceneIndex, Math.max(scenes.length - 1, 0))];
   // Shared runtime world: variables, broadcasts, and touch/click sensing.
   const worldRef = useRef<RuntimeWorld | null>(null);
-  if (!worldRef.current) worldRef.current = new RuntimeWorld();
+  if (!worldRef.current) {
+    worldRef.current = new RuntimeWorld();
+    // Gate the game loop until the click-to-start splash unlocks audio.
+    // Without this, on_start { play sound } fires into a suspended
+    // AudioContext (browser autoplay policy) and never plays.
+    worldRef.current.started = false;
+  }
   const world = worldRef.current;
   const vars = world.vars;
+  const [showStartSplash, setShowStartSplash] = useState(true);
 
   useEffect(() => {
     world.onSwitchScene = (name: string) => {
@@ -191,6 +198,30 @@ export default function GamePlayer({ project }: GamePlayerProps) {
         <div className="relative rounded-lg shadow-2xl overflow-hidden" style={{ width: '800px', height: '600px', backgroundColor: SCENE.DEFAULT_BACKGROUND_COLOR }}>
           <FPSCounter position="top-right" />
           <VariableWatchers vars={vars} />
+          {showStartSplash && (
+            <button
+              type="button"
+              onClick={() => {
+                // Two things happen here that both need a genuine user
+                // gesture: (1) resume the AudioContext so on_start sounds
+                // aren't fired into a suspended context, (2) flip world.started
+                // so runtime.step begins actually running scripts.
+                try { AudioManager.get(); } catch { /* noop */ }
+                world.started = true;
+                setShowStartSplash(false);
+              }}
+              className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-slate-900/85 text-white hover:bg-slate-900/75 transition-colors"
+              aria-label="Start game"
+            >
+              <span className="w-16 h-16 rounded-full bg-white/95 text-slate-900 flex items-center justify-center shadow-xl">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+              <span className="text-xl font-semibold">Click to start</span>
+              <span className="text-xs text-slate-300">Unlocks sound in this window</span>
+            </button>
+          )}
           <ErrorBoundary
             fallback={
               <div className="w-full h-full flex items-center justify-center bg-red-900 bg-opacity-50">
@@ -1106,7 +1137,10 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       const moveSpeed = PHYSICS.MOVE_SPEED;
       const jumpForce = PHYSICS.JUMP_FORCE;
 
-      if (runtime?.hasScripts) {
+      // Gate on world.started so on_start hats don't fire until the
+      // click-to-start splash has unlocked audio in this window. Motion,
+      // physics, and rendering keep running so the scene composes on mount.
+      if (runtime?.hasScripts && world.started) {
         frameAccumRef.current.x = 0;
         frameAccumRef.current.z = 0;
         runtime.step(delta, state.clock.elapsedTime);

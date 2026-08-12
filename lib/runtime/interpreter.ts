@@ -385,6 +385,13 @@ export class RuntimeWorld {
   /** Live clone ids (synchronously tracked so bursts can't overshoot the cap). */
   private activeClones = new Set<string>();
   private cloneSeq = 0;
+  /**
+   * Gate for the game loop. Player mounts this false, flips it true after the
+   * click-to-start splash unlocks audio. When false, every object's
+   * useFrame skips runtime.step so on_start hats don't fire into a suspended
+   * AudioContext. Defaults true for tests and any host that doesn't opt in.
+   */
+  started = true;
   /** Player hooks: spawn/despawn the clone's visual object. */
   onSpawnClone?: (sourceId: string, cloneId: string) => void;
   onDespawnClone?: (cloneId: string) => void;
