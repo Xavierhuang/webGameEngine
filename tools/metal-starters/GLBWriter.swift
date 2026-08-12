@@ -15,6 +15,10 @@ private struct MTLPart {
   var rings: UInt32
   var segments: UInt32
   var vertexOffset: UInt32
+  // Matches the `uint primitiveType` field on struct Part in
+  // ProceduralParts.metal. Individual scalars (not SIMD types) so Swift's
+  // packed layout matches Metal's — see the 52-byte stride assertion below.
+  var primitiveType: UInt32
 
   init(part: StarterPart, vertexOffset: UInt32) {
     centerX = part.center.x
@@ -29,6 +33,7 @@ private struct MTLPart {
     rings = part.rings
     segments = part.segments
     self.vertexOffset = vertexOffset
+    primitiveType = part.primitive.rawValue
   }
 }
 
@@ -99,7 +104,7 @@ private func validate(character: StarterCharacter) throws -> Int {
 }
 
 func generateVertices(character: StarterCharacter, libraryURL: URL) throws -> [Vertex] {
-  guard MemoryLayout<MTLPart>.stride == 48, MemoryLayout<Vertex>.stride == 24 else {
+  guard MemoryLayout<MTLPart>.stride == 52, MemoryLayout<Vertex>.stride == 24 else {
     throw starterError(20, "Swift layouts do not match the Metal packed ABI")
   }
   let totalVertexCount = try validate(character: character)

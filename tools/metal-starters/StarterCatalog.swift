@@ -8,6 +8,15 @@ struct StarterMaterial {
   let roughness: Float
 }
 
+/// Available part primitives. Must stay in lockstep with ProceduralParts.metal
+/// (constants PRIMITIVE_*). Extending: add here + add a `computeX` in the .metal
+/// kernel + add the case to the switch in generateStarterVertices.
+enum StarterPrimitive: UInt32 {
+  case ellipsoid = 0
+  case cylinder  = 1   // flat top + straight side + flat bottom, aligned to +Y
+  case cone      = 2   // pointy apex at +Y, flat base at -Y
+}
+
 struct StarterPart {
   let name: String
   let center: SIMD3<Float>
@@ -16,6 +25,29 @@ struct StarterPart {
   let rings: UInt32
   let segments: UInt32
   let material: Int
+  /// Defaults to `.ellipsoid` for backward compatibility with existing catalog
+  /// entries — only new callers that want cylinder/cone need to pass this.
+  let primitive: StarterPrimitive
+
+  init(
+    name: String,
+    center: SIMD3<Float>,
+    radius: SIMD3<Float>,
+    rotation: SIMD3<Float>,
+    rings: UInt32,
+    segments: UInt32,
+    material: Int,
+    primitive: StarterPrimitive = .ellipsoid
+  ) {
+    self.name = name
+    self.center = center
+    self.radius = radius
+    self.rotation = rotation
+    self.rings = rings
+    self.segments = segments
+    self.material = material
+    self.primitive = primitive
+  }
 }
 
 struct StarterCharacter {
@@ -140,16 +172,18 @@ private func humanoid(
     parts.append(StarterPart(
       name: "HatBrim",
       center: SIMD3(0, 0.86 * s.y, 0),
-      radius: SIMD3(0.30 * s.x, 0.05 * s.y, 0.30 * s.z),
+      radius: SIMD3(0.32 * s.x, 0.05 * s.y, 0.32 * s.z),
       rotation: SIMD3(0, 0, 0),
-      rings: 6, segments: 16, material: accentMat
+      rings: 4, segments: 16, material: accentMat,
+      primitive: .cylinder
     ))
     parts.append(StarterPart(
       name: "HatCone",
-      center: SIMD3(0, 1.20 * s.y, 0),
-      radius: SIMD3(0.12 * s.x, 0.32 * s.y, 0.12 * s.z),
+      center: SIMD3(0, 1.15 * s.y, 0),
+      radius: SIMD3(0.24 * s.x, 0.36 * s.y, 0.24 * s.z),
       rotation: SIMD3(0, 0, 0),
-      rings: 10, segments: 14, material: accentMat
+      rings: 12, segments: 14, material: accentMat,
+      primitive: .cone
     ))
   case .crown:
     parts.append(StarterPart(
@@ -250,9 +284,10 @@ private func quadruped(
     parts.append(StarterPart(
       name: "Horn",
       center: SIMD3(0.66 * s.x, 0.62 * s.y, 0),
-      radius: SIMD3(0.05 * s.x, 0.22 * s.y, 0.05 * s.z),
+      radius: SIMD3(0.06 * s.x, 0.26 * s.y, 0.06 * s.z),
       rotation: SIMD3(0, 0, -0.25),
-      rings: 6, segments: 10, material: accentMat
+      rings: 8, segments: 10, material: accentMat,
+      primitive: .cone
     ))
   }
   return parts
@@ -333,9 +368,10 @@ private func bird(
     StarterPart(
       name: "Beak",
       center: SIMD3(0.62 * s.x, 0.28 * s.y, 0),
-      radius: SIMD3(0.10 * s.x, 0.06 * s.y, 0.06 * s.z),
-      rotation: SIMD3(0, 0, 0),
-      rings: 6, segments: 10, material: beakMat
+      radius: SIMD3(0.08 * s.x, 0.08 * s.y, 0.08 * s.z),
+      rotation: SIMD3(0, 0, 1.5708),  // 90° around Z so cone apex points +X
+      rings: 8, segments: 10, material: beakMat,
+      primitive: .cone
     ),
     StarterPart(
       name: "WingLeft",
@@ -363,14 +399,16 @@ private func bird(
       center: SIMD3(0.05 * s.x, -0.40 * s.y, 0.08 * s.z),
       radius: SIMD3(0.04 * s.x, 0.12 * s.y, 0.04 * s.z),
       rotation: SIMD3(0, 0, 0),
-      rings: 6, segments: 10, material: beakMat
+      rings: 6, segments: 10, material: beakMat,
+      primitive: .cylinder
     ),
     StarterPart(
       name: "LegRight",
       center: SIMD3(0.05 * s.x, -0.40 * s.y, -0.08 * s.z),
       radius: SIMD3(0.04 * s.x, 0.12 * s.y, 0.04 * s.z),
       rotation: SIMD3(0, 0, 0),
-      rings: 6, segments: 10, material: beakMat
+      rings: 6, segments: 10, material: beakMat,
+      primitive: .cylinder
     ),
   ]
 }
@@ -387,8 +425,8 @@ private func alien(body: Int, eyes: Int) -> [StarterPart] {
     StarterPart(name: "ArmRight", center: SIMD3(0.30, -0.10, 0), radius: SIMD3(0.06, 0.24, 0.06), rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: body),
     StarterPart(name: "LegLeft", center: SIMD3(-0.11, -0.55, 0), radius: SIMD3(0.08, 0.20, 0.08), rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: body),
     StarterPart(name: "LegRight", center: SIMD3(0.11, -0.55, 0), radius: SIMD3(0.08, 0.20, 0.08), rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: body),
-    StarterPart(name: "AntennaLeft", center: SIMD3(-0.14, 0.90, 0), radius: SIMD3(0.03, 0.18, 0.03), rotation: SIMD3(0, 0, -0.12), rings: 6, segments: 10, material: body),
-    StarterPart(name: "AntennaRight", center: SIMD3(0.14, 0.90, 0), radius: SIMD3(0.03, 0.18, 0.03), rotation: SIMD3(0, 0, 0.12), rings: 6, segments: 10, material: body),
+    StarterPart(name: "AntennaLeft", center: SIMD3(-0.14, 0.90, 0), radius: SIMD3(0.03, 0.18, 0.03), rotation: SIMD3(0, 0, -0.12), rings: 6, segments: 10, material: body, primitive: .cylinder),
+    StarterPart(name: "AntennaRight", center: SIMD3(0.14, 0.90, 0), radius: SIMD3(0.03, 0.18, 0.03), rotation: SIMD3(0, 0, 0.12), rings: 6, segments: 10, material: body, primitive: .cylinder),
     StarterPart(name: "AntennaTipLeft", center: SIMD3(-0.18, 1.10, 0), radius: SIMD3(0.07, 0.07, 0.07), rotation: SIMD3(0, 0, 0), rings: 8, segments: 10, material: eyes),
     StarterPart(name: "AntennaTipRight", center: SIMD3(0.18, 1.10, 0), radius: SIMD3(0.07, 0.07, 0.07), rotation: SIMD3(0, 0, 0), rings: 8, segments: 10, material: eyes),
   ]
@@ -401,8 +439,8 @@ private func monster(body: Int, eye: Int, horn: Int) -> [StarterPart] {
     StarterPart(name: "Body", center: SIMD3(0, 0, 0), radius: SIMD3(0.55, 0.58, 0.48), rotation: SIMD3(0, 0, 0), rings: 14, segments: 20, material: body),
     StarterPart(name: "EyeWhite", center: SIMD3(0, 0.28, 0.44), radius: SIMD3(0.22, 0.22, 0.10), rotation: SIMD3(0, 0, 0), rings: 10, segments: 14, material: eye),
     StarterPart(name: "Pupil", center: SIMD3(0, 0.28, 0.52), radius: SIMD3(0.10, 0.10, 0.05), rotation: SIMD3(0, 0, 0), rings: 8, segments: 12, material: horn),
-    StarterPart(name: "HornLeft", center: SIMD3(-0.28, 0.68, 0), radius: SIMD3(0.06, 0.20, 0.06), rotation: SIMD3(0, 0, -0.25), rings: 6, segments: 10, material: horn),
-    StarterPart(name: "HornRight", center: SIMD3(0.28, 0.68, 0), radius: SIMD3(0.06, 0.20, 0.06), rotation: SIMD3(0, 0, 0.25), rings: 6, segments: 10, material: horn),
+    StarterPart(name: "HornLeft", center: SIMD3(-0.28, 0.68, 0), radius: SIMD3(0.08, 0.24, 0.08), rotation: SIMD3(0, 0, -0.25), rings: 8, segments: 10, material: horn, primitive: .cone),
+    StarterPart(name: "HornRight", center: SIMD3(0.28, 0.68, 0), radius: SIMD3(0.08, 0.24, 0.08), rotation: SIMD3(0, 0, 0.25), rings: 8, segments: 10, material: horn, primitive: .cone),
     StarterPart(name: "ArmLeft", center: SIMD3(-0.58, 0.02, 0), radius: SIMD3(0.10, 0.18, 0.10), rotation: SIMD3(0, 0, 0.35), rings: 6, segments: 10, material: body),
     StarterPart(name: "ArmRight", center: SIMD3(0.58, 0.02, 0), radius: SIMD3(0.10, 0.18, 0.10), rotation: SIMD3(0, 0, -0.35), rings: 6, segments: 10, material: body),
     StarterPart(name: "LegLeft", center: SIMD3(-0.24, -0.62, 0), radius: SIMD3(0.15, 0.18, 0.15), rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: body),
@@ -415,7 +453,7 @@ private func monster(body: Int, eye: Int, horn: Int) -> [StarterPart] {
 /// green cone silhouette).
 private func tree(trunk: Int, foliage: Int) -> [StarterPart] {
   [
-    StarterPart(name: "Trunk", center: SIMD3(0, -0.35, 0), radius: SIMD3(0.14, 0.36, 0.14), rotation: SIMD3(0, 0, 0), rings: 10, segments: 14, material: trunk),
+    StarterPart(name: "Trunk", center: SIMD3(0, -0.35, 0), radius: SIMD3(0.14, 0.38, 0.14), rotation: SIMD3(0, 0, 0), rings: 10, segments: 14, material: trunk, primitive: .cylinder),
     StarterPart(name: "FoliageMain", center: SIMD3(0, 0.36, 0), radius: SIMD3(0.44, 0.34, 0.44), rotation: SIMD3(0, 0, 0), rings: 12, segments: 16, material: foliage),
     StarterPart(name: "FoliageLeft", center: SIMD3(-0.28, 0.20, 0.12), radius: SIMD3(0.28, 0.26, 0.28), rotation: SIMD3(0, 0, 0), rings: 10, segments: 14, material: foliage),
     StarterPart(name: "FoliageRight", center: SIMD3(0.26, 0.22, -0.10), radius: SIMD3(0.26, 0.24, 0.26), rotation: SIMD3(0, 0, 0), rings: 10, segments: 14, material: foliage),
@@ -644,8 +682,8 @@ func starterCatalog() -> [StarterCharacter] {
         StarterPart(name: "Neck", center: SIMD3(0.56, 0.34, 0), radius: SIMD3(0.24, 0.38, 0.24), rotation: SIMD3(0, 0, -0.48), rings: 12, segments: 20, material: 0),
         StarterPart(name: "Head", center: SIMD3(0.86, 0.64, 0), radius: SIMD3(0.36, 0.27, 0.29), rotation: SIMD3(0, 0, 0.08), rings: 12, segments: 20, material: 0),
         StarterPart(name: "Snout", center: SIMD3(1.14, 0.585, 0), radius: SIMD3(0.27, 0.15, 0.21), rotation: SIMD3(0, 0, 0), rings: 10, segments: 16, material: 0),
-        StarterPart(name: "HornLeft", center: SIMD3(0.77, 0.93, 0.18), radius: SIMD3(0.06, 0.275, 0.06), rotation: SIMD3(0.22, 0, -0.36), rings: 6, segments: 10, material: 1),
-        StarterPart(name: "HornRight", center: SIMD3(0.77, 0.93, -0.18), radius: SIMD3(0.06, 0.275, 0.06), rotation: SIMD3(-0.22, 0, -0.36), rings: 6, segments: 10, material: 1),
+        StarterPart(name: "HornLeft", center: SIMD3(0.77, 0.93, 0.18), radius: SIMD3(0.08, 0.32, 0.08), rotation: SIMD3(0.22, 0, -0.36), rings: 10, segments: 10, material: 1, primitive: .cone),
+        StarterPart(name: "HornRight", center: SIMD3(0.77, 0.93, -0.18), radius: SIMD3(0.08, 0.32, 0.08), rotation: SIMD3(-0.22, 0, -0.36), rings: 10, segments: 10, material: 1, primitive: .cone),
         StarterPart(name: "WingLeft", center: SIMD3(-0.11, 0.31, 0.56), radius: SIMD3(0.81, 0.065, 0.36), rotation: SIMD3(-0.20, -0.35, 0.15), rings: 12, segments: 20, material: 2),
         StarterPart(name: "WingRight", center: SIMD3(-0.11, 0.31, -0.56), radius: SIMD3(0.81, 0.065, 0.36), rotation: SIMD3(0.20, 0.35, 0.15), rings: 12, segments: 20, material: 2),
         StarterPart(name: "LegFrontLeft", center: SIMD3(0.41, -0.49, 0.29), radius: SIMD3(0.14, 0.43, 0.14), rotation: SIMD3(0, 0, 0.10), rings: 10, segments: 16, material: 0),
