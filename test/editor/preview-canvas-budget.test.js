@@ -148,7 +148,7 @@ test('rapid close and reopen never exceeds active plus retiring capacity', () =>
   clock.advanceBy(650);
 });
 
-test('controller disposal releases once and leaves no timer or listener effects', () => {
+test('controller disposal releases immediately (no retirement grace)', () => {
   const { budget, clock } = createBudget({ maximum: 2, reservedModelSlots: 1 });
   const states = [];
   const dragon = new PreviewCanvasLeaseController({
@@ -164,10 +164,24 @@ test('controller disposal releases once and leaves no timer or listener effects'
   dragon.setVisible(true);
   const statesAfterDispose = [...states];
 
-  assert.equal(clock.pendingCount, 1);
-  clock.advanceBy(650);
+  // Dispose skips retirement — the slot is free right away so a picker that's
+  // closed and reopened isn't starved by leases still cooling down.
   assert.equal(clock.pendingCount, 0);
+  assert.equal(budget.size, 0);
   budget.acquire('hero', 'primitive');
   assert.equal(dragon.hasCanvas, false);
   assert.deepEqual(states, statesAfterDispose);
+});
+
+test('setVisible(false) still retires with grace so scroll-back reuses the canvas', () => {
+  const { budget, clock } = createBudget({ maximum: 2, reservedModelSlots: 1 });
+  const hero = new PreviewCanvasLeaseController({ id: 'hero', kind: 'primitive', budget });
+
+  hero.setVisible(true);
+  hero.setVisible(false);
+  assert.equal(budget.retiringSize, 1, 'scroll-out release still uses retirement grace');
+  clock.advanceBy(650);
+  assert.equal(budget.retiringSize, 0);
+
+  hero.dispose();
 });

@@ -92,9 +92,16 @@ export class PreviewCanvasBudget {
     return true;
   }
 
-  release(id: string) {
+  release(id: string, options?: { immediate?: boolean }) {
     const kind = this.allocations.get(id);
     if (!kind || !this.allocations.delete(id)) return;
+
+    if (options?.immediate) {
+      // Skip retirement — used on dispose, since the tile isn't coming back
+      // and there's no reason to hold its slot against new tiles.
+      this.notify();
+      return;
+    }
 
     const retirementId = this.nextRetirementId++;
     this.retirements.set(retirementId, { id, kind });
@@ -152,7 +159,9 @@ export class PreviewCanvasLeaseController {
     if (this.disposed) return;
     this.disposed = true;
     this.unsubscribe();
-    this.options.budget.release(this.options.id);
+    // Immediate release on unmount so a closed-then-reopened picker isn't
+    // starved by leases still cooling down in the retirement queue.
+    this.options.budget.release(this.options.id, { immediate: true });
     this.setLease(false);
   }
 
