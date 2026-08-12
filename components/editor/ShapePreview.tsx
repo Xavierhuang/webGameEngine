@@ -279,9 +279,13 @@ export default function ShapePreview({ shape, color, modelUrl, previewScale, pre
       return;
     }
 
+    // Generous rootMargin so casual scrolling inside the picker doesn't take
+    // a tile "out of view" (which would release its canvas lease and force
+    // a reload when it scrolls back in). 1200px on all sides lets the whole
+    // modal's worth of tiles stay "visible" even when scrolled well past.
     const observer = new IntersectionObserver(
       ([entry]) => setIsVisible(entry.isIntersecting),
-      { rootMargin: '120px' }
+      { rootMargin: '1200px' }
     );
     observer.observe(element);
     return () => observer.disconnect();

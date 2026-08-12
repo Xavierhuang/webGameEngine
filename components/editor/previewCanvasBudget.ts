@@ -172,4 +172,11 @@ export class PreviewCanvasLeaseController {
   }
 }
 
-export const selectorPreviewCanvasBudget = new PreviewCanvasBudget({ maximum: 6 });
+export const selectorPreviewCanvasBudget = new PreviewCanvasBudget({
+  maximum: 6,
+  // 30 seconds of grace so a tile briefly scrolled past the IntersectionObserver
+  // margin keeps its canvas — scrolling back within ~half a minute is instant.
+  // Slots still count against capacity while retiring, so busy pickers with
+  // more than 6 tiles still rotate correctly under load.
+  retirementGraceMs: 30_000,
+});
