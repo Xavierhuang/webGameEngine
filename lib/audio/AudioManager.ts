@@ -13,8 +13,31 @@ class AudioManager {
   static get(): AudioManager {
     if (!AudioManager.instance) {
       AudioManager.instance = new AudioManager();
+      AudioManager.instance.installUserGestureUnlock();
     }
     return AudioManager.instance;
+  }
+
+  /**
+   * Browsers require a user gesture in the *current window* before an
+   * AudioContext will play. When the play page opens in a new window (via
+   * "Play game in new window"), that popup's gesture history is empty even if
+   * the click that opened it came from another window — so `on_start` scripts
+   * that fire immediately produce silence. This listener resumes the context
+   * on the first click/tap/keypress in the play window and then unregisters
+   * itself.
+   */
+  private installUserGestureUnlock() {
+    if (typeof window === 'undefined') return;
+    const unlock = () => {
+      this.ensureContext();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('touchstart', unlock);
+    };
+    window.addEventListener('pointerdown', unlock, { once: false });
+    window.addEventListener('keydown', unlock, { once: false });
+    window.addEventListener('touchstart', unlock, { once: false });
   }
 
   private ensureContext() {

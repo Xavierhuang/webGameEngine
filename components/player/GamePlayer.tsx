@@ -100,6 +100,13 @@ interface GamePlayerProps {
 }
 
 export default function GamePlayer({ project }: GamePlayerProps) {
+  // Prime AudioManager eagerly so its user-gesture unlock listener is armed
+  // before the first click in the play window. Without this the very first
+  // click that fires `on_start` → play_sound races the AudioContext resume
+  // and produces silence.
+  useEffect(() => {
+    AudioManager.get();
+  }, []);
   const [keys, setKeys] = useState<KeyState>({});
   // Scene switching: scenes arrive ordered by order_index; blocks change the
   // active index. Variables/broadcast state persist across switches (Scratch
