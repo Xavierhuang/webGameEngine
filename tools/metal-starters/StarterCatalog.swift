@@ -473,6 +473,105 @@ private func rock(stone: Int) -> [StarterPart] {
   ]
 }
 
+/// Hero template — a properly-detailed adventurer built on top of the shared
+/// humanoid silhouette (head + torso + arms + legs) with hero-specific accents:
+/// hair cap, chest emblem badge, belt cylinder, gloves at the wrists, and
+/// boots at the feet. Arms and legs are cylinders (proper flat ends) so the
+/// gloves and boots visibly cap them instead of blending in.
+private func hero(
+  body: Int,
+  dark: Int,
+  emblem: Int
+) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  // Head
+  parts.append(StarterPart(
+    name: "Head",
+    center: SIMD3(0, 0.62, 0),
+    radius: SIMD3(0.24, 0.26, 0.24),
+    rotation: SIMD3(0, 0, 0),
+    rings: 12, segments: 18, material: body
+  ))
+  // Hair — flatter cap sitting on top-back of the head, sharper than a full sphere.
+  parts.append(StarterPart(
+    name: "Hair",
+    center: SIMD3(0, 0.78, -0.02),
+    radius: SIMD3(0.245, 0.11, 0.245),
+    rotation: SIMD3(0, 0, 0),
+    rings: 10, segments: 16, material: dark
+  ))
+  // Torso
+  parts.append(StarterPart(
+    name: "Torso",
+    center: SIMD3(0, 0.14, 0),
+    radius: SIMD3(0.32, 0.34, 0.20),
+    rotation: SIMD3(0, 0, 0),
+    rings: 12, segments: 18, material: body
+  ))
+  // Chest emblem — gold star/badge on the front of the torso.
+  parts.append(StarterPart(
+    name: "ChestEmblem",
+    center: SIMD3(0, 0.24, 0.20),
+    radius: SIMD3(0.08, 0.08, 0.04),
+    rotation: SIMD3(0, 0, 0),
+    rings: 8, segments: 12, material: emblem
+  ))
+  // Belt — thin dark cylinder around the waist. Flat top/bottom makes it read
+  // as a real belt instead of a fat ring.
+  parts.append(StarterPart(
+    name: "Belt",
+    center: SIMD3(0, -0.20, 0),
+    radius: SIMD3(0.34, 0.06, 0.22),
+    rotation: SIMD3(0, 0, 0),
+    rings: 4, segments: 16, material: dark,
+    primitive: .cylinder
+  ))
+  // Arms — cylinders so the gloves cap them cleanly.
+  for (name, sign) in [("ArmLeft", Float(-1)), ("ArmRight", Float(1))] {
+    parts.append(StarterPart(
+      name: name,
+      center: SIMD3(sign * 0.42, 0.14, 0),
+      radius: SIMD3(0.09, 0.28, 0.09),
+      rotation: SIMD3(0, 0, 0),
+      rings: 8, segments: 12, material: body,
+      primitive: .cylinder
+    ))
+  }
+  // Gloves — dark ellipsoids at the wrist ends of each arm.
+  for (name, sign) in [("GloveLeft", Float(-1)), ("GloveRight", Float(1))] {
+    parts.append(StarterPart(
+      name: name,
+      center: SIMD3(sign * 0.42, -0.22, 0),
+      radius: SIMD3(0.11, 0.09, 0.11),
+      rotation: SIMD3(0, 0, 0),
+      rings: 8, segments: 12, material: dark
+    ))
+  }
+  // Legs — cylinders for the same reason as arms.
+  for (name, sign) in [("LegLeft", Float(-1)), ("LegRight", Float(1))] {
+    parts.append(StarterPart(
+      name: name,
+      center: SIMD3(sign * 0.14, -0.52, 0),
+      radius: SIMD3(0.12, 0.30, 0.12),
+      rotation: SIMD3(0, 0, 0),
+      rings: 8, segments: 12, material: body,
+      primitive: .cylinder
+    ))
+  }
+  // Boots — dark ellipsoids at the foot end, extended slightly forward so they
+  // read as shoes rather than as leg-cap balls.
+  for (name, sign) in [("BootLeft", Float(-1)), ("BootRight", Float(1))] {
+    parts.append(StarterPart(
+      name: name,
+      center: SIMD3(sign * 0.14, -0.86, 0.05),
+      radius: SIMD3(0.14, 0.08, 0.18),
+      rotation: SIMD3(0, 0, 0),
+      rings: 8, segments: 12, material: dark
+    ))
+  }
+  return parts
+}
+
 /// Ghost template — classic Pac-Man-shaped spook: rounded body, three round
 /// bumps at the bottom (wavy skirt approximation), two dark eyes on the face.
 private func ghost(body: Int, eyes: Int) -> [StarterPart] {
@@ -582,8 +681,10 @@ func starterCatalog() -> [StarterCharacter] {
       aliases: ["protagonist", "main character", "player"], defaultSize: 1.0,
       materials: [
         StarterMaterial(name: "Hero Denim", color: SIMD4(0.20, 0.38, 0.72, 1), metallic: 0.15, roughness: 0.6),
+        StarterMaterial(name: "Hero Dark Trim", color: SIMD4(0.09, 0.13, 0.24, 1), metallic: 0.25, roughness: 0.5),
+        StarterMaterial(name: "Hero Star Gold", color: SIMD4(0.98, 0.78, 0.18, 1), metallic: 0.85, roughness: 0.18),
       ],
-      parts: humanoid(body: 0)
+      parts: hero(body: 0, dark: 1, emblem: 2)
     ),
     // Animals — Dog & Cat use the quadruped() template with different palettes;
     // Fish and Bird have their own dedicated templates (see fish() and bird()).

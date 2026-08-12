@@ -88,6 +88,14 @@ body {
   background-size: 20px 20px;
 }
 
+/* Blockly flyout scrollbar — a sibling SVG (not a child) of the flyout body,
+   so when Blockly hides the flyout body it leaves this scrollbar visible as
+   a stray grey vertical bar in the middle of the workspace. Hidden globally;
+   the flyout still scrolls via mouse wheel and touch drag. */
+.blocklyFlyoutScrollbar {
+  display: none !important;
+}
+
 /* Block editor styles */
 .logic-block {
   @apply rounded-lg shadow-md p-3 mb-2 cursor-move transition-all hover:shadow-lg;

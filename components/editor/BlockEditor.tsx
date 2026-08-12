@@ -53,14 +53,30 @@ export default function BlockEditor({ objectId, objectName, initialBlocks }: Blo
       blocksRegistered = true;
     }
 
+    // React strict-mode double-invokes effects in dev. If the previous mount's
+    // workspace.dispose() left any Blockly SVG residue in the host, the second
+    // inject stacks a fresh workspace on top of it — you see two overlaid
+    // workspaces with matching scrollbars, a phantom divider between them, and
+    // the context menu reports "Delete 2 Blocks" for what looks like one.
+    // Blank the host defensively so every inject starts from an empty div.
+    hostRef.current.innerHTML = '';
     const workspace = Blockly.inject(hostRef.current, {
       toolbox: TOOLBOX as any,
       renderer: 'zelos', // Scratch-style notches
       trashcan: true,
       zoom: { controls: true, wheel: true, startScale: 0.8 },
-      move: { scrollbars: true, drag: true, wheel: false },
+      // Scrollbars off: Blockly renders them at the left edge of its internal
+      // SVG viewport, which after our container sizing lands mid-panel as a
+      // stray grey vertical bar. Users still pan with drag/right-click.
+      move: { scrollbars: false, drag: true, wheel: false },
     } as Blockly.BlocklyOptions);
     workspace.registerToolboxCategoryCallback('PROCEDURE', proceduresFlyout);
+
+    // Blockly's categoryToolbox may leave a category pre-selected after inject,
+    // which renders the flyout as a persistent grey strip between the category
+    // list and the workspace. Force it closed so nothing shows until the user
+    // clicks a category.
+    workspace.getToolbox()?.clearSelection();
 
     // Load the object's existing blocks.
     try {
@@ -98,8 +114,32 @@ export default function BlockEditor({ objectId, objectName, initialBlocks }: Blo
     };
     workspace.addChangeListener(listener);
 
+    // Auto-close the toolbox flyout once the user commits a block to the
+    // workspace. Blockly's categoryToolbox leaves the flyout tray open by
+    // default, so an empty grey strip lingers between the category list and
+    // the workspace — this collapses it as soon as the drop completes.
+    const flyoutCloser = (event: Blockly.Events.Abstract) => {
+      if (event.type !== Blockly.Events.BLOCK_CREATE) return;
+      workspace.getToolbox()?.clearSelection();
+    };
+    workspace.addChangeListener(flyoutCloser);
+
+    // Re-fit Blockly's SVG whenever its host div resizes. Blockly captures the
+    // host's size at inject time and never listens for changes on its own, so
+    // any layout change (Scene→Logic tab, window resize, sidebar toggle) leaves
+    // the workspace SVG at its stale size and the right-edge scrollbar renders
+    // wherever the SVG happens to end — often mid-container as a grey strip.
+    const resizeObserver = new ResizeObserver(() => {
+      Blockly.svgResize(workspace);
+    });
+    resizeObserver.observe(hostRef.current);
+    // Initial fit — needed too since the tab-switch animation can finish after
+    // inject and leave us with the pre-animation dimensions baked in.
+    Blockly.svgResize(workspace);
+
     return () => {
       if (timer) clearTimeout(timer);
+      resizeObserver.disconnect();
       workspace.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
