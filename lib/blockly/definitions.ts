@@ -112,12 +112,32 @@ const statementDefs: object[] = [
     type: 'scale', message0: 'scale by %1', args0: [value('factor')],
     previousStatement: null, nextStatement: null, colour: COLOUR.looks,
   },
+  // Sound dropdown options match AudioManager.playSfx's built-in synthesized
+  // types (lib/audio/AudioManager.ts). Adding a new sound? Add the case in
+  // AudioManager first, then add its [label, value] here — both blocks stay in
+  // lockstep.
   {
-    type: 'play_sound', message0: 'play sound %1', args0: [text('sound', 'click')],
+    type: 'play_sound', message0: 'play sound %1',
+    args0: [dropdown('sound', [
+      ['click', 'click'],
+      ['confirm', 'confirm'],
+      ['error', 'error'],
+      ['pickup', 'pickup'],
+      ['jump', 'jump'],
+      ['hit', 'hit'],
+    ])],
     previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {
-    type: 'play_sound_until_done', message0: 'play sound %1 until done', args0: [text('sound', 'click')],
+    type: 'play_sound_until_done', message0: 'play sound %1 until done',
+    args0: [dropdown('sound', [
+      ['click', 'click'],
+      ['confirm', 'confirm'],
+      ['error', 'error'],
+      ['pickup', 'pickup'],
+      ['jump', 'jump'],
+      ['hit', 'hit'],
+    ])],
     previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {

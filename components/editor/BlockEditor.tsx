@@ -5,6 +5,8 @@ import * as Blockly from 'blockly';
 import 'blockly/blocks'; // built-in procedures_defnoreturn / procedures_callnoreturn
 import { BLOCK_DEFINITIONS, TOOLBOX } from '../../lib/blockly/definitions';
 import { blocklyToLogic, logicToBlockly, normalizeDbBlocks } from '../../lib/blockly/serializer';
+import { HAT_TYPES, ObjectRuntime, RuntimeWorld, VariableStore, type RuntimeContext } from '../../lib/runtime/interpreter';
+import AudioManager from '../../lib/audio/AudioManager';
 import { logger } from '../../lib/utils/logger';
 
 let blocksRegistered = false;
@@ -42,9 +44,64 @@ function proceduresFlyout(workspace: Blockly.WorkspaceSvg): Element[] {
   return items;
 }
 
+/**
+ * Minimal RuntimeContext for the in-editor "run this stack" preview. Sound
+ * plays for real via AudioManager so kids can hear their sequences. Motion,
+ * looks, and world-facing calls no-op so a stack that mixes `move` with
+ * `play sound` still runs to completion without needing a scene/camera.
+ */
+function createPreviewContext(): RuntimeContext {
+  return {
+    getKeys: () => ({}),
+    move: () => {},
+    jump: () => {},
+    rotate: () => {},
+    scaleBy: () => {},
+    playSound: (name, volume) => {
+      try {
+        return AudioManager.get().playSfx(name, volume ?? 1);
+      } catch {
+        return 0;
+      }
+    },
+    stopAllSounds: () => {
+      try {
+        AudioManager.get().stopAllSfx();
+      } catch { /* noop */ }
+    },
+    getPosition: () => ({ x: 0, y: 0, z: 0 }),
+    getRotation: () => ({ x: 0, y: 0, z: 0 }),
+    setPosition: () => {},
+    changePosition: () => {},
+    setPositionAxis: () => {},
+    setRotation: () => {},
+    pointTowards: () => {},
+    setVisible: () => {},
+    getVisible: () => true,
+    setSize: () => {},
+    changeSizeBy: () => {},
+    getSize: () => 100,
+    say: () => {},
+    clearBubble: () => {},
+    setColor: () => {},
+    switchCostume: () => {},
+    nextCostume: () => {},
+    getCostume: () => ({ number: 1, name: '' }),
+  };
+}
+
 export default function BlockEditor({ objectId, objectName, initialBlocks }: BlockEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const previewStopRef = useRef<(() => void) | null>(null);
+
+  // Public stop handle for the Stop overlay button and unmount cleanup.
+  const stopPreview = () => {
+    previewStopRef.current?.();
+    previewStopRef.current = null;
+    setIsPreviewing(false);
+  };
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -124,6 +181,99 @@ export default function BlockEditor({ objectId, objectName, initialBlocks }: Blo
     };
     workspace.addChangeListener(flyoutCloser);
 
+    // Scratch-style stack preview: clicking any block runs its whole stack
+    // (rooted at the top block) via the real interpreter, with sound routed to
+    // AudioManager and motion/looks/world calls no-op'd. A `forever { play
+    // sound }` will loop forever until Stop; a bare `play sound` fires once.
+    const svg = workspace.getParentSvg();
+    const onSvgClick = (nativeEvent: MouseEvent) => {
+      const target = nativeEvent.target as SVGElement | null;
+      if (!target) return;
+      // Find the enclosing Blockly block via the .blocklyDraggable class the
+      // top-level block group carries. Fields (dropdowns, inputs) sit inside
+      // the same group so this also fires when a kid clicks the dropdown.
+      const blockGroup = target.closest('.blocklyDraggable') as SVGGElement | null;
+      if (!blockGroup) return;
+      const blockId = blockGroup.getAttribute('data-id');
+      if (!blockId) return;
+      const block = workspace.getBlockById(blockId);
+      if (!block) return;
+      startStackPreview(block);
+    };
+    svg.addEventListener('click', onSvgClick);
+
+    // Runs the clicked stack (from its root) via the shared ObjectRuntime.
+    // Any hat at the top is dropped so the stack always runs immediately as
+    // an implicit always-on script (the runtime's "no hat = fire now" path),
+    // which is what a kid pointing at a stack expects.
+    //
+    // Standalone one-shot blocks (a lone `play sound` with no next, no
+    // wrapping loop) shortcut straight to AudioManager — no interpreter, no
+    // Stop overlay, plays exactly once. Only stacks that could run for a
+    // while (contain forever / wait_until / wait / any nested statements)
+    // spin up the runtime and show the Stop button.
+    const startStackPreview = (block: Blockly.Block) => {
+      // Any currently-running preview stops first; one at a time keeps sound
+      // predictable and avoids compounding forever loops.
+      stopPreview();
+      const root = block.getRootBlock();
+      const rootJson = Blockly.serialization.blocks.save(root, {
+        addCoordinates: false,
+        addInputBlocks: true,
+        addNextBlocks: true,
+      } as any);
+      if (!rootJson) return;
+      const logicChain = blocklyToLogic({ blocks: { blocks: [rootJson] } });
+      // Strip a leading hat so the stack runs immediately (implicit always-on).
+      const body = logicChain[0] && HAT_TYPES.has(logicChain[0].block_type)
+        ? logicChain.slice(1)
+        : logicChain;
+      if (body.length === 0) return;
+
+      // Standalone single-block audition — skip the interpreter entirely.
+      if (body.length === 1 && !hasChildren(body[0])
+          && (body[0].block_type === 'play_sound' || body[0].block_type === 'play_sound_until_done')) {
+        const soundName = String((body[0].inputs as any)?.sound ?? 'click');
+        try { AudioManager.get().playSfx(soundName); } catch { /* noop */ }
+        return;
+      }
+
+      const previewVars = new VariableStore();
+      const previewWorld = new RuntimeWorld();
+      const ctx = createPreviewContext();
+      const runtime = new ObjectRuntime('preview', body, previewVars, ctx, previewWorld);
+
+      const dt = 1 / 30;
+      let time = 0;
+      const interval = window.setInterval(() => {
+        try {
+          runtime.step(dt, time);
+        } catch (e) {
+          logger.warn('[BlockEditor] Preview step threw:', e);
+          window.clearInterval(interval);
+          try { ctx.stopAllSounds?.(); } catch { /* noop */ }
+          previewStopRef.current = null;
+          setIsPreviewing(false);
+        }
+        time += dt;
+      }, dt * 1000);
+
+      previewStopRef.current = () => {
+        window.clearInterval(interval);
+        try { ctx.stopAllSounds?.(); } catch { /* noop */ }
+      };
+      setIsPreviewing(true);
+    };
+
+    // Structural: does this LogicBlock have nested statement children?
+    // (Used to keep the standalone-sound shortcut from grabbing sound blocks
+    // that live inside a forever/if/etc.)
+    function hasChildren(b: any): boolean {
+      if (Array.isArray(b?.children) && b.children.length > 0) return true;
+      if (Array.isArray(b?.elseChildren) && b.elseChildren.length > 0) return true;
+      return false;
+    }
+
     // Re-fit Blockly's SVG whenever its host div resizes. Blockly captures the
     // host's size at inject time and never listens for changes on its own, so
     // any layout change (Scene→Logic tab, window resize, sidebar toggle) leaves
@@ -140,6 +290,11 @@ export default function BlockEditor({ objectId, objectName, initialBlocks }: Blo
     return () => {
       if (timer) clearTimeout(timer);
       resizeObserver.disconnect();
+      svg.removeEventListener('click', onSvgClick);
+      // Always kill an in-flight preview on unmount so a forever loop can't
+      // outlive its owning editor.
+      previewStopRef.current?.();
+      previewStopRef.current = null;
       workspace.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -155,7 +310,19 @@ export default function BlockEditor({ objectId, objectName, initialBlocks }: Blo
           {status === 'saving' ? 'Saving…' : status === 'error' ? 'Save failed' : 'Saved'}
         </span>
       </div>
-      <div ref={hostRef} className="flex-1 min-h-0" />
+      <div className="relative flex-1 min-h-0">
+        <div ref={hostRef} className="absolute inset-0" />
+        {isPreviewing && (
+          <button
+            type="button"
+            onClick={stopPreview}
+            className="absolute top-3 right-3 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm font-semibold shadow-lg"
+          >
+            <span className="w-3 h-3 rounded-sm bg-white" />
+            Stop preview
+          </button>
+        )}
+      </div>
     </div>
   );
 }
