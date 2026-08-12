@@ -16,14 +16,16 @@ test('each whole-word dragon alias resolves to the checked-in model prefab', () 
   }
 });
 
-test('dragon aliases outrank earlier primitive keywords in compound prompts', () => {
-  for (const prompt of [
-    'red dragon warrior',
-    'a hero and dragon',
-    'a knight riding a wyvern',
-  ]) {
-    assert.equal(matchCharacterPrefab(prompt)?.id, 'dragon', prompt);
-  }
+test('dragon id beats another prefab that only matches by alias in a compound prompt', () => {
+  // knight has 'warrior' as an alias; dragon has 'dragon' as its id. Id > alias.
+  assert.equal(matchCharacterPrefab('red dragon warrior')?.id, 'dragon');
+});
+
+test('a compound prompt with two id-matches resolves to the earlier catalog entry', () => {
+  // Both hero and dragon are model-backed and match by id; picker-grid order wins.
+  assert.equal(matchCharacterPrefab('a hero and dragon')?.id, 'hero');
+  // Knight (id match) outranks Dragon's 'wyvern' alias (alias-only match).
+  assert.equal(matchCharacterPrefab('a knight riding a wyvern')?.id, 'knight');
 });
 
 test('dragon aliases still require whole-word matches', () => {
@@ -33,8 +35,8 @@ test('dragon aliases still require whole-word matches', () => {
 test('prefab response builder returns the complete dragon API fields', () => {
   assert.equal(typeof buildPrefabCharacterResponse, 'function');
   const response = buildPrefabCharacterResponse(
-    'a knight riding a wyvern',
-    matchCharacterPrefab('a knight riding a wyvern')
+    'a red dragon',
+    matchCharacterPrefab('a red dragon')
   );
 
   assert.deepEqual(

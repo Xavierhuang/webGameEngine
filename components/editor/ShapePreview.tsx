@@ -5,13 +5,48 @@ import { Canvas } from '@react-three/fiber';
 import { Html, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import AnimatedModel from './AnimatedModel';
 import { PreviewCanvasLeaseController, selectorPreviewCanvasBudget, type PreviewCanvasKind } from './previewCanvasBudget';
+
+interface ModelBoundsLike {
+  min: { x: number; y: number; z: number };
+  max: { x: number; y: number; z: number };
+}
 
 interface ShapePreviewProps {
   shape: string;
   color: string;
   size?: number;
   modelUrl?: string;
+  previewScale?: number;
+  previewRotation?: [number, number, number];
+  /** Optional: model bounds for auto-fit centering. If omitted or when
+   *  previewScale is explicitly provided, the legacy fixed transform is used. */
+  modelBounds?: ModelBoundsLike;
+}
+
+/**
+ * Compute scale + Y offset so a model with the given local-space bounds fills
+ * ~60% of the preview tile and sits centered vertically at the tile midline.
+ * Falls back to the legacy fixed transform when bounds are absent.
+ *
+ * Camera is fixed at position [2,2,2] fov 50 with target (0,0,0), so the
+ * viewport at the target plane spans roughly 3.2 units vertically. Targeting
+ * 1.9u fills the tile without cropping while leaving a small margin for the
+ * autoRotate orbit.
+ */
+function autoFitTransform(bounds: ModelBoundsLike | undefined): {
+  scale: number;
+  positionY: number;
+} {
+  if (!bounds) return { scale: 0.62, positionY: -0.5 };
+  const height = Math.max(bounds.max.y - bounds.min.y, 0.01);
+  const width = Math.max(bounds.max.x - bounds.min.x, bounds.max.z - bounds.min.z, 0.01);
+  const targetHeight = 1.9;
+  const targetWidth = 2.6;
+  const scale = Math.min(targetHeight / height, targetWidth / width);
+  const centerY = (bounds.min.y + bounds.max.y) / 2;
+  return { scale, positionY: -centerY * scale };
 }
 
 function LoadingPreview() {
@@ -24,7 +59,26 @@ function LoadingPreview() {
   );
 }
 
-function PreviewModel({ modelUrl }: { modelUrl: string }) {
+interface PreviewTransformProps {
+  previewScale?: number;
+  previewRotation?: [number, number, number];
+  modelBounds?: ModelBoundsLike;
+}
+
+/**
+ * Resolve the final (scale, positionY) for a preview group. Explicit
+ * previewScale wins (used by Minion whose FBX has no bounds); otherwise
+ * we auto-fit from modelBounds; otherwise the legacy 0.62/-0.5 defaults.
+ */
+function resolvePreviewTransform({ previewScale, modelBounds }: PreviewTransformProps): {
+  scale: number;
+  positionY: number;
+} {
+  if (previewScale != null) return { scale: previewScale, positionY: -0.5 };
+  return autoFitTransform(modelBounds);
+}
+
+function PreviewGltfModel({ modelUrl, previewScale, previewRotation, modelBounds }: { modelUrl: string } & PreviewTransformProps) {
   const { scene: sourceScene } = useGLTF(modelUrl);
   const scene = useMemo(() => {
     const clone = SkeletonUtils.clone(sourceScene);
@@ -60,11 +114,42 @@ function PreviewModel({ modelUrl }: { modelUrl: string }) {
     });
   }, [scene]);
 
+  const { scale, positionY } = resolvePreviewTransform({ previewScale, modelBounds });
+  const rotation = previewRotation ?? [0, -0.55, 0];
   return (
-    <group position={[0, -0.5, 0]} rotation={[0, -0.55, 0]} scale={0.62}>
+    <group position={[0, positionY, 0]} rotation={rotation} scale={scale}>
       <primitive object={scene} dispose={null} />
     </group>
   );
+}
+
+// FBX path — useGLTF can't parse FBX, so delegate to AnimatedModel (the same
+// loader the runtime uses). Static preview: playAnimation={false}.
+function PreviewFbxModel({ modelUrl, previewScale, previewRotation, modelBounds }: { modelUrl: string } & PreviewTransformProps) {
+  const { scale, positionY } = resolvePreviewTransform({
+    previewScale: previewScale ?? (modelBounds ? undefined : 0.14),
+    modelBounds,
+  });
+  const rotation = previewRotation ?? [0, 0, 0];
+  return (
+    <group position={[0, positionY, 0]} rotation={rotation}>
+      <AnimatedModel
+        url={modelUrl}
+        position={[0, 0, 0]}
+        rotation={[0, 0, 0]}
+        scale={[scale, scale, scale]}
+        playAnimation={false}
+      />
+    </group>
+  );
+}
+
+function PreviewModel({ modelUrl, previewScale, previewRotation, modelBounds }: { modelUrl: string } & PreviewTransformProps) {
+  const ext = modelUrl.split('.').pop()?.toLowerCase();
+  if (ext === 'fbx') {
+    return <PreviewFbxModel modelUrl={modelUrl} previewScale={previewScale} previewRotation={previewRotation} modelBounds={modelBounds} />;
+  }
+  return <PreviewGltfModel modelUrl={modelUrl} previewScale={previewScale} previewRotation={previewRotation} modelBounds={modelBounds} />;
 }
 
 interface PreviewErrorBoundaryProps {
@@ -101,15 +186,15 @@ function PreviewCanvas({ children }: { children: ReactNode }) {
 }
 
 /**
- * The 3D preview canvas below uses drei's useGLTF, which only speaks GLB/GLTF.
- * FBX/OBJ/STL/DAE work in the runtime player (via dedicated loaders) but here
- * we fall back to a lightweight SVG rendering so the picker thumbnail doesn't
- * crash with a JSON parse error ("Unexpected identifier 'Kaydara'" for FBX).
+ * The 3D preview canvas below speaks GLB/GLTF via drei's useGLTF and FBX via
+ * AnimatedModel's FBXLoader lifecycle. OBJ/STL/DAE still fall through to the
+ * lightweight SVG rendering so unsupported formats don't crash the tile
+ * (e.g. "Unexpected identifier 'Kaydara'" JSON parse errors).
  */
-function isGltfLike(url: string | undefined): boolean {
+function isPreviewable3D(url: string | undefined): boolean {
   if (!url) return false;
   const ext = url.split('.').pop()?.toLowerCase();
-  return ext === 'glb' || ext === 'gltf';
+  return ext === 'glb' || ext === 'gltf' || ext === 'fbx';
 }
 
 /**
@@ -174,15 +259,15 @@ function PrimitiveSvg({ shape, color }: { shape: string; color: string }) {
   );
 }
 
-export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewProps) {
+export default function ShapePreview({ shape, color, modelUrl, previewScale, previewRotation, modelBounds }: ShapePreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const leaseControllerRef = useRef<PreviewCanvasLeaseController | null>(null);
   const previewId = useId();
   const [isVisible, setIsVisible] = useState(false);
   const [hasCanvas, setHasCanvas] = useState(false);
-  // Only treat as a model preview when we can actually load it. Non-GLTF URLs
-  // fall through to the SVG primitive path — no WebGL context needed.
-  const effectiveModelUrl = isGltfLike(modelUrl) ? modelUrl : undefined;
+  // Only treat as a model preview when we can actually load it. Unsupported
+  // formats fall through to the SVG primitive path — no WebGL context needed.
+  const effectiveModelUrl = isPreviewable3D(modelUrl) ? modelUrl : undefined;
   const previewKind: PreviewCanvasKind = 'model';
 
   useEffect(() => {
@@ -247,14 +332,19 @@ export default function ShapePreview({ shape, color, modelUrl }: ShapePreviewPro
       <PreviewCanvas>
         <PreviewErrorBoundary
           key={effectiveModelUrl}
-          fallback={<ShapeMesh shape={shape} color={color} />}
+          fallback={<ShapeMesh shape="capsule" color={color} />}
         >
           <>
             <ambientLight intensity={0.8} />
             <directionalLight position={[5, 5, 5]} intensity={0.6} />
             <pointLight position={[-5, 5, -5]} intensity={0.4} />
             <Suspense fallback={<LoadingPreview />}>
-              <PreviewModel modelUrl={effectiveModelUrl} />
+              <PreviewModel
+                modelUrl={effectiveModelUrl}
+                previewScale={previewScale}
+                previewRotation={previewRotation}
+                modelBounds={modelBounds}
+              />
             </Suspense>
             <OrbitControls
               enableZoom={false}

@@ -46,8 +46,7 @@ eq(matchCharacterPrefab('sneaky ninja assassin')?.id, 'ninja', 'ninja inside phr
 
 // --- non-matches: prompt is too vague or doesn\'t hit any keyword ---
 eq(matchCharacterPrefab('a shiny thing'), null, 'vague prompt → no match');
-eq(matchCharacterPrefab('unicorn'), null, 'no prefab for unicorn');
-// dragon used to be a non-match; now covered by the creature archetypes below.
+// dragon and unicorn used to be non-matches; now covered by the creature archetypes below.
 eq(matchCharacterPrefab(''), null, 'empty prompt → null');
 eq(matchCharacterPrefab('   '), null, 'whitespace-only → null');
 
@@ -63,7 +62,7 @@ eq(matchCharacterPrefab('wyvern')?.id, 'dragon', 'alias wyvern → dragon');
 eq(matchCharacterPrefab('ghost')?.id, 'ghost', 'ghost');
 eq(matchCharacterPrefab('a spooky phantom')?.id, 'ghost', 'phantom → ghost');
 eq(matchCharacterPrefab('goldfish')?.id, 'fish', 'goldfish → fish');
-eq(matchCharacterPrefab('a puppy')?.id, 'dog', 'puppy → dog');
+eq(matchCharacterPrefab('a puppy')?.id, 'puppy', 'puppy has its own prefab');
 eq(matchCharacterPrefab('kitty')?.id, 'cat', 'kitty → cat');
 eq(matchCharacterPrefab('sparrow')?.id, 'bird', 'sparrow → bird');
 eq(matchCharacterPrefab('pine')?.id, 'tree', 'pine → tree');
@@ -104,7 +103,7 @@ if (typeof buildCharacterVisualData === 'function') {
   eq(uploadedModelVisualData.properties.size, 1, 'generic uploaded model properties retain the default size');
 }
 
-eq(CHARACTER_TEMPLATES.length, 18, 'templates count (added Minion starter)');
+eq(CHARACTER_TEMPLATES.length, 22, 'templates count (added Puppy + Dinosaur + Unicorn animals)');
 eq(BASIC_SHAPES.length, 7, 'basic shapes count');
 eq(CHARACTER_TEMPLATES.every(t => t.aliases && t.aliases.length > 0), true, 'every template has aliases');
 

@@ -137,7 +137,14 @@ export default function CharacterSelector({
                     onClose();
                   }}
                 >
-                  <ShapePreview shape={c.shape} color={c.color} modelUrl={c.model_url} />
+                  <ShapePreview
+                    shape={c.shape}
+                    color={c.color}
+                    modelUrl={c.model_url}
+                    previewScale={c.preview_scale}
+                    previewRotation={c.preview_rotation}
+                    modelBounds={c.model_bounds}
+                  />
 
                 </SelectorTile>
               ))}

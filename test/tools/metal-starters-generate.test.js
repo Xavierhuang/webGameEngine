@@ -8,7 +8,9 @@ const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
 const expectedIds = ['dinosaur', 'unicorn', 'robot', 'knight', 'wizard',
-  'princess', 'astronaut', 'ninja', 'puppy', 'superhero'];
+  'princess', 'astronaut', 'ninja', 'puppy', 'superhero', 'hero',
+  'dog', 'cat', 'fish', 'bird', 'alien', 'monster', 'tree', 'rock',
+  'ghost', 'dragon'];
 
 function parseCatalogIds(source) {
   return [...source.matchAll(/StarterCharacter\(\s*id:\s*"([a-z]+)"/g)]
@@ -61,7 +63,7 @@ mkdir -p "$output_dir"
 if [ "$mode" = 'character' ]; then
   printf 'generated:%s\\n' "$character" > "$output_dir/$character.glb"
 else
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero; do
+  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon; do
     printf 'generated:%s\\n' "$id" > "$output_dir/$id.glb"
     if [ "\${METAL_STARTERS_FORCE_FAILURE:-0}" = '1' ] && [ "$id" = 'robot' ]; then
       printf 'forced generator failure\\n' >&2
@@ -866,8 +868,11 @@ fi
     assert.equal(fs.existsSync(buildLog), false, 'metadata aliases must fail before compilation');
     assert.deepEqual(await generatedNames(['--character', 'robot']), ['robot.glb']);
     assert.deepEqual(await generatedNames(['--all']), [
-      'astronaut.glb', 'dinosaur.glb', 'knight.glb', 'ninja.glb', 'princess.glb',
-      'puppy.glb', 'robot.glb', 'superhero.glb', 'unicorn.glb', 'wizard.glb',
+      'alien.glb', 'astronaut.glb', 'bird.glb', 'cat.glb', 'dinosaur.glb',
+      'dog.glb', 'dragon.glb', 'fish.glb', 'ghost.glb', 'hero.glb',
+      'knight.glb', 'monster.glb', 'ninja.glb', 'princess.glb', 'puppy.glb',
+      'robot.glb', 'rock.glb', 'superhero.glb', 'tree.glb', 'unicorn.glb',
+      'wizard.glb',
     ]);
     assert.deepEqual(await outputsAfterForcedFailure(), outputsBeforeForcedFailure);
     assert.deepEqual(await outputsAfterPublishFailure(), outputsBeforePublishFailure);

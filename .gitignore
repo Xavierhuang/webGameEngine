@@ -67,6 +67,10 @@ public/uploads/models/
 !public/models/starters/*.glb
 !public/models/red-metal-dragon.glb
 
+# metal-starters publication lock inodes — persistent by design (macOS
+# BSD advisory locks live on the inode) but process-local; never commit.
+.lingplay-metal-starters.*.lock
+
 # local tooling
 .codex/
 .lingcode/
