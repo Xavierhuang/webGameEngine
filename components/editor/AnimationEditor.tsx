@@ -16,9 +16,17 @@ interface AnimationEditorProps {
   objectId?: string;
 }
 
+/**
+ * Animatable node — either a real THREE.Bone (skinned rigs like Minion) or a
+ * plain THREE.Object3D / Mesh (our metal-generated multi-part starters). The
+ * TransformControls + keyframe machinery only touches position/rotation/scale,
+ * which every Object3D has, so treating a mesh part as a "bone" for the UI's
+ * sake works transparently. The field stays named `bone` for compatibility
+ * with keyframes and the existing map keys.
+ */
 interface BoneInfo {
   name: string;
-  bone: THREE.Bone;
+  bone: THREE.Object3D;
   parent: string | null;
   position: [number, number, number];
   rotation: [number, number, number];
@@ -56,7 +64,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   function AnimatedModelView() {
     const groupRef = useRef<THREE.Group>(null);
     const modelRef = useRef<THREE.Object3D | null>(null);
-    const bonesMapRef = useRef<Map<string, THREE.Bone>>(new Map());
+    const bonesMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
     const [modelLoaded, setModelLoaded] = useState(false);
 
     useEffect(() => {
@@ -103,46 +111,45 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
 
           modelRef.current = loadedModel;
 
-          // Extract bone hierarchy
+          // Extract animatable-node hierarchy. Prefer a real skeleton (skinned
+          // models like Minion); fall back to loose Bones in the scene; finally
+          // fall back to top-level Mesh children (our multi-part metal starters
+          // — no skeleton, but each part has its own Object3D transform we can
+          // rotate/translate/scale independently).
           const bonesList: BoneInfo[] = [];
-          const bonesMap = new Map<string, THREE.Bone>();
+          const bonesMap = new Map<string, THREE.Object3D>();
+
+          const pushNode = (node: THREE.Object3D) => {
+            if (bonesMap.has(node.name)) return;
+            bonesMap.set(node.name, node);
+            bonesList.push({
+              name: node.name,
+              bone: node,
+              parent: node.parent?.name || null,
+              position: [node.position.x, node.position.y, node.position.z],
+              rotation: [
+                node.rotation.x * (180 / Math.PI),
+                node.rotation.y * (180 / Math.PI),
+                node.rotation.z * (180 / Math.PI),
+              ],
+              scale: [node.scale.x, node.scale.y, node.scale.z],
+            });
+          };
 
           if (skeleton) {
-            (skeleton as THREE.Skeleton).bones.forEach((bone: THREE.Bone) => {
-              bonesMap.set(bone.name, bone);
-              bonesList.push({
-                name: bone.name,
-                bone: bone,
-                parent: bone.parent?.name || null,
-                position: [bone.position.x, bone.position.y, bone.position.z],
-                rotation: [
-                  bone.rotation.x * (180 / Math.PI),
-                  bone.rotation.y * (180 / Math.PI),
-                  bone.rotation.z * (180 / Math.PI),
-                ],
-                scale: [bone.scale.x, bone.scale.y, bone.scale.z],
-              });
-            });
+            (skeleton as THREE.Skeleton).bones.forEach((bone: THREE.Bone) => pushNode(bone));
           } else {
-            // Fallback: try to find bones in the scene
+            // Look for loose bones first.
             loadedModel.traverse((child: any) => {
-              if (child.type === 'Bone' || child.isBone) {
-                const bone = child as THREE.Bone;
-                bonesMap.set(bone.name, bone);
-                bonesList.push({
-                  name: bone.name,
-                  bone: bone,
-                  parent: bone.parent?.name || null,
-                  position: [bone.position.x, bone.position.y, bone.position.z],
-                  rotation: [
-                    bone.rotation.x * (180 / Math.PI),
-                    bone.rotation.y * (180 / Math.PI),
-                    bone.rotation.z * (180 / Math.PI),
-                  ],
-                  scale: [bone.scale.x, bone.scale.y, bone.scale.z],
-                });
-              }
+              if (child.type === 'Bone' || child.isBone) pushNode(child as THREE.Bone);
             });
+            // If still nothing, treat every named Mesh child as an animatable
+            // node — matches how the metal-starters pipeline emits parts.
+            if (bonesList.length === 0) {
+              loadedModel.traverse((child: any) => {
+                if (child.isMesh && child.name) pushNode(child as THREE.Mesh);
+              });
+            }
           }
 
           bonesMapRef.current = bonesMap;
@@ -426,7 +433,14 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               Bone hierarchy
             </div>
             {bones.length === 0 ? (
-              <div className="text-sm text-slate-500">Loading bones…</div>
+              modelLoaded ? (
+                <div className="rounded-xl bg-slate-100 border border-slate-200 p-3 text-xs text-slate-600 leading-relaxed">
+                  This model has no named parts to animate. Use the block
+                  editor&apos;s motion blocks to move it instead.
+                </div>
+              ) : (
+                <div className="text-sm text-slate-500">Loading parts…</div>
+              )
             ) : (
               <div className="space-y-0.5">
                 {rootBones.map((bone) => (

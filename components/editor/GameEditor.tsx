@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid } from '@react-three/drei';
+import { OrbitControls, Grid, useGLTF } from '@react-three/drei';
 import { useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Play, Save, Undo2, Redo2, Move3D, Maximize2, RotateCw } from 'lucide-react';
@@ -18,6 +18,7 @@ import CollectibleSelector from './CollectibleSelector';
 import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+import { CHARACTER_TEMPLATES } from '../../lib/prefabs/characters';
 import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 
@@ -91,6 +92,19 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [transformMode, setTransformMode] = useState<'translate' | 'scale' | 'rotate'>('translate');
   const [focusRequest, setFocusRequest] = useState(0);
   const orbitRef = useRef<any>(null);
+
+  // Eager starter-GLB preload — starts downloading every starter model the
+  // moment the editor mounts so that by the time a kid opens the character/
+  // obstacle/collectible picker, the ~20 GLBs are already in drei's cache.
+  // Idempotent (useGLTF.preload dedupes internally), so re-runs are free.
+  useEffect(() => {
+    for (const c of CHARACTER_TEMPLATES) {
+      const url = c.model_url;
+      if (!url) continue;
+      const ext = url.split('.').pop()?.toLowerCase();
+      if (ext === 'glb' || ext === 'gltf') useGLTF.preload(url);
+    }
+  }, []);
 
   // Commit helper: push current project to history, set next project, reset future
   const commitProject = (nextProject: any) => {
