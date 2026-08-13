@@ -65,7 +65,7 @@ export const STARTER_MODEL_METADATA = {
   "cat" : {
     "model_bounds" : {
       "max" : {
-        "x" : 0.88729995489120483,
+        "x" : 0.90724998712539673,
         "y" : 0.4649999737739563,
         "z" : 0.25112596154212952
       },
@@ -76,7 +76,7 @@ export const STARTER_MODEL_METADATA = {
       }
     },
     "model_origin_offset" : {
-      "x" : -0.065245777368545532,
+      "x" : -0.075220793485641479,
       "y" : 0.43500000238418579,
       "z" : 1.4901161193847656e-08
     },
@@ -86,7 +86,7 @@ export const STARTER_MODEL_METADATA = {
   "dinosaur" : {
     "model_bounds" : {
       "max" : {
-        "x" : 1.2609000205993652,
+        "x" : 1.2892500162124634,
         "y" : 0.64020001888275146,
         "z" : 0.31809291243553162
       },
@@ -97,7 +97,7 @@ export const STARTER_MODEL_METADATA = {
       }
     },
     "model_origin_offset" : {
-      "x" : -0.092403888702392578,
+      "x" : -0.10657888650894165,
       "y" : 0.6380000114440918,
       "z" : 1.4901161193847656e-08
     },
@@ -107,7 +107,7 @@ export const STARTER_MODEL_METADATA = {
   "dog" : {
     "model_bounds" : {
       "max" : {
-        "x" : 0.973349928855896,
+        "x" : 1.0001249313354492,
         "y" : 0.52700001001358032,
         "z" : 0.28460943698883057
       },
@@ -118,7 +118,7 @@ export const STARTER_MODEL_METADATA = {
       }
     },
     "model_origin_offset" : {
-      "x" : -0.068245649337768555,
+      "x" : -0.081633150577545166,
       "y" : 0.49300000071525574,
       "z" : 1.4901161193847656e-08
     },
@@ -149,7 +149,7 @@ export const STARTER_MODEL_METADATA = {
   "fish" : {
     "model_bounds" : {
       "max" : {
-        "x" : 0.55000001192092896,
+        "x" : 0.56499999761581421,
         "y" : 0.45999997854232788,
         "z" : 0.31085789203643799
       },
@@ -160,7 +160,7 @@ export const STARTER_MODEL_METADATA = {
       }
     },
     "model_origin_offset" : {
-      "x" : 0.17500001192092896,
+      "x" : 0.16750001907348633,
       "y" : 0.2800000011920929,
       "z" : 1.4901161193847656e-08
     },
@@ -256,7 +256,7 @@ export const STARTER_MODEL_METADATA = {
       "max" : {
         "x" : 0.45899999141693115,
         "y" : 0.87999999523162842,
-        "z" : 0.21271845698356628
+        "z" : 0.21511901915073395
       },
       "min" : {
         "x" : -0.45899999141693115,
@@ -267,7 +267,7 @@ export const STARTER_MODEL_METADATA = {
     "model_origin_offset" : {
       "x" : -0,
       "y" : 0.84000003337860107,
-      "z" : 7.4505805969238281e-09
+      "z" : -0.0012002736330032349
     },
     "model_url" : "\/models\/starters\/ninja.glb",
     "size" : 1
@@ -296,7 +296,7 @@ export const STARTER_MODEL_METADATA = {
   "puppy" : {
     "model_bounds" : {
       "max" : {
-        "x" : 0.84689998626708984,
+        "x" : 0.86174994707107544,
         "y" : 0.49599999189376831,
         "z" : 0.26786771416664124
       },
@@ -307,7 +307,7 @@ export const STARTER_MODEL_METADATA = {
       }
     },
     "model_origin_offset" : {
-      "x" : -0.064141035079956055,
+      "x" : -0.071566015481948853,
       "y" : 0.46400001645088196,
       "z" : 1.4901161193847656e-08
     },
@@ -361,7 +361,7 @@ export const STARTER_MODEL_METADATA = {
       "max" : {
         "x" : 0.52020001411437988,
         "y" : 0.87999999523162842,
-        "z" : 0.24108092486858368
+        "z" : 0.243801549077034
       },
       "min" : {
         "x" : -0.52020001411437988,
@@ -372,7 +372,7 @@ export const STARTER_MODEL_METADATA = {
     "model_origin_offset" : {
       "x" : -0,
       "y" : 0.84000003337860107,
-      "z" : 0.031948067247867584
+      "z" : 0.030587755143642426
     },
     "model_url" : "\/models\/starters\/superhero.glb",
     "size" : 1
@@ -401,7 +401,7 @@ export const STARTER_MODEL_METADATA = {
   "unicorn" : {
     "model_bounds" : {
       "max" : {
-        "x" : 1.1039999723434448,
+        "x" : 1.1400001049041748,
         "y" : 0.95910900831222534,
         "z" : 0.3013511598110199
       },
@@ -412,7 +412,7 @@ export const STARTER_MODEL_METADATA = {
       }
     },
     "model_origin_offset" : {
-      "x" : -0.072615563869476318,
+      "x" : -0.090615630149841309,
       "y" : 0.6380000114440918,
       "z" : 1.4901161193847656e-08
     },

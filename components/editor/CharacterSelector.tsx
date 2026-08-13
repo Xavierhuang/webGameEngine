@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useGLTF } from '@react-three/drei';
 import { User, Sparkles, Upload, Wand2, Boxes, Link as LinkIcon } from 'lucide-react';
 import ModelBuilder from './ModelBuilder';
 import ShapePreview from './ShapePreview';
@@ -32,6 +33,21 @@ export default function CharacterSelector({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [modelUrl, setModelUrl] = useState('');
+
+  // Preload every starter GLB the first time the picker opens so that by the
+  // time a tile scrolls into view its file is already in drei's cache. Only
+  // WebGL setup remains — the ~200-500ms per-file network wait moves off the
+  // critical path. Runs once per session; useGLTF.preload dedupes internally.
+  useEffect(() => {
+    if (!isOpen) return;
+    for (const c of CHARACTER_TEMPLATES) {
+      const url = c.model_url;
+      if (!url) continue;
+      const ext = url.split('.').pop()?.toLowerCase();
+      if (ext !== 'glb' && ext !== 'gltf') continue;
+      useGLTF.preload(url);
+    }
+  }, [isOpen]);
 
   const handleGenerateAI = async () => {
     if (!aiPrompt.trim()) return;

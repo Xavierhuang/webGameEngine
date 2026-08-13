@@ -82,6 +82,11 @@ export class PreviewCanvasBudget {
   acquire(id: string, kind: PreviewCanvasKind) {
     if (this.allocations.has(id)) return true;
 
+    // If the budget is full but only because leases are still cooling down in
+    // the retirement queue, evict the oldest retirement so the visible tile
+    // that's asking for a slot doesn't stay stranded at "Loading preview…"
+    // for the full grace period.
+    if (this.size >= this.maximum) this.evictOldestRetirement();
     if (this.size >= this.maximum) return false;
     if (kind === 'primitive' && this.primitiveCount >= this.primitiveMaximum) {
       return false;
@@ -90,6 +95,15 @@ export class PreviewCanvasBudget {
     this.allocations.set(id, kind);
     this.notify();
     return true;
+  }
+
+  private evictOldestRetirement() {
+    // Map iteration order is insertion order, so the first key is the oldest.
+    const oldestId = this.retirements.keys().next().value;
+    if (oldestId === undefined) return;
+    this.retirements.delete(oldestId);
+    // No notify — the caller either fills the slot immediately (which will
+    // notify) or bails out, and either way the notify would be redundant.
   }
 
   release(id: string, options?: { immediate?: boolean }) {
@@ -182,10 +196,13 @@ export class PreviewCanvasLeaseController {
 }
 
 export const selectorPreviewCanvasBudget = new PreviewCanvasBudget({
-  maximum: 6,
+  // Bumped from 6 → 10. Chrome/Safari cap at ~16 concurrent WebGL contexts
+  // per page, so 10 leaves headroom for the editor canvas + a few extras
+  // while comfortably covering a row-and-a-half of tiles in the picker.
+  maximum: 10,
   // 30 seconds of grace so a tile briefly scrolled past the IntersectionObserver
   // margin keeps its canvas — scrolling back within ~half a minute is instant.
-  // Slots still count against capacity while retiring, so busy pickers with
-  // more than 6 tiles still rotate correctly under load.
+  // Slots still count against capacity while retiring, so busy pickers still
+  // rotate correctly under scroll load.
   retirementGraceMs: 30_000,
 });

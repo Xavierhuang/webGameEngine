@@ -52,7 +52,9 @@ function createBudget(options = {}) {
 }
 
 test('shared selector budget leaves room for the editor renderer', () => {
-  assert.equal(selectorPreviewCanvasBudget.capacity, 6);
+  // Bumped 6 → 10 so ~row-and-a-half of tiles render at once. Kept well below
+  // the ~16 WebGL context limit shared with the editor scene canvas.
+  assert.equal(selectorPreviewCanvasBudget.capacity, 10);
 });
 
 test('primitive previews stop at their reserved allowance', () => {
@@ -125,27 +127,27 @@ test('model-first allocation does not strand primitive capacity', () => {
   assert.equal(budget.size, 4);
 });
 
-test('rapid close and reopen never exceeds active plus retiring capacity', () => {
-  const { budget, clock } = createBudget({ maximum: 1, reservedModelSlots: 0 });
+test('a visible tile that needs a slot evicts the oldest retirement instead of waiting', () => {
+  // With LRU-on-acquire eviction, a scrolled-past tile's cooling-down lease
+  // yields immediately to a visible tile that would otherwise be stranded at
+  // "Loading preview…" until the 30 s grace elapsed.
+  const { budget } = createBudget({ maximum: 1, reservedModelSlots: 0 });
   const hero = new PreviewCanvasLeaseController({ id: 'hero', kind: 'primitive', budget });
+  const wizard = new PreviewCanvasLeaseController({ id: 'wizard', kind: 'primitive', budget });
 
   hero.setVisible(true);
-  assert.equal(budget.size, 1);
+  assert.equal(hero.hasCanvas, true, 'first tile grabs the only slot');
   hero.setVisible(false);
-  hero.setVisible(true);
+  assert.equal(budget.retiringSize, 1, 'scroll-out puts the lease in retirement');
 
-  assert.equal(hero.hasCanvas, false);
-  assert.equal(budget.activeSize, 0);
-  assert.equal(budget.retiringSize, 1);
-  assert.equal(budget.size, 1);
-  clock.advanceBy(650);
-  assert.equal(hero.hasCanvas, true);
+  wizard.setVisible(true);
+  assert.equal(wizard.hasCanvas, true, 'new visible tile evicts the retiring lease');
   assert.equal(budget.activeSize, 1);
   assert.equal(budget.retiringSize, 0);
   assert.equal(budget.size, 1);
 
   hero.dispose();
-  clock.advanceBy(650);
+  wizard.dispose();
 });
 
 test('controller disposal releases immediately (no retirement grace)', () => {

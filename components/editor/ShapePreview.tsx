@@ -279,13 +279,15 @@ export default function ShapePreview({ shape, color, modelUrl, previewScale, pre
       return;
     }
 
-    // Generous rootMargin so casual scrolling inside the picker doesn't take
-    // a tile "out of view" (which would release its canvas lease and force
-    // a reload when it scrolls back in). 1200px on all sides lets the whole
-    // modal's worth of tiles stay "visible" even when scrolled well past.
+    // Moderate rootMargin — big enough that off-screen-by-one-row tiles are
+    // considered visible (so scrolling doesn't wait for network), small enough
+    // that we don't mark 20 tiles visible at once and starve the canvas budget
+    // (only 6-12 previews can render simultaneously). Scrolled-past tiles keep
+    // their canvas via the 30-second retirement grace on the budget, so
+    // scrolling back doesn't reload.
     const observer = new IntersectionObserver(
       ([entry]) => setIsVisible(entry.isIntersecting),
-      { rootMargin: '1200px' }
+      { rootMargin: '300px' }
     );
     observer.observe(element);
     return () => observer.disconnect();

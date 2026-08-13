@@ -69,6 +69,22 @@ private func material(_ name: String, _ color: SIMD4<Float>) -> [StarterMaterial
   [StarterMaterial(name: name, color: color, metallic: 0.35, roughness: 0.55)]
 }
 
+/// Shared dark face material used for eye and mouth ellipsoids on humanoids,
+/// quadrupeds, fish, and bird. Ninja gets its own light variant since a dark
+/// eye disappears against its charcoal body — see FACE_LIGHT below.
+private let FACE_DARK = StarterMaterial(
+  name: "Face Dark",
+  color: SIMD4(0.05, 0.05, 0.08, 1),
+  metallic: 0.2,
+  roughness: 0.4
+)
+private let FACE_LIGHT = StarterMaterial(
+  name: "Face Light",
+  color: SIMD4(0.95, 0.95, 0.98, 1),
+  metallic: 0.1,
+  roughness: 0.5
+)
+
 private func body(radius: SIMD3<Float> = SIMD3(0.65, 0.9, 0.5)) -> [StarterPart] {
   [StarterPart(
     name: "Body",
@@ -98,6 +114,7 @@ enum HumanoidHat {
 private func humanoid(
   body: Int,
   accent: Int? = nil,
+  face: Int? = nil,
   hat: HumanoidHat = .none,
   cape: Bool = false,
   robe: Bool = false,
@@ -114,6 +131,32 @@ private func humanoid(
     rotation: SIMD3(0, 0, 0),
     rings: 12, segments: 18, material: body
   ))
+  // Face features (eyes + mouth) — humanoid faces +Z. Only rendered when the
+  // character supplies a face material index; otherwise the head reads as a
+  // plain ellipsoid (backward compatible).
+  if let faceMat = face {
+    parts.append(StarterPart(
+      name: "EyeLeft",
+      center: SIMD3(-0.09 * s.x, 0.66 * s.y, 0.21 * s.z),
+      radius: SIMD3(0.045 * s.x, 0.055 * s.y, 0.030 * s.z),
+      rotation: SIMD3(0, 0, 0),
+      rings: 8, segments: 10, material: faceMat
+    ))
+    parts.append(StarterPart(
+      name: "EyeRight",
+      center: SIMD3(0.09 * s.x, 0.66 * s.y, 0.21 * s.z),
+      radius: SIMD3(0.045 * s.x, 0.055 * s.y, 0.030 * s.z),
+      rotation: SIMD3(0, 0, 0),
+      rings: 8, segments: 10, material: faceMat
+    ))
+    parts.append(StarterPart(
+      name: "Mouth",
+      center: SIMD3(0, 0.55 * s.y, 0.22 * s.z),
+      radius: SIMD3(0.065 * s.x, 0.020 * s.y, 0.020 * s.z),
+      rotation: SIMD3(0, 0, 0),
+      rings: 6, segments: 10, material: faceMat
+    ))
+  }
   parts.append(StarterPart(
     name: "Torso",
     center: SIMD3(0, 0.14 * s.y, 0),
@@ -203,6 +246,7 @@ private func humanoid(
 private func quadruped(
   body: Int,
   accent: Int? = nil,
+  face: Int? = nil,
   bodyScale: SIMD3<Float> = SIMD3(1, 1, 1),   // per-axis multiplier
   headScale: Float = 1,                       // relative to bodyScale
   hasHorn: Bool = false,                      // unicorn
@@ -245,6 +289,26 @@ private func quadruped(
     rotation: SIMD3(0, 0, 0),
     rings: 8, segments: 12, material: body
   ))
+  // Face — two side-set eyes on the head + a small dark nose at the snout tip.
+  // Positioned on +X (creature's front) and mirrored across Z.
+  if let faceMat = face {
+    for (name, zSign) in [("EyeLeft", Float(1)), ("EyeRight", Float(-1))] {
+      parts.append(StarterPart(
+        name: name,
+        center: SIMD3(0.72 * s.x, 0.42 * s.y, zSign * 0.14 * s.z),
+        radius: SIMD3(0.045 * s.x * headScale, 0.045 * s.y * headScale, 0.045 * s.z * headScale),
+        rotation: SIMD3(0, 0, 0),
+        rings: 6, segments: 10, material: faceMat
+      ))
+    }
+    parts.append(StarterPart(
+      name: "Nose",
+      center: SIMD3(0.90 * s.x, 0.25 * s.y, 0),
+      radius: SIMD3(0.05 * s.x * headScale, 0.045 * s.y * headScale, 0.05 * s.z * headScale),
+      rotation: SIMD3(0, 0, 0),
+      rings: 6, segments: 10, material: faceMat
+    ))
+  }
   // Legs — 4 short cylinders (ellipsoids) underneath
   for (name, xSign, zSign) in [
     ("LegFrontLeft",  Float(0.28), Float(0.22)),
@@ -298,11 +362,12 @@ private func quadruped(
 private func fish(
   body: Int,
   accent: Int? = nil,
+  face: Int? = nil,
   bodyScale: SIMD3<Float> = SIMD3(1, 1, 1)
 ) -> [StarterPart] {
   let s = bodyScale
   let accentMat = accent ?? body
-  return [
+  var parts: [StarterPart] = [
     StarterPart(
       name: "Body",
       center: SIMD3(0, 0, 0),
@@ -339,6 +404,27 @@ private func fish(
       rings: 6, segments: 10, material: accentMat
     ),
   ]
+  // Face — eyes on both sides of the head (front of the body ellipsoid) and
+  // a small dark mouth ellipsoid at the leading edge.
+  if let faceMat = face {
+    for (name, zSign) in [("EyeLeft", Float(1)), ("EyeRight", Float(-1))] {
+      parts.append(StarterPart(
+        name: name,
+        center: SIMD3(0.35 * s.x, 0.06 * s.y, zSign * 0.17 * s.z),
+        radius: SIMD3(0.055 * s.x, 0.07 * s.y, 0.030 * s.z),
+        rotation: SIMD3(0, 0, 0),
+        rings: 6, segments: 10, material: faceMat
+      ))
+    }
+    parts.append(StarterPart(
+      name: "Mouth",
+      center: SIMD3(0.52 * s.x, -0.03 * s.y, 0),
+      radius: SIMD3(0.045 * s.x, 0.020 * s.y, 0.055 * s.z),
+      rotation: SIMD3(0, 0, 0),
+      rings: 6, segments: 10, material: faceMat
+    ))
+  }
+  return parts
 }
 
 /// Bird template — perched pose, facing +X. Small round body + head + beak
@@ -346,11 +432,12 @@ private func fish(
 private func bird(
   body: Int,
   beak: Int? = nil,
+  face: Int? = nil,
   bodyScale: SIMD3<Float> = SIMD3(1, 1, 1)
 ) -> [StarterPart] {
   let s = bodyScale
   let beakMat = beak ?? body
-  return [
+  var parts: [StarterPart] = [
     StarterPart(
       name: "Body",
       center: SIMD3(0, 0, 0),
@@ -411,6 +498,19 @@ private func bird(
       primitive: .cylinder
     ),
   ]
+  // Face — small dark eyes on both sides of the head.
+  if let faceMat = face {
+    for (name, zSign) in [("EyeLeft", Float(1)), ("EyeRight", Float(-1))] {
+      parts.append(StarterPart(
+        name: name,
+        center: SIMD3(0.42 * s.x, 0.34 * s.y, zSign * 0.16 * s.z),
+        radius: SIMD3(0.045 * s.x, 0.055 * s.y, 0.030 * s.z),
+        rotation: SIMD3(0, 0, 0),
+        rings: 6, segments: 10, material: faceMat
+      ))
+    }
+  }
+  return parts
 }
 
 /// Alien template — big oval head with two large dark almond eyes, small torso,
@@ -491,6 +591,29 @@ private func hero(
     radius: SIMD3(0.24, 0.26, 0.24),
     rotation: SIMD3(0, 0, 0),
     rings: 12, segments: 18, material: body
+  ))
+  // Face — eyes + mouth. Uses the shared dark material (same as hair/belt) so
+  // features read as unified silhouette detail rather than a separate palette.
+  parts.append(StarterPart(
+    name: "EyeLeft",
+    center: SIMD3(-0.09, 0.66, 0.21),
+    radius: SIMD3(0.045, 0.055, 0.030),
+    rotation: SIMD3(0, 0, 0),
+    rings: 6, segments: 10, material: dark
+  ))
+  parts.append(StarterPart(
+    name: "EyeRight",
+    center: SIMD3(0.09, 0.66, 0.21),
+    radius: SIMD3(0.045, 0.055, 0.030),
+    rotation: SIMD3(0, 0, 0),
+    rings: 6, segments: 10, material: dark
+  ))
+  parts.append(StarterPart(
+    name: "Mouth",
+    center: SIMD3(0, 0.55, 0.22),
+    radius: SIMD3(0.065, 0.020, 0.020),
+    rotation: SIMD3(0, 0, 0),
+    rings: 6, segments: 10, material: dark
   ))
   // Hair — flatter cap sitting on top-back of the head, sharper than a full sphere.
   parts.append(StarterPart(
@@ -592,8 +715,11 @@ func starterCatalog() -> [StarterCharacter] {
     StarterCharacter(
       id: "dinosaur", displayName: "Dinosaur", description: "A friendly toy dinosaur.",
       aliases: ["dino"], defaultSize: 1.0,
-      materials: material("Dinosaur Green", SIMD4(0.12, 0.55, 0.22, 1)),
-      parts: quadruped(body: 0, bodyScale: SIMD3(1.35, 1.1, 0.95), headScale: 1.1)
+      materials: [
+        StarterMaterial(name: "Dinosaur Green", color: SIMD4(0.12, 0.55, 0.22, 1), metallic: 0.35, roughness: 0.55),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, face: 1, bodyScale: SIMD3(1.35, 1.1, 0.95), headScale: 1.1)
     ),
     StarterCharacter(
       id: "unicorn", displayName: "Unicorn", description: "A bright magical toy unicorn.",
@@ -601,8 +727,9 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Unicorn Pearl", color: SIMD4(0.9, 0.72, 0.88, 1), metallic: 0.25, roughness: 0.5),
         StarterMaterial(name: "Unicorn Horn Gold", color: SIMD4(0.95, 0.75, 0.15, 1), metallic: 0.85, roughness: 0.18),
+        FACE_DARK,
       ],
-      parts: quadruped(body: 0, accent: 1, bodyScale: SIMD3(1.2, 1.1, 0.9), hasHorn: true, hasEars: true)
+      parts: quadruped(body: 0, accent: 1, face: 2, bodyScale: SIMD3(1.2, 1.1, 0.9), hasHorn: true, hasEars: true)
     ),
     // Humanoids — all share the humanoid() template and vary via material palette,
     // per-axis bodyScale, and optional hat/cape/robe accessories. The single
@@ -614,8 +741,9 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Robot Silver", color: SIMD4(0.48, 0.58, 0.68, 1), metallic: 0.8, roughness: 0.25),
         StarterMaterial(name: "Robot Visor", color: SIMD4(0.18, 0.32, 0.52, 1), metallic: 0.75, roughness: 0.2),
+        FACE_DARK,
       ],
-      parts: humanoid(body: 0, accent: 1, hat: .helmet, bodyScale: SIMD3(1.05, 1, 1.05))
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .helmet, bodyScale: SIMD3(1.05, 1, 1.05))
     ),
     StarterCharacter(
       id: "knight", displayName: "Knight", description: "A brave armored toy knight.",
@@ -623,8 +751,9 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Knight Steel", color: SIMD4(0.42, 0.48, 0.58, 1), metallic: 0.7, roughness: 0.35),
         StarterMaterial(name: "Knight Trim", color: SIMD4(0.15, 0.18, 0.22, 1), metallic: 0.6, roughness: 0.4),
+        FACE_DARK,
       ],
-      parts: humanoid(body: 0, accent: 1, hat: .helmet, bodyScale: SIMD3(1.05, 1, 1.02))
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .helmet, bodyScale: SIMD3(1.05, 1, 1.02))
     ),
     StarterCharacter(
       id: "wizard", displayName: "Wizard", description: "A wise toy wizard.",
@@ -632,8 +761,9 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Wizard Violet", color: SIMD4(0.38, 0.16, 0.66, 1), metallic: 0.15, roughness: 0.65),
         StarterMaterial(name: "Wizard Hat", color: SIMD4(0.15, 0.08, 0.32, 1), metallic: 0.2, roughness: 0.55),
+        FACE_DARK,
       ],
-      parts: humanoid(body: 0, accent: 1, hat: .wizardHat, robe: true)
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .wizardHat, robe: true)
     ),
     StarterCharacter(
       id: "princess", displayName: "Princess", description: "A royal toy adventurer.",
@@ -641,8 +771,9 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Princess Rose", color: SIMD4(0.86, 0.3, 0.58, 1), metallic: 0.2, roughness: 0.5),
         StarterMaterial(name: "Princess Gold", color: SIMD4(0.95, 0.75, 0.15, 1), metallic: 0.85, roughness: 0.18),
+        FACE_DARK,
       ],
-      parts: humanoid(body: 0, accent: 1, hat: .crown, robe: true)
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .crown, robe: true)
     ),
     StarterCharacter(
       id: "astronaut", displayName: "Astronaut", description: "A space-exploring toy astronaut.",
@@ -650,22 +781,27 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Astronaut White", color: SIMD4(0.82, 0.86, 0.9, 1), metallic: 0.25, roughness: 0.4),
         StarterMaterial(name: "Astronaut Visor", color: SIMD4(0.15, 0.28, 0.5, 1), metallic: 0.9, roughness: 0.12),
+        FACE_DARK,
       ],
-      parts: humanoid(body: 0, accent: 1, hat: .helmet)
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .helmet)
     ),
     StarterCharacter(
       id: "ninja", displayName: "Ninja", description: "A quick and quiet toy ninja.",
       aliases: ["shinobi"], defaultSize: 1.0,
       materials: [
         StarterMaterial(name: "Ninja Charcoal", color: SIMD4(0.06, 0.07, 0.09, 1), metallic: 0.2, roughness: 0.7),
+        FACE_LIGHT,  // white eyes so they show against the near-black body
       ],
-      parts: humanoid(body: 0, bodyScale: SIMD3(0.9, 1, 0.9))
+      parts: humanoid(body: 0, face: 1, bodyScale: SIMD3(0.9, 1, 0.9))
     ),
     StarterCharacter(
       id: "puppy", displayName: "Puppy", description: "A playful toy puppy.",
       aliases: ["pup"], defaultSize: 1.0,
-      materials: material("Puppy Gold", SIMD4(0.68, 0.4, 0.16, 1)),
-      parts: quadruped(body: 0, bodyScale: SIMD3(0.9, 0.8, 0.8), headScale: 1.15, hasEars: true)
+      materials: [
+        StarterMaterial(name: "Puppy Gold", color: SIMD4(0.68, 0.4, 0.16, 1), metallic: 0.35, roughness: 0.55),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, face: 1, bodyScale: SIMD3(0.9, 0.8, 0.8), headScale: 1.15, hasEars: true)
     ),
     StarterCharacter(
       id: "superhero", displayName: "Superhero", description: "A soaring toy superhero.",
@@ -673,8 +809,9 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Hero Blue", color: SIMD4(0.05, 0.24, 0.72, 1), metallic: 0.2, roughness: 0.5),
         StarterMaterial(name: "Hero Cape Red", color: SIMD4(0.75, 0.12, 0.14, 1), metallic: 0.15, roughness: 0.55),
+        FACE_DARK,
       ],
-      parts: humanoid(body: 0, accent: 1, cape: true, bodyScale: SIMD3(1.02, 1, 1.02))
+      parts: humanoid(body: 0, accent: 1, face: 2, cape: true, bodyScale: SIMD3(1.02, 1, 1.02))
     ),
     StarterCharacter(
       id: "hero", displayName: "Hero", description: "A plucky toy adventurer.",
@@ -691,14 +828,20 @@ func starterCatalog() -> [StarterCharacter] {
     StarterCharacter(
       id: "dog", displayName: "Dog", description: "A loyal toy dog.",
       aliases: ["hound", "canine", "doggy"], defaultSize: 1.0,
-      materials: material("Dog Brown", SIMD4(0.55, 0.34, 0.18, 1)),
-      parts: quadruped(body: 0, bodyScale: SIMD3(1.05, 0.85, 0.85), headScale: 1.05, hasEars: true)
+      materials: [
+        StarterMaterial(name: "Dog Brown", color: SIMD4(0.55, 0.34, 0.18, 1), metallic: 0.35, roughness: 0.55),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, face: 1, bodyScale: SIMD3(1.05, 0.85, 0.85), headScale: 1.05, hasEars: true)
     ),
     StarterCharacter(
       id: "cat", displayName: "Cat", description: "A sneaky toy cat.",
       aliases: ["kitten", "kitty", "feline"], defaultSize: 1.0,
-      materials: material("Cat Orange", SIMD4(0.92, 0.42, 0.10, 1)),
-      parts: quadruped(body: 0, bodyScale: SIMD3(0.95, 0.75, 0.75), headScale: 1.1, hasEars: true)
+      materials: [
+        StarterMaterial(name: "Cat Orange", color: SIMD4(0.92, 0.42, 0.10, 1), metallic: 0.35, roughness: 0.55),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, face: 1, bodyScale: SIMD3(0.95, 0.75, 0.75), headScale: 1.1, hasEars: true)
     ),
     StarterCharacter(
       id: "fish", displayName: "Fish", description: "A tiny toy fish.",
@@ -706,8 +849,9 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Fish Blue", color: SIMD4(0.30, 0.55, 0.92, 1), metallic: 0.35, roughness: 0.4),
         StarterMaterial(name: "Fish Fin", color: SIMD4(0.16, 0.32, 0.68, 1), metallic: 0.3, roughness: 0.45),
+        FACE_DARK,
       ],
-      parts: fish(body: 0, accent: 1)
+      parts: fish(body: 0, accent: 1, face: 2)
     ),
     StarterCharacter(
       id: "bird", displayName: "Bird", description: "A small toy bird.",
@@ -715,8 +859,9 @@ func starterCatalog() -> [StarterCharacter] {
       materials: [
         StarterMaterial(name: "Bird Sky Blue", color: SIMD4(0.42, 0.72, 0.95, 1), metallic: 0.2, roughness: 0.55),
         StarterMaterial(name: "Bird Beak", color: SIMD4(0.95, 0.68, 0.15, 1), metallic: 0.4, roughness: 0.35),
+        FACE_DARK,
       ],
-      parts: bird(body: 0, beak: 1)
+      parts: bird(body: 0, beak: 1, face: 2)
     ),
     // Fantasy creatures — alien and monster have their own dedicated templates.
     StarterCharacter(
