@@ -81,7 +81,7 @@ export default async function ProjectsPage(props: {
               {user ? 'Signed in' : 'Guest mode'}
             </div>
             <h1 className="mt-1 text-4xl font-black tracking-tight text-slate-900">
-              {displayName}'s Games
+              {displayName}&apos;s Games
             </h1>
             <p className="mt-2 text-slate-600 max-w-xl">
               Every project you build lives here. Open one to keep editing, or start a fresh world.
@@ -228,10 +228,10 @@ function EmptyState() {
         <Sparkles className="w-7 h-7 text-slate-400" />
       </div>
       <h2 className="text-2xl font-black text-slate-900">
-        No games yet — let's fix that.
+        No games yet — let&apos;s fix that.
       </h2>
       <p className="mt-2 text-slate-600 max-w-md mx-auto">
-        Start with a blank 3D world, or describe one to the AI and it'll scaffold the whole project for you.
+        Start with a blank 3D world, or describe one to the AI and it&apos;ll scaffold the whole project for you.
       </p>
       <div className="mt-6">
         <Link

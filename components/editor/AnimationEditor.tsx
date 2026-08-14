@@ -5,6 +5,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Grid, TransformControls } from '@react-three/drei';
 import { X, Play, Pause, Square, Save, Download, Bone, Move3D, RotateCw, Maximize2 } from 'lucide-react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { useGLTF } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { PALETTE } from '../common/design';
@@ -82,7 +83,6 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
           let skeleton: THREE.Skeleton | null = null;
 
           if (ext === 'glb' || ext === 'gltf') {
-            const { GLTFLoader } = require('three/examples/jsm/loaders/GLTFLoader.js');
             const loader = new GLTFLoader();
             const gltf = await new Promise<any>((resolve, reject) => {
               loader.load(

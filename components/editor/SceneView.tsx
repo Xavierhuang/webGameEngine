@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame, useThree, useLoader } from '@react-three/fiber';
 import { Box, Sphere, useGLTF, TransformControls } from '@react-three/drei';
 import { Suspense } from 'react';
 import * as THREE from 'three';
@@ -9,6 +9,11 @@ import {
   createModelRenderContract,
   isModelBounds,
 } from '../../lib/models/modelRenderContract';
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
+import AudioManager from '../../lib/audio/AudioManager';
 import AnimatedModel from './AnimatedModel';
 import { focusSceneCamera } from '../../lib/editor/cameraFocus';
 
@@ -81,7 +86,6 @@ export default function SceneView({ scene, selectedObject, focusRequest, onSelec
         const props = typeof soundWithAutoplay.properties === 'string'
           ? JSON.parse(soundWithAutoplay.properties || '{}')
           : (soundWithAutoplay.properties || {});
-        const { default: AudioManager } = require('@/lib/audio/AudioManager');
         AudioManager.get().startBeat(props.beat || 'simple', props.bpm || 120);
       } catch {}
     }
@@ -136,10 +140,11 @@ function GameObject({
   onRotationChange?: (id: string, rotationDegrees: { x: number; y: number; z: number }) => void;
   onAnimationsDetected?: (objectId: string, animations: string[]) => void;
 }) {
-  // Do not render sound objects as visible geometry
-  if (object.type === 'sound') {
-    return null;
-  }
+  // NOTE: sound objects render nothing, but that check must come *after* every
+  // hook below. It used to sit here, before them — so when an object's type
+  // changed (or a sound object took a list position previously held by a
+  // visible one) React saw a different number of hooks for the same position
+  // and the component's state became invalid.
   const meshRef = useRef<any>();
   const hasMovedRef = useRef(false);
   const [localPosition, setLocalPosition] = useState<[number, number, number] | null>(null);
@@ -255,6 +260,12 @@ function GameObject({
     }
   }, [object.position_x, object.position_y, object.position_z, dbPosition]);
 
+  // Sound objects have no visible geometry. This guard lives here, after every
+  // hook, so the hook count is identical for every object type.
+  if (object.type === 'sound') {
+    return null;
+  }
+
   // Get scale/size
   let scale: [number, number, number];
   let scaleValue = 1;
@@ -340,57 +351,15 @@ function GameObject({
         );
       }
       
-      // Render external 3D model by extension (GLB/GLTF/OBJ/STL/FBX/DAE) - non-animated
-      function Model() {
-        if (ext === 'glb' || ext === 'gltf') {
-        const gltf = useGLTF(modelUrl) as any;
-        return <primitive ref={meshRef} object={gltf.scene} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
-        }
-        // Lazy dynamic loaders to avoid SSR import issues if not installed
-        try {
-          if (ext === 'obj') {
-            const { useLoader } = require('@react-three/fiber');
-            const { OBJLoader } = require('three/examples/jsm/loaders/OBJLoader.js');
-            const obj = useLoader(OBJLoader, modelUrl);
-            return <primitive ref={meshRef} object={obj} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
-          }
-          if (ext === 'stl') {
-            const { useLoader } = require('@react-three/fiber');
-            const { STLLoader } = require('three/examples/jsm/loaders/STLLoader.js');
-            const geom = useLoader(STLLoader, modelUrl);
-            return (
-              <mesh ref={meshRef} position={position} rotation={rotation} scale={scale} onClick={onClick}>
-                <primitive object={geom} attach="geometry" />
-                <meshStandardMaterial color={color} />
-              </mesh>
-            );
-          }
-          if (ext === 'fbx') {
-            const { useLoader } = require('@react-three/fiber');
-            const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
-            const fbx = useLoader(FBXLoader, modelUrl);
-            return <primitive ref={meshRef} object={fbx} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
-          }
-          if (ext === 'dae') {
-            const { useLoader } = require('@react-three/fiber');
-            const { ColladaLoader } = require('three/examples/jsm/loaders/ColladaLoader.js');
-            const collada = useLoader(ColladaLoader, modelUrl);
-            return <primitive ref={meshRef} object={collada.scene} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
-          }
-        } catch (e) {
-          // Fallback if loaders unavailable
-          console.warn('Loader not available for', ext, e);
-        }
-        // Unknown extension: fallback to box
-        return (
-          <Box ref={meshRef} position={position} rotation={rotation} scale={scale} onClick={onClick}>
-            <meshStandardMaterial color={color} />
-          </Box>
-        );
-      }
+      // Each format is its own component calling exactly one loader hook,
+      // unconditionally. Previously a single Model() branched on the extension
+      // and called a *different* hook per branch — so changing a model's format
+      // reordered the hooks, which React forbids and which corrupts state.
+      // Selecting between components remounts cleanly instead.
+      const modelProps = { meshRef, url: modelUrl, position, rotation, scale, onClick, color };
       return (
         <Suspense fallback={null}>
-          <Model />
+          <FormatModel ext={ext} {...modelProps} />
         </Suspense>
       );
     }
@@ -696,4 +665,83 @@ function GameObject({
       )}
     </>
   );
+}
+
+// ---------------------------------------------------------------------------
+// External model rendering, one component per format.
+//
+// These exist so that each loader hook is called unconditionally from a single
+// component. Branching on file extension *inside* one component and calling a
+// different hook per branch violates the rules of hooks: swapping a model's
+// format changes the hook order and React's state for that position is no
+// longer valid.
+// ---------------------------------------------------------------------------
+
+interface FormatModelProps {
+  meshRef: any;
+  url: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  onClick: (e?: any) => void;
+  color: string;
+}
+
+function GltfFormatModel({ meshRef, url, position, rotation, scale, onClick }: FormatModelProps) {
+  const gltf = useGLTF(url) as any;
+  return <primitive ref={meshRef} object={gltf.scene} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
+}
+
+function ObjFormatModel({ meshRef, url, position, rotation, scale, onClick }: FormatModelProps) {
+  const obj = useLoader(OBJLoader, url);
+  return <primitive ref={meshRef} object={obj} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
+}
+
+function StlFormatModel({ meshRef, url, position, rotation, scale, onClick, color }: FormatModelProps) {
+  const geom = useLoader(STLLoader, url);
+  return (
+    <mesh ref={meshRef} position={position} rotation={rotation} scale={scale} onClick={onClick}>
+      <primitive object={geom} attach="geometry" />
+      <meshStandardMaterial color={color} />
+    </mesh>
+  );
+}
+
+function FbxFormatModel({ meshRef, url, position, rotation, scale, onClick }: FormatModelProps) {
+  const fbx = useLoader(FBXLoader, url);
+  return <primitive ref={meshRef} object={fbx} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
+}
+
+function DaeFormatModel({ meshRef, url, position, rotation, scale, onClick }: FormatModelProps) {
+  const collada = useLoader(ColladaLoader, url) as any;
+  return <primitive ref={meshRef} object={collada.scene} position={position} rotation={rotation} scale={scale} onClick={onClick} />;
+}
+
+/** Pick the renderer for a file extension; unknown formats fall back to a box. */
+function FormatModel({ ext, ...props }: FormatModelProps & { ext: string }) {
+  switch (ext) {
+    case 'glb':
+    case 'gltf':
+      return <GltfFormatModel {...props} />;
+    case 'obj':
+      return <ObjFormatModel {...props} />;
+    case 'stl':
+      return <StlFormatModel {...props} />;
+    case 'fbx':
+      return <FbxFormatModel {...props} />;
+    case 'dae':
+      return <DaeFormatModel {...props} />;
+    default:
+      return (
+        <Box
+          ref={props.meshRef}
+          position={props.position}
+          rotation={props.rotation}
+          scale={props.scale}
+          onClick={props.onClick}
+        >
+          <meshStandardMaterial color={props.color} />
+        </Box>
+      );
+  }
 }

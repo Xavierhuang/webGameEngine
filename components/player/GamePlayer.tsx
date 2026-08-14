@@ -1427,7 +1427,7 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
 
       // Execute logic blocks via the interpreter (coroutines stepped once per frame)
       let moveX = 0;
-      let moveY = 0;
+      const moveY = 0;
       let moveZ = 0;
       const moveSpeed = PHYSICS.MOVE_SPEED;
       const jumpForce = PHYSICS.JUMP_FORCE;

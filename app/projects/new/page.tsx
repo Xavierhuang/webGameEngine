@@ -143,7 +143,7 @@ function NewProjectPageInner() {
                 Name your game.
               </h1>
               <p className="mt-2 text-slate-600 text-sm">
-                Everything's pre-filled — just tap <span className="font-semibold text-slate-900">Create</span>, or change what you like first.
+                Everything&apos;s pre-filled — just tap <span className="font-semibold text-slate-900">Create</span>, or change what you like first.
               </p>
             </div>
             <button

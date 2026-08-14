@@ -11,6 +11,7 @@ import {
 } from '../../lib/models/proceduralAnimation';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { repairMinionMaterials } from '../../lib/models/minionMaterials';
 import { modelCache, type CachedModelResource } from '../../lib/utils/modelCache';
 import {
@@ -312,7 +313,6 @@ function FBXAnimatedModel({
     const stopLifecycle = startAsyncResourceLifecycle(
       () => modelCache.acquire(url, async () => {
         logger.debug('[FBXAnimatedModel] Loading FBX from URL:', url);
-        const { FBXLoader } = require('three/examples/jsm/loaders/FBXLoader.js');
         const loader = new FBXLoader();
         const fbx = await new Promise<THREE.Group>((resolve, reject) => {
           loader.load(
