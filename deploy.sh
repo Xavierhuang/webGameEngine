@@ -28,6 +28,11 @@ rsync -az --delete \
   --exclude='tsconfig.tsbuildinfo' \
   --exclude='.env.local' \
   --exclude='.env' \
+  `# User-generated content lives here at runtime — drawings from the paint` \
+  `# editor, microphone recordings, uploaded models. It is gitignored, so it` \
+  `# does not exist locally, and rsync --delete would erase every user's` \
+  `# uploads on each deploy.` \
+  --exclude='public/uploads' \
   --exclude='deploy.sh' \
   "$LOCAL_DIR/" "$USER@$HOST:$REMOTE/"
 
