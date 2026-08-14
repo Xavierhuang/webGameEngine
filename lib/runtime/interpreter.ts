@@ -680,6 +680,12 @@ export interface RuntimeContext {
   /** Current costume state; number is 1-based like Scratch. */
   getCostume?(): { number: number; name: string };
 
+  /**
+   * Play an animation saved on this object by the Animation Editor.
+   * 'stop' (or an unknown name) returns the model to its rest pose.
+   */
+  switchAnimation?(name: string): void;
+
   // --- Graphic effects ---
   /** Apply a named effect ('ghost' | 'brightness' | 'color') at an already-clamped value. */
   setEffect?(effect: string, value: number): void;
@@ -1350,6 +1356,9 @@ export class ObjectRuntime {
           return;
         case 'next_costume':
           this.ctx.nextCostume?.();
+          return;
+        case 'switch_animation_to':
+          this.ctx.switchAnimation?.(String(getInput(block, 'name', env, '')));
           return;
 
         // --- Phase 5c: AI blocks ---

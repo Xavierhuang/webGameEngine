@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { Box, Sphere, Grid, useGLTF, Html } from '@react-three/drei';
 import { RotateCcw, Square, Maximize } from 'lucide-react';
 import { TouchControls } from './TouchControls';
+import { parseAnimations, findAnimation, sampleAnimation } from '../../lib/models/customAnimation';
 import { useTranslator } from '../common/LocaleProvider';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
@@ -905,6 +906,8 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   // Graphic effects (ghost/brightness/color) and draw order, applied in the
   // same per-frame material pass as the tint.
   const effectsRef = useRef<Record<string, number>>({});
+  /** Name of the custom animation currently playing, and when it started. */
+  const customAnimRef = useRef<{ name: string; startedAt: number } | null>(null);
   const layerRef = useRef(0);
   const [bubble, setBubble] = useState<{ text: string; style: 'say' | 'think'; expiresAt: number | null } | null>(null);
   // Costumes (Scratch analog) — refs feed the runtime callbacks (built once); state drives the appearance re-render.
@@ -1110,6 +1113,16 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       changeLayerBy: (delta) => { layerRef.current += delta; },
       // ask-and-wait: the prompt UI is stage-level, so delegate to the player.
       ask: (prompt) => world.onAsk?.(prompt) ?? Promise.resolve(''),
+      // Custom animations authored in the Animation Editor and saved onto the
+      // object's properties.animations.
+      switchAnimation: (name) => {
+        const wanted = String(name ?? '').trim();
+        if (!wanted || wanted.toLowerCase() === 'stop' || wanted.toLowerCase() === 'none') {
+          customAnimRef.current = null;
+          return;
+        }
+        customAnimRef.current = { name: wanted, startedAt: performance.now() / 1000 };
+      },
     };
   }
 
@@ -1526,6 +1539,25 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       }
 
       meshRef.current.renderOrder = layerRef.current;
+
+      // Custom keyframe animations saved by the Animation Editor. Applied
+      // after effects so it wins over the rest pose, and only while one is
+      // actually playing.
+      const playing = customAnimRef.current;
+      if (playing) {
+        const animations = parseAnimations(properties.animations);
+        const clip = findAnimation(animations, playing.name);
+        if (clip) {
+          const elapsed = performance.now() / 1000 - playing.startedAt;
+          const sample = sampleAnimation(clip, elapsed);
+          meshRef.current.traverse((child: any) => {
+            const t = sample[child.name];
+            if (!t) return;
+            child.rotation.set(t.rotation[0], t.rotation[1], t.rotation[2]);
+            child.scale.set(t.scale[0], t.scale[1], t.scale[2]);
+          });
+        }
+      }
     }
 
     // Bubble expiry — check once per frame, don't setState unless needed

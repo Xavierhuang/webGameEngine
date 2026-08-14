@@ -8,11 +8,13 @@ import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { PALETTE } from '../common/design';
+import { sampleAnimation } from '../../lib/models/customAnimation';
 
 interface AnimationEditorProps {
   isOpen: boolean;
   onClose: () => void;
   modelUrl: string;
+  /** The object to save onto. Previously accepted and never used. */
   objectId?: string;
 }
 
@@ -52,6 +54,9 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   const [animationDuration, setAnimationDuration] = useState(5); // seconds
   const [animationName, setAnimationName] = useState('New Animation');
   const [transformMode, setTransformMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  /** Wall-clock second at which playback began, for sampling. */
+  const playbackStartRef = useRef(0);
   // Lifted out of AnimatedModelView: the bone-hierarchy panel below renders in
   // this component's JSX and needs to distinguish "still loading" from "loaded,
   // but this model has no named parts".
@@ -166,6 +171,29 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
       loadModel();
     }, [modelUrl, ext]);
 
+    // Drive the bones from the sampled animation while previewing. This is the
+    // playback that the Play button used to only pretend to do.
+    useFrame(() => {
+      const bones = bonesMapRef.current;
+      if (!isPlaying || bones.size === 0) return;
+
+      const elapsed = performance.now() / 1000 - playbackStartRef.current;
+      const sample = sampleAnimation(
+        { name: animationName, duration: animationDuration, keyframes },
+        elapsed
+      );
+
+      for (const [name, transform] of Object.entries(sample)) {
+        const bone = bones.get(name);
+        if (!bone) continue;
+        bone.position.set(...transform.position);
+        bone.rotation.set(...transform.rotation);
+        bone.scale.set(...transform.scale);
+      }
+
+      setCurrentTime(elapsed % (animationDuration > 0 ? animationDuration : 1));
+    });
+
     // Render bone helpers
     const renderBoneHelpers = () => {
       if (!selectedBone || !bonesMapRef.current.has(selectedBone)) return null;
@@ -277,15 +305,61 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
     });
   };
 
-  // Play animation preview
+  // Play animation preview. Playback samples the keyframes directly through
+  // lib/models/customAnimation.ts — the same engine the scene view and player
+  // use — rather than building a throwaway AnimationMixer clip, so what you
+  // preview here is exactly what runs in the game.
   const playAnimation = () => {
     if (keyframes.length === 0) {
       alert('No keyframes to play. Add some keyframes first.');
       return;
     }
-
+    playbackStartRef.current = performance.now() / 1000;
     setIsPlaying(true);
-    // TODO: Implement animation playback using AnimationMixer
+  };
+
+  /** Persist the animation onto the object so it survives and can be played. */
+  const saveAnimation = async () => {
+    if (keyframes.length === 0) {
+      alert('Add some keyframes before saving.');
+      return;
+    }
+    if (!objectId) {
+      alert('This animation editor was opened without an object to save to.');
+      return;
+    }
+
+    const name = animationName.trim() || 'New Animation';
+    const animation = {
+      name,
+      duration: animationDuration,
+      keyframes: keyframes.map((kf) => ({
+        time: kf.time,
+        boneName: kf.boneName,
+        transform: kf.transform,
+      })),
+    };
+
+    setSaveState('saving');
+    try {
+      // Merge into properties.animations, replacing any same-named animation.
+      const existing = await fetch(`/api/game-objects/${objectId}`).then((r) => r.json()).catch(() => null);
+      const rawProps = existing?.gameObject?.properties ?? existing?.game_object?.properties ?? {};
+      const props = typeof rawProps === 'string' ? JSON.parse(rawProps || '{}') : (rawProps || {});
+      const others = Array.isArray(props.animations)
+        ? props.animations.filter((a: any) => String(a?.name ?? '').toLowerCase() !== name.toLowerCase())
+        : [];
+
+      const response = await fetch(`/api/game-objects/${objectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ properties: { ...props, animations: [...others, animation] } }),
+      });
+      setSaveState(response.ok ? 'saved' : 'error');
+    } catch (error) {
+      console.error('[AnimationEditor] save failed:', error);
+      setSaveState('error');
+    }
   };
 
   // Export animation as GLTF animation clip
@@ -671,14 +745,39 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                 </div>
               </div>
 
+              {/* Save to the object — the animation is playable from blocks
+                  once saved. Previously the only output was a file download,
+                  so nothing made here survived closing the editor. */}
+              <button
+                onClick={saveAnimation}
+                disabled={keyframes.length === 0 || saveState === 'saving' || !objectId}
+                title={objectId ? 'Save this animation onto the object' : 'No object to save to'}
+                className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-full font-semibold transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" />
+                {saveState === 'saving'
+                  ? 'Saving…'
+                  : saveState === 'saved'
+                  ? 'Saved to object'
+                  : saveState === 'error'
+                  ? 'Save failed — try again'
+                  : 'Save animation'}
+              </button>
+
+              {saveState === 'saved' && (
+                <p className="text-center text-xs leading-relaxed text-slate-500">
+                  Play it from blocks with <code>switch animation to</code>.
+                </p>
+              )}
+
               {/* Export */}
               <button
                 onClick={exportAnimation}
                 disabled={keyframes.length === 0}
-                className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-full font-semibold transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full inline-flex items-center justify-center gap-2 border border-slate-200 hover:border-slate-300 text-slate-700 py-2.5 rounded-full font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download className="w-4 h-4" />
-                Export animation
+                Export as file
               </button>
             </div>
           </div>

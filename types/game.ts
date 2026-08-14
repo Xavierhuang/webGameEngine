@@ -124,6 +124,7 @@ export type LogicBlockType =
   | 'set_color'
   | 'switch_costume_to'
   | 'next_costume'
+  | 'switch_animation_to'
   // Graphic effects + layer ordering
   | 'set_effect'
   | 'change_effect_by'

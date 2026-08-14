@@ -117,6 +117,13 @@ const statementDefs: object[] = [
   },
   { type: 'next_costume', message0: 'next costume', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
 
+  // Plays an animation authored in the Animation Editor and saved onto the
+  // object. 'stop' returns the model to its rest pose.
+  {
+    type: 'switch_animation_to', message0: 'switch animation to %1', args0: [text('name', 'walk')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+
   // Actions
   {
     type: 'move', message0: 'move %1 %2', args0: [
@@ -523,6 +530,7 @@ export const TOOLBOX = {
         blk('next_scene'),
         blk('switch_costume_to'),
         blk('next_costume'),
+        blk('switch_animation_to'),
         blk('expr_size'),
         blk('expr_visible'),
         blk('expr_costume_number'),

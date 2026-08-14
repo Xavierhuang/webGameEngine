@@ -32,14 +32,15 @@
     "test:dragon-generator": "node --test test/tools/metal-dragon-generate.test.js",
     "test:starter-generator": "node --test test/tools/metal-starters-generate.test.js",
     "test:dragon-all": "npm run test:dragon-editor && npm run test:dragon-materials && npm run test:dragon-model-contract && npm run test:dragon-rendering && npm run test:dragon-asset && npm run test:dragon-page && npm run test:dragon-generator",
-    "test:all": "npm run test:runtime && npm run test:demo-parity && npm run test:serializer && npm run test:name-field && npm run test:safety && npm run test:access && npm run test:coppa && npm run test:i18n && npm run test:email && npm run test:animation && npm run test:new-blocks && npm run test:prefabs && npm run test:minion-materials && npm run test:model-lifecycle && npm run test:preview && npm run test:camera-focus && npm run test:dragon-all && npm run test:starter-generator",
+    "test:all": "npm run test:runtime && npm run test:demo-parity && npm run test:serializer && npm run test:name-field && npm run test:safety && npm run test:access && npm run test:coppa && npm run test:i18n && npm run test:email && npm run test:animation && npm run test:custom-animation && npm run test:new-blocks && npm run test:prefabs && npm run test:minion-materials && npm run test:model-lifecycle && npm run test:preview && npm run test:camera-focus && npm run test:dragon-all && npm run test:starter-generator",
     "test:coppa": "tsc lib/safety/coppa.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/safety/coppa.test.js",
     "test:new-blocks": "tsc lib/runtime/interpreter.ts lib/runtime/operators.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/runtime/new-blocks.test.js",
     "test:name-field": "tsc lib/blockly/definitions.ts lib/blockly/nameField.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/blockly/name-field.test.js",
     "test:i18n": "tsc lib/i18n/messages.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/i18n/messages.test.js",
     "smoke": "node scripts/smoke.js",
     "test:email": "tsc lib/email/send.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/email/consent-email.test.js",
-    "test:animation": "tsc lib/models/proceduralAnimation.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/models/procedural-animation.test.js"
+    "test:animation": "tsc lib/models/proceduralAnimation.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/models/procedural-animation.test.js",
+    "test:custom-animation": "tsc lib/models/customAnimation.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/models/custom-animation.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
