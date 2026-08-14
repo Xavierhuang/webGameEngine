@@ -94,5 +94,101 @@
     "name": "Grid",
     "category": "abstract",
     "url": "/backdrops/grid.svg"
+  },
+  {
+    "id": "jungle",
+    "name": "Jungle",
+    "category": "outdoor",
+    "url": "/backdrops/jungle.svg"
+  },
+  {
+    "id": "volcano",
+    "name": "Volcano",
+    "category": "outdoor",
+    "url": "/backdrops/volcano.svg"
+  },
+  {
+    "id": "rain",
+    "name": "Rainy",
+    "category": "outdoor",
+    "url": "/backdrops/rain.svg"
+  },
+  {
+    "id": "farm",
+    "name": "Farm",
+    "category": "outdoor",
+    "url": "/backdrops/farm.svg"
+  },
+  {
+    "id": "galaxy",
+    "name": "Galaxy",
+    "category": "space",
+    "url": "/backdrops/galaxy.svg"
+  },
+  {
+    "id": "moon",
+    "name": "Moon Surface",
+    "category": "space",
+    "url": "/backdrops/moon.svg"
+  },
+  {
+    "id": "planet",
+    "name": "Alien Planet",
+    "category": "space",
+    "url": "/backdrops/planet.svg"
+  },
+  {
+    "id": "coral",
+    "name": "Coral Reef",
+    "category": "water",
+    "url": "/backdrops/coral.svg"
+  },
+  {
+    "id": "deep-sea",
+    "name": "Deep Sea",
+    "category": "water",
+    "url": "/backdrops/deep-sea.svg"
+  },
+  {
+    "id": "classroom",
+    "name": "Classroom",
+    "category": "indoor",
+    "url": "/backdrops/classroom.svg"
+  },
+  {
+    "id": "spaceship",
+    "name": "Spaceship",
+    "category": "indoor",
+    "url": "/backdrops/spaceship.svg"
+  },
+  {
+    "id": "dungeon",
+    "name": "Dungeon",
+    "category": "fantasy",
+    "url": "/backdrops/dungeon.svg"
+  },
+  {
+    "id": "candy",
+    "name": "Candy Land",
+    "category": "fantasy",
+    "url": "/backdrops/candy.svg"
+  },
+  {
+    "id": "stripes",
+    "name": "Stripes",
+    "category": "abstract",
+    "url": "/backdrops/stripes.svg"
+  },
+  {
+    "id": "dots",
+    "name": "Polka Dots",
+    "category": "abstract",
+    "url": "/backdrops/dots.svg"
+  },
+  {
+    "id": "sunrise-gradient",
+    "name": "Warm Glow",
+    "category": "abstract",
+    "url": "/backdrops/sunrise-gradient.svg"
   }
 ]

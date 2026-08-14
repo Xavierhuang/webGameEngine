@@ -291,6 +291,163 @@ const BACKDROPS = [
       return svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>${lines}`, linear('g', '#3A2E6B', '#6B4BA8'));
     },
   },
+  {
+    id: 'jungle', name: 'Jungle', category: 'outdoor',
+    build: () => {
+      const r = rng(131);
+      let leaves = '';
+      for (let i = 0; i < 40; i++) {
+        const x = (r() * W).toFixed(0), y = (r() * H).toFixed(0);
+        const s = (0.5 + r()).toFixed(2);
+        leaves += `<g transform="translate(${x} ${y}) scale(${s})" opacity="0.9"><ellipse rx="60" ry="18" fill="#2F7A45" transform="rotate(${(r()*180).toFixed(0)})"/></g>`;
+      }
+      return svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>${leaves}`, linear('g', '#1E5B33', '#57A868'));
+    },
+  },
+  {
+    id: 'volcano', name: 'Volcano', category: 'outdoor',
+    build: () => svg(
+      `<rect width="${W}" height="${H}" fill="url(#g)"/>` +
+      `<polygon points="${W*0.5},${H*0.28} ${W*0.15},${H} ${W*0.85},${H}" fill="#4A3138"/>` +
+      `<polygon points="${W*0.5},${H*0.28} ${W*0.42},${H*0.55} ${W*0.58},${H*0.55}" fill="#FF6B3D"/>`,
+      linear('g', '#3B1F2B', '#C9502F')
+    ),
+  },
+  {
+    id: 'rain', name: 'Rainy', category: 'outdoor',
+    build: () => {
+      const r = rng(137);
+      let drops = '';
+      for (let i = 0; i < 200; i++) {
+        const x = (r()*W).toFixed(0), y = (r()*H).toFixed(0);
+        drops += `<line x1="${x}" y1="${y}" x2="${(+x-4)}" y2="${(+y+14)}" stroke="#cfe6f5" stroke-width="1.5" opacity="0.55"/>`;
+      }
+      return svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>${clouds(139,5,0.6)}${drops}`, linear('g', '#5C6B7A', '#9FB2C2'));
+    },
+  },
+  {
+    id: 'farm', name: 'Farm', category: 'outdoor',
+    build: () => svg(
+      `<rect width="${W}" height="${H}" fill="url(#g)"/>${clouds(149,4)}` +
+      `<rect y="${H*0.62}" width="${W}" height="${H*0.38}" fill="#8FBF5A"/>` +
+      `<rect x="${W*0.6}" y="${H*0.4}" width="200" height="150" fill="#B4443A"/>` +
+      `<polygon points="${W*0.6},${H*0.4} ${W*0.6+100},${H*0.3} ${W*0.6+200},${H*0.4}" fill="#7C2E27"/>`,
+      linear('g', '#8FD8FF', '#E6F7FF')
+    ),
+  },
+  {
+    id: 'galaxy', name: 'Galaxy', category: 'space',
+    build: () => svg(
+      `<rect width="${W}" height="${H}" fill="url(#g)"/>${stars(151,400)}` +
+      `<ellipse cx="${W*0.5}" cy="${H*0.5}" rx="380" ry="90" fill="#A96BE0" opacity="0.22" transform="rotate(-20 ${W*0.5} ${H*0.5})"/>`,
+      linear('g', '#050418', '#1B0F3B')
+    ),
+  },
+  {
+    id: 'moon', name: 'Moon Surface', category: 'space',
+    build: () => {
+      const r = rng(157);
+      let craters = '';
+      for (let i = 0; i < 26; i++) {
+        craters += `<ellipse cx="${(r()*W).toFixed(0)}" cy="${(H*0.62+r()*H*0.38).toFixed(0)}" rx="${(10+r()*44).toFixed(0)}" ry="${(5+r()*16).toFixed(0)}" fill="#9AA0A8"/>`;
+      }
+      return svg(`<rect width="${W}" height="${H}" fill="#05060F"/>${stars(163,180)}<rect y="${H*0.6}" width="${W}" height="${H*0.4}" fill="#B8BEC6"/>${craters}`);
+    },
+  },
+  {
+    id: 'planet', name: 'Alien Planet', category: 'space',
+    build: () => svg(
+      `<rect width="${W}" height="${H}" fill="url(#g)"/>${stars(167,140)}` +
+      `<circle cx="${W*0.75}" cy="${H*0.25}" r="90" fill="#6BD98A" opacity="0.85"/>` +
+      hills(173, ['#5B3B7A', '#432B5C']),
+      linear('g', '#20103A', '#6B3F8C')
+    ),
+  },
+  {
+    id: 'coral', name: 'Coral Reef', category: 'water',
+    build: () => {
+      const r = rng(179);
+      let coral = '';
+      const colors = ['#FF6B6B', '#FFA96B', '#FF6BB5', '#6BD9C9'];
+      for (let i = 0; i < 26; i++) {
+        const x = (r()*W).toFixed(0);
+        const h = (40+r()*130).toFixed(0);
+        coral += `<rect x="${x}" y="${H-+h}" width="${(8+r()*16).toFixed(0)}" height="${h}" rx="8" fill="${colors[i%4]}" opacity="0.85"/>`;
+      }
+      return svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>${coral}`, linear('g', '#0E6E8C', '#4FC3D9'));
+    },
+  },
+  {
+    id: 'deep-sea', name: 'Deep Sea', category: 'water',
+    build: () => svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>${stars(181,60)}`, linear('g', '#010A1A', '#06344F')),
+  },
+  {
+    id: 'classroom', name: 'Classroom', category: 'indoor',
+    build: () => svg(
+      `<rect width="${W}" height="${H}" fill="#EFE7D6"/>` +
+      `<rect y="${H*0.72}" width="${W}" height="${H*0.28}" fill="#9C7448"/>` +
+      `<rect x="${W*0.18}" y="${H*0.18}" width="${W*0.5}" height="${H*0.38}" rx="6" fill="#2F5F4A" stroke="#7C5A32" stroke-width="14"/>`
+    ),
+  },
+  {
+    id: 'spaceship', name: 'Spaceship', category: 'indoor',
+    build: () => {
+      let panels = '';
+      for (let x = 40; x < W; x += 120) {
+        panels += `<rect x="${x}" y="${H*0.2}" width="90" height="60" rx="6" fill="#2B3A5C"/>`;
+        panels += `<circle cx="${x+45}" cy="${H*0.2+30}" r="10" fill="#6BD9C9" opacity="0.8"/>`;
+      }
+      return svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>${panels}<rect y="${H*0.75}" width="${W}" height="${H*0.25}" fill="#243049"/>`, linear('g', '#16203A', '#33456B'));
+    },
+  },
+  {
+    id: 'dungeon', name: 'Dungeon', category: 'fantasy',
+    build: () => {
+      let bricks = '';
+      for (let y = 0; y < H; y += 48) {
+        for (let x = (y/48)%2 ? -40 : 0; x < W; x += 80) {
+          bricks += `<rect x="${x}" y="${y}" width="76" height="44" rx="3" fill="#3A3440" stroke="#2A252F" stroke-width="2"/>`;
+        }
+      }
+      return svg(`<rect width="${W}" height="${H}" fill="#2A252F"/>${bricks}`);
+    },
+  },
+  {
+    id: 'candy', name: 'Candy Land', category: 'fantasy',
+    build: () => {
+      const r = rng(191);
+      let sweets = '';
+      for (let i = 0; i < 30; i++) {
+        sweets += `<circle cx="${(r()*W).toFixed(0)}" cy="${(r()*H).toFixed(0)}" r="${(8+r()*22).toFixed(0)}" fill="${['#FF6BB5','#FFD46B','#6BD9C9','#B56BFF'][i%4]}" opacity="0.85"/>`;
+      }
+      return svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>${sweets}`, linear('g', '#FFD9EC', '#FFF6FB'));
+    },
+  },
+  {
+    id: 'stripes', name: 'Stripes', category: 'abstract',
+    build: () => {
+      let bars = '';
+      const cols = ['#FF6B6B','#FFA96B','#FFE66B','#6BD98A','#6BC5FF','#9B6BFF'];
+      for (let i = 0, x = 0; x < W; i++, x += 86) {
+        bars += `<rect x="${x}" y="0" width="86" height="${H}" fill="${cols[i%cols.length]}" opacity="0.9"/>`;
+      }
+      return svg(bars);
+    },
+  },
+  {
+    id: 'dots', name: 'Polka Dots', category: 'abstract',
+    build: () => {
+      let dots = '';
+      for (let y = 40; y < H; y += 80) for (let x = 40; x < W; x += 80) {
+        dots += `<circle cx="${x}" cy="${y}" r="18" fill="#fff" opacity="0.35"/>`;
+      }
+      return svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>${dots}`, linear('g', '#3AA6C9', '#7BD5E8'));
+    },
+  },
+  {
+    id: 'sunrise-gradient', name: 'Warm Glow', category: 'abstract',
+    build: () => svg(`<rect width="${W}" height="${H}" fill="url(#g)"/>`, linear('g', '#FF7E5F', '#FEB47B')),
+  },
 ];
 
 fs.mkdirSync(OUT, { recursive: true });

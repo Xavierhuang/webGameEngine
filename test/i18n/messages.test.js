@@ -31,12 +31,27 @@ for (const locale of LOCALES) {
   eq(blanks.length, 0, `${locale}: no blank translations`);
 }
 
-// zh must not simply echo the English string (catches copy-paste stubs).
-{
+/**
+ * Words that are legitimately identical to the English. Listing them
+ * explicitly keeps the echo check strict everywhere else — the alternative,
+ * loosening the rule, would let real copy-paste stubs through.
+ */
+const SAME_AS_ENGLISH = new Set([
+  'fr:toolbar.obstacle',   // "Obstacle" is the same word in French
+  'pt:project.remixes',    // "remixes" is used as-is in Portuguese
+]);
+
+// No locale may simply echo the English string — that is what a half-finished
+// translation looks like, and it is invisible without this check.
+for (const locale of LOCALES) {
+  if (locale === 'en') continue;
   const echoed = Object.keys(MESSAGES.en).filter(
-    (k) => MESSAGES.zh[k] === MESSAGES.en[k] && /[a-z]/i.test(MESSAGES.en[k])
+    (k) =>
+      MESSAGES[locale][k] === MESSAGES.en[k] &&
+      /[a-z]/i.test(MESSAGES.en[k]) &&
+      !SAME_AS_ENGLISH.has(`${locale}:${k}`)
   );
-  eq(echoed.length, 0, `zh: no untranslated copies${echoed.length ? ` (${echoed.slice(0, 3).join(', ')})` : ''}`);
+  eq(echoed.length, 0, `${locale}: no untranslated copies${echoed.length ? ` (${echoed.slice(0, 3).join(', ')})` : ''}`);
 }
 
 // --- translate() ------------------------------------------------------------
@@ -44,14 +59,16 @@ eq(translate('en', 'nav.explore'), 'Explore', 'translate returns the English str
 eq(translate('zh', 'nav.explore'), '发现', 'translate returns the Chinese string');
 eq(translate('en', 'not.a.key'), 'not.a.key', 'unknown key falls back to the key itself');
 // An unknown locale falls back to English rather than throwing.
-eq(translate('de', 'nav.explore'), 'Explore', 'unknown locale falls back to English');
+eq(translate('sw', 'nav.explore'), 'Explore', 'unknown locale falls back to English');
 
 // --- resolveLocale ----------------------------------------------------------
 eq(resolveLocale('zh'), 'zh', 'exact locale');
 eq(resolveLocale('zh-CN'), 'zh', 'regional variant narrows to base locale');
 eq(resolveLocale('ZH-Hans'), 'zh', 'case-insensitive');
 eq(resolveLocale('en-GB'), 'en', 'en-GB narrows to en');
-eq(resolveLocale('fr'), DEFAULT_LOCALE, 'unsupported locale falls back to the default');
+eq(resolveLocale('sw'), DEFAULT_LOCALE, 'unsupported locale falls back to the default');
+eq(resolveLocale('fr'), 'fr', 'newly supported locale resolves');
+eq(resolveLocale('ja-JP'), 'ja', 'regional Japanese narrows to ja');
 eq(resolveLocale(null), DEFAULT_LOCALE, 'null falls back to the default');
 eq(resolveLocale(''), DEFAULT_LOCALE, 'empty string falls back to the default');
 // A locale must never be inferred from a substring match.
