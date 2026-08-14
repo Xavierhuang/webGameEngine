@@ -11,6 +11,9 @@ interface SceneTabsProps {
   onAdd: () => void;
   onRename: (sceneId: string, name: string) => void;
   onDelete: (sceneId: string) => void;
+  /** Open the backdrop picker for the active scene. */
+  onChooseBackdrop?: () => void;
+  currentBackdropUrl?: string | null;
 }
 
 /**
@@ -27,6 +30,8 @@ export default function SceneTabs({
   onAdd,
   onRename,
   onDelete,
+  onChooseBackdrop,
+  currentBackdropUrl,
 }: SceneTabsProps) {
   const t = useTranslator();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -112,6 +117,20 @@ export default function SceneTabs({
           );
         })}
       </ul>
+
+      {onChooseBackdrop && (
+        <button
+          onClick={onChooseBackdrop}
+          className="mt-2 flex w-full items-center gap-2 rounded-lg border border-slate-200 px-2 py-1.5 text-left text-xs font-semibold text-slate-600 transition hover:border-slate-300"
+          title="Choose a backdrop for this scene"
+        >
+          <span
+            className="h-6 w-9 shrink-0 rounded border border-slate-200 bg-slate-100 bg-cover bg-center"
+            style={currentBackdropUrl ? { backgroundImage: `url(${currentBackdropUrl})` } : undefined}
+          />
+          {currentBackdropUrl ? 'Change backdrop' : 'Add a backdrop'}
+        </button>
+      )}
     </div>
   );
 }

@@ -1,6 +1,15 @@
 'use client';
 
 import { getSound, isSampleUrl } from './soundCatalog';
+import {
+  midiToFrequency,
+  beatsToSeconds,
+  clampTempo,
+  DRUMS,
+  INSTRUMENTS,
+  type DrumId,
+  type InstrumentId,
+} from './music';
 
 class AudioManager {
   private static instance: AudioManager | null = null;
@@ -13,6 +22,9 @@ class AudioManager {
   private activeSources = new Set<AudioScheduledSourceNode>();
   /** Decoded audio files, keyed by URL, so loops don't refetch. */
   private sampleCache = new Map<string, AudioBuffer>();
+  /** Music extension state (Scratch keeps tempo and instrument per target). */
+  private tempo = 60;
+  private instrument: InstrumentId = 'piano';
   private samplesLoading = new Set<string>();
 
   static get(): AudioManager {
@@ -186,6 +198,103 @@ class AudioManager {
     src.start();
     this.activeSources.add(src);
     src.onended = () => this.activeSources.delete(src);
+  }
+
+  // --- Music extension -----------------------------------------------------
+
+  setTempo(bpm: number) { this.tempo = clampTempo(bpm); }
+  changeTempoBy(delta: number) { this.tempo = clampTempo(this.tempo + Number(delta || 0)); }
+  getTempo(): number { return this.tempo; }
+  setInstrument(id: string) {
+    if (id in INSTRUMENTS) this.instrument = id as InstrumentId;
+  }
+
+  /** Play a MIDI note for a number of beats. Returns its duration in seconds. */
+  playNote(note: number, beats: number, volume = 1): number {
+    this.ensureContext();
+    if (!this.context || !this.masterGain) return 0;
+
+    const duration = beatsToSeconds(beats, this.tempo);
+    if (duration <= 0) return 0;
+
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    const timbre = INSTRUMENTS[this.instrument];
+
+    const osc = ctx.createOscillator();
+    osc.type = timbre.wave;
+    osc.frequency.setValueAtTime(midiToFrequency(note), now);
+
+    const gain = ctx.createGain();
+    const peak = Math.max(0.0001, 0.35 * Math.max(0, Math.min(1, volume)));
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(peak, now + 0.01);
+    // A percussive instrument decays well before the beat ends; a sustained one
+    // holds until it does.
+    const decayAt = now + Math.max(0.02, duration * (1 - timbre.decay));
+    gain.gain.setValueAtTime(peak, decayAt);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + duration + 0.02);
+    this.activeSources.add(osc);
+    osc.onended = () => this.activeSources.delete(osc);
+
+    return duration;
+  }
+
+  /** Play a drum for a number of beats. Returns the beat duration in seconds. */
+  playDrum(drum: string, beats: number, volume = 1): number {
+    this.ensureContext();
+    if (!this.context || !this.masterGain) return 0;
+
+    const spec = DRUMS[drum as DrumId] ?? DRUMS.snare;
+    const beatSeconds = beatsToSeconds(beats, this.tempo);
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    // The drum hit is its own length; the block still waits the full beat.
+    const hit = Math.min(spec.duration, Math.max(0.03, beatSeconds || spec.duration));
+
+    const gain = ctx.createGain();
+    const peak = Math.max(0.0001, spec.gain * Math.max(0, Math.min(1, volume)));
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(peak, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + hit);
+    gain.connect(this.masterGain);
+
+    let source: AudioScheduledSourceNode;
+    if (spec.wave === 'noise') {
+      const frames = Math.max(1, Math.floor(ctx.sampleRate * hit));
+      const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(spec.cutoff ?? 4000, now);
+      noise.connect(filter);
+      filter.connect(gain);
+      source = noise;
+    } else {
+      const osc = ctx.createOscillator();
+      osc.type = spec.wave;
+      osc.frequency.setValueAtTime(spec.freq, now);
+      if (spec.toFreq !== undefined) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(1, spec.toFreq), now + hit);
+      }
+      osc.connect(gain);
+      source = osc;
+    }
+
+    source.start(now);
+    source.stop(now + hit + 0.02);
+    this.activeSources.add(source);
+    source.onended = () => this.activeSources.delete(source);
+
+    return beatSeconds || hit;
   }
 
   /** Stop every playing SFX and the beat loop (Scratch `stop all sounds`). */

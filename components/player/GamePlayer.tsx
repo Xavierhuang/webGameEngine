@@ -6,6 +6,7 @@ import { Box, Sphere, Grid, useGLTF, Html } from '@react-three/drei';
 import { RotateCcw, Square, Maximize } from 'lucide-react';
 import { TouchControls } from './TouchControls';
 import { parseAnimations, findAnimation, sampleAnimation } from '../../lib/models/customAnimation';
+import { beatsToSeconds } from '../../lib/audio/music';
 import { useTranslator } from '../common/LocaleProvider';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
@@ -908,6 +909,16 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   const effectsRef = useRef<Record<string, number>>({});
   /** Name of the custom animation currently playing, and when it started. */
   const customAnimRef = useRef<{ name: string; startedAt: number } | null>(null);
+  /** Pen trail: a list of strokes, each a list of world-space points. */
+  const penStateRef = useRef<{ down: boolean; color: string; size: number; points: number[][][] }>({
+    down: false,
+    color: '#ff3b30',
+    size: 4,
+    points: [],
+  });
+  const [penStrokes, setPenStrokes] = useState<number[][][]>([]);
+  /** Throttles how often the trail is re-published to React state. */
+  const penTickRef = useRef(0);
   const layerRef = useRef(0);
   const [bubble, setBubble] = useState<{ text: string; style: 'say' | 'think'; expiresAt: number | null } | null>(null);
   // Costumes (Scratch analog) — refs feed the runtime callbacks (built once); state drives the appearance re-render.
@@ -1113,6 +1124,54 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       changeLayerBy: (delta) => { layerRef.current += delta; },
       // ask-and-wait: the prompt UI is stage-level, so delegate to the player.
       ask: (prompt) => world.onAsk?.(prompt) ?? Promise.resolve(''),
+      // --- Music extension. AudioManager owns tempo/instrument state. ---
+      playNote: (note, beats) => {
+        try { return AudioManager.get().playNote(note, beats); }
+        catch { return 0; }
+      },
+      playDrum: (drum, beats) => {
+        try { return AudioManager.get().playDrum(drum, beats); }
+        catch { return 0; }
+      },
+      restForBeats: (beats) => {
+        try { return beatsToSeconds(beats, AudioManager.get().getTempo()); }
+        catch { return 0; }
+      },
+      setInstrument: (id) => { try { AudioManager.get().setInstrument(id); } catch { /* noop */ } },
+      setTempo: (bpm) => { try { AudioManager.get().setTempo(bpm); } catch { /* noop */ } },
+      changeTempoBy: (delta) => { try { AudioManager.get().changeTempoBy(delta); } catch { /* noop */ } },
+
+      // --- Text-to-speech via the browser's SpeechSynthesis. ---
+      speak: (text, untilDone) => {
+        const value = String(text ?? '').trim();
+        if (!value || typeof window === 'undefined' || !window.speechSynthesis) {
+          return untilDone ? Promise.resolve() : undefined;
+        }
+        const utterance = new SpeechSynthesisUtterance(value);
+        if (!untilDone) {
+          window.speechSynthesis.speak(utterance);
+          return;
+        }
+        return new Promise<void>((resolve) => {
+          // Resolve on error too, or a script would hang forever when speech
+          // is unavailable or interrupted.
+          utterance.onend = () => resolve();
+          utterance.onerror = () => resolve();
+          window.speechSynthesis.speak(utterance);
+        });
+      },
+
+      // --- Pen extension. Trails are sampled per frame while the pen is down
+      // and drawn as a line following the object. ---
+      penDown: (down) => {
+        penStateRef.current.down = down;
+        // Starting a new stroke shouldn't connect to where the pen was lifted.
+        if (down) penStateRef.current.points.push([]);
+      },
+      penClear: () => { penStateRef.current.points = []; },
+      penSetColor: (hex) => { penStateRef.current.color = hex; },
+      penSetSize: (size) => { penStateRef.current.size = Math.max(1, Math.min(50, size)); },
+
       // Custom animations authored in the Animation Editor and saved onto the
       // object's properties.animations.
       switchAnimation: (name) => {
@@ -1540,6 +1599,29 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
 
       meshRef.current.renderOrder = layerRef.current;
 
+      // Pen: sample the object's world position into the active stroke while
+      // the pen is down. Sampling on movement only keeps the point count sane.
+      const pen = penStateRef.current;
+      if (pen.down) {
+        const stroke = pen.points[pen.points.length - 1];
+        if (stroke) {
+          const p = meshRef.current.position;
+          const last = stroke[stroke.length - 1];
+          const moved =
+            !last ||
+            Math.abs(last[0] - p.x) > 0.02 ||
+            Math.abs(last[1] - p.y) > 0.02 ||
+            Math.abs(last[2] - p.z) > 0.02;
+          if (moved) {
+            stroke.push([p.x, p.y, p.z]);
+            // Cap total points so a forever-loop can't grow this without bound.
+            if (stroke.length > 2000) stroke.shift();
+            penTickRef.current = (penTickRef.current + 1) % 6;
+            if (penTickRef.current === 0) setPenStrokes(pen.points.map((s) => s.slice()));
+          }
+        }
+      }
+
       // Custom keyframe animations saved by the Animation Editor. Applied
       // after effects so it wins over the rest pose, and only while one is
       // actually playing.
@@ -1695,6 +1777,47 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         <meshStandardMaterial color={color} />
       </Box>
       <FollowerBubble meshRef={meshRef} bubble={bubble} yOffset={scaleValue * 0.7 + 0.4} />
+      <PenTrail strokes={penStrokes} color={penStateRef.current.color} size={penStateRef.current.size} />
     </>
   );
 });
+
+/**
+ * The Pen extension's output. Scratch draws on a 2D canvas; in 3D the natural
+ * equivalent is a ribbon of line segments through the points the object passed.
+ */
+function PenTrail({
+  strokes,
+  color,
+  size,
+}: {
+  strokes: number[][][];
+  color: string;
+  size: number;
+}) {
+  if (!strokes || strokes.length === 0) return null;
+  return (
+    <>
+      {strokes.map((stroke, i) => {
+        // A line needs at least two points.
+        if (!stroke || stroke.length < 2) return null;
+        const positions = new Float32Array(stroke.flat());
+        return (
+          <line key={i}>
+            <bufferGeometry>
+              <bufferAttribute
+                attach="attributes-position"
+                args={[positions, 3]}
+                count={stroke.length}
+                array={positions}
+                itemSize={3}
+              />
+            </bufferGeometry>
+            {/* linewidth is capped at 1 by most WebGL drivers; kept for intent. */}
+            <lineBasicMaterial color={color} linewidth={size} />
+          </line>
+        );
+      })}
+    </>
+  );
+}

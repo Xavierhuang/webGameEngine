@@ -1,0 +1,98 @@
+[
+  {
+    "id": "blue-sky",
+    "name": "Blue Sky",
+    "category": "outdoor",
+    "url": "/backdrops/blue-sky.svg"
+  },
+  {
+    "id": "sunset",
+    "name": "Sunset",
+    "category": "outdoor",
+    "url": "/backdrops/sunset.svg"
+  },
+  {
+    "id": "green-hills",
+    "name": "Green Hills",
+    "category": "outdoor",
+    "url": "/backdrops/green-hills.svg"
+  },
+  {
+    "id": "night-sky",
+    "name": "Night Sky",
+    "category": "space",
+    "url": "/backdrops/night-sky.svg"
+  },
+  {
+    "id": "outer-space",
+    "name": "Outer Space",
+    "category": "space",
+    "url": "/backdrops/outer-space.svg"
+  },
+  {
+    "id": "underwater",
+    "name": "Underwater",
+    "category": "water",
+    "url": "/backdrops/underwater.svg"
+  },
+  {
+    "id": "beach",
+    "name": "Beach",
+    "category": "outdoor",
+    "url": "/backdrops/beach.svg"
+  },
+  {
+    "id": "desert",
+    "name": "Desert",
+    "category": "outdoor",
+    "url": "/backdrops/desert.svg"
+  },
+  {
+    "id": "snow",
+    "name": "Snowy",
+    "category": "outdoor",
+    "url": "/backdrops/snow.svg"
+  },
+  {
+    "id": "forest",
+    "name": "Forest",
+    "category": "outdoor",
+    "url": "/backdrops/forest.svg"
+  },
+  {
+    "id": "city",
+    "name": "City",
+    "category": "indoor",
+    "url": "/backdrops/city.svg"
+  },
+  {
+    "id": "room",
+    "name": "Room",
+    "category": "indoor",
+    "url": "/backdrops/room.svg"
+  },
+  {
+    "id": "castle",
+    "name": "Castle",
+    "category": "fantasy",
+    "url": "/backdrops/castle.svg"
+  },
+  {
+    "id": "cave",
+    "name": "Cave",
+    "category": "fantasy",
+    "url": "/backdrops/cave.svg"
+  },
+  {
+    "id": "rainbow",
+    "name": "Rainbow",
+    "category": "abstract",
+    "url": "/backdrops/rainbow.svg"
+  },
+  {
+    "id": "grid",
+    "name": "Grid",
+    "category": "abstract",
+    "url": "/backdrops/grid.svg"
+  }
+]

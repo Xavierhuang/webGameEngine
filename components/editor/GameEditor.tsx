@@ -12,6 +12,7 @@ import { LogoMark } from '../common/AppNav';
 import Toolbar from './Toolbar';
 import ObjectsPanel from './ObjectsPanel';
 import SceneTabs from './SceneTabs';
+import BackdropSelector from './BackdropSelector';
 import SceneView from './SceneView';
 import PropertiesPanel from './PropertiesPanel';
 import AIAssistant from './AIAssistant';
@@ -95,6 +96,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [focusRequest, setFocusRequest] = useState(0);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showBackdropSelector, setShowBackdropSelector] = useState(false);
   const orbitRef = useRef<any>(null);
 
   // Eager starter-GLB preload — starts downloading every starter model the
@@ -234,6 +236,30 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
       setSelectedObject(null);
     } catch (error) {
       console.error('Failed to add scene:', error);
+    }
+  };
+
+  /** Set (or clear) the current scene's backdrop image. */
+  const setBackdrop = async (url: string | null) => {
+    const sceneId = (currentScene as any)?.id;
+    if (!sceneId) return;
+
+    setProject((prev: any) => ({
+      ...prev,
+      scenes: (prev.scenes ?? []).map((s: any) =>
+        s.id === sceneId ? { ...s, background_image_url: url } : s
+      ),
+    }));
+    setCurrentScene((cur: any) => (cur?.id === sceneId ? { ...cur, background_image_url: url } : cur));
+
+    try {
+      await fetch(`/api/scenes/${sceneId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ background_image_url: url }),
+      });
+    } catch (error) {
+      console.error('Failed to set backdrop:', error);
     }
   };
 
@@ -672,6 +698,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             onAdd={addScene}
             onRename={renameScene}
             onDelete={deleteScene}
+            onChooseBackdrop={() => setShowBackdropSelector(true)}
+            currentBackdropUrl={(currentScene as any)?.background_image_url ?? null}
           />
           <ObjectsPanel
             scene={currentScene}
@@ -1019,6 +1047,15 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           </ErrorBoundary>
         </div>
       </div>
+
+      {showBackdropSelector && (
+        <BackdropSelector
+          isOpen={showBackdropSelector}
+          onClose={() => setShowBackdropSelector(false)}
+          currentUrl={(currentScene as any)?.background_image_url ?? null}
+          onSelect={setBackdrop}
+        />
+      )}
 
       {showShareDialog && (
         <ShareDialog

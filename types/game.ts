@@ -125,6 +125,22 @@ export type LogicBlockType =
   | 'switch_costume_to'
   | 'next_costume'
   | 'switch_animation_to'
+  // Music extension
+  | 'play_note'
+  | 'play_drum'
+  | 'rest_for_beats'
+  | 'set_instrument'
+  | 'set_tempo'
+  | 'change_tempo_by'
+  // Text-to-speech
+  | 'speak'
+  | 'speak_until_done'
+  // Pen extension
+  | 'pen_down'
+  | 'pen_up'
+  | 'pen_clear'
+  | 'pen_set_color'
+  | 'pen_set_size'
   // Graphic effects + layer ordering
   | 'set_effect'
   | 'change_effect_by'

@@ -686,6 +686,27 @@ export interface RuntimeContext {
    */
   switchAnimation?(name: string): void;
 
+  // --- Music extension. Each returns the duration in seconds so the
+  // interpreter can block for it, matching Scratch's timing. ---
+  playNote?(note: number, beats: number): number;
+  playDrum?(drum: string, beats: number): number;
+  restForBeats?(beats: number): number;
+  setInstrument?(id: string): void;
+  setTempo?(bpm: number): void;
+  changeTempoBy?(delta: number): void;
+
+  // --- Pen extension. In 3D the "trail" is a ribbon of points left behind. ---
+  penDown?(down: boolean): void;
+  penClear?(): void;
+  penSetColor?(hex: string): void;
+  penSetSize?(size: number): void;
+
+  /**
+   * Speak text aloud. When `untilDone` the promise resolves when speech ends,
+   * so the block can block; otherwise it is fire-and-forget.
+   */
+  speak?(text: string, untilDone: boolean): Promise<void> | void;
+
   // --- Graphic effects ---
   /** Apply a named effect ('ghost' | 'brightness' | 'color') at an already-clamped value. */
   setEffect?(effect: string, value: number): void;
@@ -1357,6 +1378,72 @@ export class ObjectRuntime {
         case 'next_costume':
           this.ctx.nextCostume?.();
           return;
+        // --- Music extension ---
+        // play note/drum and rest all block for their duration, matching
+        // Scratch, so a melody written as a stack plays in sequence.
+        case 'play_note': {
+          const note = toNumber(getInput(block, 'note', env, 60));
+          const beats = toNumber(getInput(block, 'beats', env, 1));
+          const seconds = this.ctx.playNote?.(note, beats) ?? 0;
+          if (seconds > 0) yield { type: 'wait', seconds };
+          return;
+        }
+        case 'play_drum': {
+          const drum = String(getInput(block, 'drum', env, 'snare'));
+          const beats = toNumber(getInput(block, 'beats', env, 0.25));
+          const seconds = this.ctx.playDrum?.(drum, beats) ?? 0;
+          if (seconds > 0) yield { type: 'wait', seconds };
+          return;
+        }
+        case 'rest_for_beats': {
+          const beats = toNumber(getInput(block, 'beats', env, 1));
+          const seconds = this.ctx.restForBeats?.(beats) ?? 0;
+          if (seconds > 0) yield { type: 'wait', seconds };
+          return;
+        }
+        case 'set_instrument':
+          this.ctx.setInstrument?.(String(getInput(block, 'instrument', env, 'piano')));
+          return;
+        case 'set_tempo':
+          this.ctx.setTempo?.(toNumber(getInput(block, 'tempo', env, 60)));
+          return;
+        case 'change_tempo_by':
+          this.ctx.changeTempoBy?.(toNumber(getInput(block, 'delta', env, 20)));
+          return;
+
+        // --- Text-to-speech ---
+        case 'speak':
+          this.ctx.speak?.(String(getInput(block, 'text', env, '')), false);
+          return;
+        case 'speak_until_done': {
+          const text = String(getInput(block, 'text', env, ''));
+          if (!this.ctx.speak) return;
+          let done = false;
+          Promise.resolve(this.ctx.speak(text, true)).then(
+            () => { done = true; },
+            () => { done = true; }
+          );
+          while (!done) yield { type: 'frame' };
+          return;
+        }
+
+        // --- Pen extension ---
+        case 'pen_down':
+          this.ctx.penDown?.(true);
+          return;
+        case 'pen_up':
+          this.ctx.penDown?.(false);
+          return;
+        case 'pen_clear':
+          this.ctx.penClear?.();
+          return;
+        case 'pen_set_color':
+          this.ctx.penSetColor?.(String(getInput(block, 'hex', env, '#ff3b30')));
+          return;
+        case 'pen_set_size':
+          this.ctx.penSetSize?.(toNumber(getInput(block, 'size', env, 4)));
+          return;
+
         case 'switch_animation_to':
           this.ctx.switchAnimation?.(String(getInput(block, 'name', env, '')));
           return;

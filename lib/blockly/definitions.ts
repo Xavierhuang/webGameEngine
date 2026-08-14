@@ -17,6 +17,7 @@
 // soundCatalog is pure data with no imports of its own, so pulling it in here
 // keeps this module node-requirable for the serializer tests.
 import { soundDropdownOptions } from '../audio/soundCatalog';
+import { drumOptions, instrumentOptions } from '../audio/music';
 
 export interface BlockSpec {
   fields: string[];
@@ -37,6 +38,8 @@ const COLOUR = {
   sensing: 200,
   looks: 320,
   ai: 20,
+  music: 300,
+  pen: 175,
 };
 
 const KEY_OPTIONS: [string, string][] = [
@@ -360,6 +363,59 @@ const statementDefs: object[] = [
   },
   { type: 'reset_timer', message0: 'reset timer', previousStatement: null, nextStatement: null, colour: COLOUR.sensing },
 
+  // --- Music extension (Scratch parity) ---
+  {
+    type: 'play_note', message0: 'play note %1 for %2 beats', args0: [value('note'), value('beats')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.music,
+  },
+  {
+    type: 'play_drum', message0: 'play drum %1 for %2 beats',
+    args0: [dropdown('drum', drumOptions()), value('beats')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.music,
+  },
+  {
+    type: 'rest_for_beats', message0: 'rest for %1 beats', args0: [value('beats')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.music,
+  },
+  {
+    type: 'set_instrument', message0: 'set instrument to %1',
+    args0: [dropdown('instrument', instrumentOptions())],
+    previousStatement: null, nextStatement: null, colour: COLOUR.music,
+  },
+  {
+    type: 'set_tempo', message0: 'set tempo to %1 bpm', args0: [value('tempo')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.music,
+  },
+  {
+    type: 'change_tempo_by', message0: 'change tempo by %1', args0: [value('delta')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.music,
+  },
+
+  // --- Text-to-speech. Uses the browser's built-in SpeechSynthesis, so unlike
+  // Scratch's TTS there is no external service or API key involved. ---
+  {
+    type: 'speak', message0: 'speak %1', args0: [value('text')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.music,
+  },
+  {
+    type: 'speak_until_done', message0: 'speak %1 until done', args0: [value('text')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.music,
+  },
+
+  // --- Pen extension. In 3D a "trail" is a ribbon of points the object leaves
+  // behind, rather than marks on a 2D canvas. ---
+  { type: 'pen_down', message0: 'pen down', previousStatement: null, nextStatement: null, colour: COLOUR.pen },
+  { type: 'pen_up', message0: 'pen up', previousStatement: null, nextStatement: null, colour: COLOUR.pen },
+  { type: 'pen_clear', message0: 'erase all pen', previousStatement: null, nextStatement: null, colour: COLOUR.pen },
+  {
+    type: 'pen_set_color', message0: 'set pen color to %1', args0: [text('hex', '#ff3b30')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.pen,
+  },
+  {
+    type: 'pen_set_size', message0: 'set pen size to %1', args0: [value('size')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.pen,
+  },
+
   // Phase 5c: AI blocks
   {
     type: 'ask_ai', message0: 'ask AI %1 store in %2', args0: [value('prompt'), text('into_var', 'answer')],
@@ -643,6 +699,29 @@ export const TOOLBOX = {
         blk('expr_object_rotation_x'),
         blk('expr_object_rotation_y'),
         blk('expr_object_rotation_z'),
+      ],
+    },
+    {
+      kind: 'category', name: 'Music', colour: String(COLOUR.music),
+      contents: [
+        blk('play_note', { note: numShadow(60), beats: numShadow(1) }),
+        blk('play_drum', { beats: numShadow(0.25) }),
+        blk('rest_for_beats', { beats: numShadow(1) }),
+        blk('set_instrument'),
+        blk('set_tempo', { tempo: numShadow(60) }),
+        blk('change_tempo_by', { delta: numShadow(20) }),
+        blk('speak', { text: textShadow('Hello!') }),
+        blk('speak_until_done', { text: textShadow('Hello!') }),
+      ],
+    },
+    {
+      kind: 'category', name: 'Pen', colour: String(COLOUR.pen),
+      contents: [
+        blk('pen_down'),
+        blk('pen_up'),
+        blk('pen_clear'),
+        blk('pen_set_color'),
+        blk('pen_set_size', { size: numShadow(4) }),
       ],
     },
     { kind: 'category', name: 'My Blocks', colour: '290', custom: 'PROCEDURE' },
