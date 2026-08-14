@@ -14,6 +14,7 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import AudioManager from '../../lib/audio/AudioManager';
+import { applyTexture } from '../../lib/models/textureMaterial';
 import AnimatedModel from './AnimatedModel';
 import { focusSceneCamera } from '../../lib/editor/cameraFocus';
 
@@ -151,9 +152,18 @@ function GameObject({
   const rotationStartPositionRef = useRef<[number, number, number] | null>(null);
   const [localRotation, setLocalRotation] = useState<[number, number, number] | null>(null);
 
+  const textureCacheRef = useRef<{ url: string | null; texture: any }>({ url: null, texture: null });
+
   useFrame(() => {
     if (meshRef.current && object.properties?.animate) {
       meshRef.current.rotation.y += 0.01;
+    }
+    // Show the child's drawing in the editor exactly as the player will.
+    if (meshRef.current) {
+      const props = typeof object.properties === 'string'
+        ? (() => { try { return JSON.parse(object.properties || '{}'); } catch { return {}; } })()
+        : (object.properties || {});
+      applyTexture(meshRef.current, props?.texture_url, textureCacheRef.current);
     }
   });
 

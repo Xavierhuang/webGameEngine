@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, Bone } from 'lucide-react';
+import { Trash2, Bone, Brush } from 'lucide-react';
 import AudioManager from '@/lib/audio/AudioManager';
 import AnimationEditor from './AnimationEditor';
+import PaintEditor from './PaintEditor';
 
 interface PropertiesPanelProps {
   selectedObject: any;
@@ -21,6 +22,14 @@ export default function PropertiesPanel({
   onClearHistoryForObject,
 }: PropertiesPanelProps) {
   const [showAnimationEditor, setShowAnimationEditor] = useState(false);
+  const [showPaintEditor, setShowPaintEditor] = useState(false);
+
+  // `properties` arrives as either a string or an object depending on the
+  // driver, which is why this parse appears throughout the file.
+  const currentProps = typeof selectedObject?.properties === 'string'
+    ? (() => { try { return JSON.parse(selectedObject.properties || '{}'); } catch { return {}; } })()
+    : (selectedObject?.properties || {});
+  const texturePropUrl: string | null = currentProps?.texture_url ?? null;
   const [animationEditorModelUrl, setAnimationEditorModelUrl] = useState<string>('');
   const [availableAnimations, setAvailableAnimations] = useState<string[]>([]);
   
@@ -383,6 +392,24 @@ export default function PropertiesPanel({
             onChange={(e) => onUpdate({ color: e.target.value })}
             className="w-full h-10 rounded-lg cursor-pointer"
           />
+
+          {/* Draw your own — the 3D analogue of a Scratch costume, applied as
+              the object's surface texture. */}
+          <button
+            onClick={() => setShowPaintEditor(true)}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
+          >
+            <Brush className="h-3.5 w-3.5" />
+            {texturePropUrl ? 'Edit drawing' : 'Draw your own'}
+          </button>
+          {texturePropUrl && (
+            <button
+              onClick={() => onUpdate({ properties: { ...currentProps, texture_url: null } })}
+              className="mt-1 w-full text-center text-xs text-slate-500 hover:text-slate-800"
+            >
+              Remove drawing
+            </button>
+          )}
         </div>
 
         {/* Costumes (Scratch analog — alternate appearances the runtime can switch to) */}
@@ -629,6 +656,31 @@ export default function PropertiesPanel({
           </div>
         )}
       </div>
+
+      {showPaintEditor && (
+        <PaintEditor
+          isOpen={showPaintEditor}
+          onClose={() => setShowPaintEditor(false)}
+          initialUrl={texturePropUrl}
+          onSave={async (dataUrl) => {
+            try {
+              const response = await fetch('/api/uploads/texture', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dataUrl, name: selectedObject?.name }),
+              });
+              const data = await response.json().catch(() => ({}));
+              if (response.ok && data?.url) {
+                onUpdate({ properties: { ...currentProps, texture_url: data.url } });
+              } else {
+                console.error('[paint] save failed:', data?.error);
+              }
+            } catch (error) {
+              console.error('[paint] save failed:', error);
+            }
+          }}
+        />
+      )}
 
       {/* Animation Editor Modal */}
       {showAnimationEditor && (

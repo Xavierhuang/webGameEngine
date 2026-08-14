@@ -7,6 +7,7 @@ import { RotateCcw, Square, Maximize } from 'lucide-react';
 import { TouchControls } from './TouchControls';
 import { parseAnimations, findAnimation, sampleAnimation } from '../../lib/models/customAnimation';
 import { beatsToSeconds } from '../../lib/audio/music';
+import { applyTexture } from '../../lib/models/textureMaterial';
 import { useTranslator } from '../common/LocaleProvider';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
@@ -920,6 +921,8 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   /** Throttles how often the trail is re-published to React state. */
   const penTickRef = useRef(0);
   const layerRef = useRef(0);
+  /** Keeps the loaded texture so it isn't refetched every frame. */
+  const textureCacheRef = useRef<{ url: string | null; texture: any }>({ url: null, texture: null });
   const [bubble, setBubble] = useState<{ text: string; style: 'say' | 'think'; expiresAt: number | null } | null>(null);
   // Costumes (Scratch analog) — refs feed the runtime callbacks (built once); state drives the appearance re-render.
   const costumesRef = useRef<Costume[]>([]);
@@ -1598,6 +1601,9 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       }
 
       meshRef.current.renderOrder = layerRef.current;
+
+      // A drawing made in the paint editor, applied as this object's texture.
+      applyTexture(meshRef.current, properties.texture_url, textureCacheRef.current);
 
       // Pen: sample the object's world position into the active stroke while
       // the pen is down. Sampling on movement only keeps the point count sane.
