@@ -336,6 +336,186 @@ export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
     description: 'Boulder',
     aliases: ['stone', 'pebble'],
   },
+  {
+    id: 'pirate',
+    name: 'Pirate',
+    color: '#8B2635',
+    shape: 'capsule',
+    ...starterModel('pirate'),
+    size: HUMANOID_SIZE,
+    description: 'Daring sea captain',
+    aliases: ['buccaneer','captain','sailor'],
+  },
+  {
+    id: 'chef',
+    name: 'Chef',
+    color: '#F1F0EC',
+    shape: 'capsule',
+    ...starterModel('chef'),
+    size: HUMANOID_SIZE,
+    description: 'Cheerful cook',
+    aliases: ['cook','baker'],
+  },
+  {
+    id: 'doctor',
+    name: 'Doctor',
+    color: '#F2F5F7',
+    shape: 'capsule',
+    ...starterModel('doctor'),
+    size: HUMANOID_SIZE,
+    description: 'Kind healer',
+    aliases: ['nurse','medic'],
+  },
+  {
+    id: 'explorer',
+    name: 'Explorer',
+    color: '#AD9A61',
+    shape: 'capsule',
+    ...starterModel('explorer'),
+    size: HUMANOID_SIZE,
+    description: 'Ready for adventure',
+    aliases: ['adventurer','scout'],
+  },
+  {
+    id: 'queen',
+    name: 'Queen',
+    color: '#6B3399',
+    shape: 'capsule',
+    ...starterModel('queen'),
+    size: HUMANOID_SIZE,
+    description: 'Regal ruler',
+    aliases: ['ruler','monarch'],
+  },
+  {
+    id: 'king',
+    name: 'King',
+    color: '#991F33',
+    shape: 'capsule',
+    ...starterModel('king'),
+    size: HUMANOID_SIZE,
+    description: 'Grand ruler',
+    aliases: ['emperor'],
+  },
+  {
+    id: 'witch',
+    name: 'Witch',
+    color: '#4D2970',
+    shape: 'capsule',
+    ...starterModel('witch'),
+    size: HUMANOID_SIZE,
+    description: 'Friendly spellcaster',
+    aliases: ['sorceress'],
+  },
+  {
+    id: 'diver',
+    name: 'Diver',
+    color: '#1F3359',
+    shape: 'capsule',
+    ...starterModel('diver'),
+    size: HUMANOID_SIZE,
+    description: 'Deep-sea explorer',
+    aliases: ['scuba','swimmer'],
+  },
+  {
+    id: 'bear',
+    name: 'Bear',
+    color: '#734D2E',
+    shape: 'box',
+    ...starterModel('bear'),
+    size: 70,
+    description: 'Cuddly and strong',
+    aliases: ['teddy','grizzly'],
+  },
+  {
+    id: 'rabbit',
+    name: 'Rabbit',
+    color: '#EBE0D1',
+    shape: 'box',
+    ...starterModel('rabbit'),
+    size: 48,
+    description: 'Hoppy and quick',
+    aliases: ['bunny','hare'],
+  },
+  {
+    id: 'fox',
+    name: 'Fox',
+    color: '#D96B24',
+    shape: 'box',
+    ...starterModel('fox'),
+    size: 55,
+    description: 'Clever and fast',
+    aliases: ['vixen'],
+  },
+  {
+    id: 'panda',
+    name: 'Panda',
+    color: '#F0F0EE',
+    shape: 'box',
+    ...starterModel('panda'),
+    size: 68,
+    description: 'Gentle bamboo lover',
+    aliases: ['bamboo'],
+  },
+  {
+    id: 'tiger',
+    name: 'Tiger',
+    color: '#E6801F',
+    shape: 'box',
+    ...starterModel('tiger'),
+    size: 70,
+    description: 'Bold big cat',
+    aliases: ['lion','cub'],
+  },
+  {
+    id: 'penguin',
+    name: 'Penguin',
+    color: '#212633',
+    shape: 'box',
+    ...starterModel('penguin'),
+    size: 50,
+    description: 'Waddling swimmer',
+    aliases: ['bird'],
+  },
+  {
+    id: 'owl',
+    name: 'Owl',
+    color: '#856142',
+    shape: 'box',
+    ...starterModel('owl'),
+    size: 50,
+    description: 'Wise night bird',
+    aliases: ['hoot'],
+  },
+  {
+    id: 'parrot',
+    name: 'Parrot',
+    color: '#D92E2E',
+    shape: 'box',
+    ...starterModel('parrot'),
+    size: 48,
+    description: 'Colourful talker',
+    aliases: ['macaw','tropical'],
+  },
+  {
+    id: 'shark',
+    name: 'Shark',
+    color: '#6B7A8C',
+    shape: 'box',
+    ...starterModel('shark'),
+    size: 75,
+    description: 'Toothy swimmer',
+    aliases: ['fin'],
+  },
+  {
+    id: 'octopus',
+    name: 'Octopus',
+    color: '#9E4DA8',
+    shape: 'box',
+    ...starterModel('octopus'),
+    size: 60,
+    description: 'Curious eight-armed friend',
+    aliases: ['squid','tentacle'],
+  },
 ];
 
 /**
@@ -408,11 +588,21 @@ export function matchCharacterPrefab(prompt: string): CharacterPrefab | null {
   // noun ("a knight riding a wyvern" → knight, not dragon-via-wyvern-alias;
   // "red dragon warrior" → dragon, not knight-via-warrior-alias). Ties break by
   // catalog order (first declared wins), matching picker grid order.
+  //
+  // A MULTI-WORD alias outranks a single-word id, because it is strictly more
+  // specific: "a space explorer stuck on mars" is an astronaut, even though the
+  // catalog also contains a character whose id is literally "explorer". Without
+  // this, adding any character whose name appears inside an existing
+  // multi-word alias silently hijacks that alias.
   let bestModel: { prefab: CharacterPrefab; score: number } | null = null;
   for (const prefab of pool) {
     if (!prefab.model_url) continue;
     let score = 0;
-    if (matchesKeyword(prefab.id) || matchesKeyword(prefab.name)) score = 2;
+    const multiWordAlias = (prefab.aliases ?? []).some(
+      (a) => a.includes(' ') && matchesKeyword(a)
+    );
+    if (multiWordAlias) score = 3;
+    else if (matchesKeyword(prefab.id) || matchesKeyword(prefab.name)) score = 2;
     else if ((prefab.aliases ?? []).some(matchesKeyword)) score = 1;
     if (score > (bestModel?.score ?? 0)) bestModel = { prefab, score };
   }

@@ -7,10 +7,16 @@ const test = require('node:test');
 const { promisify } = require('node:util');
 
 const execFileAsync = promisify(execFile);
+// This list is deliberately duplicated from starterCatalog(). It is the guard
+// that caught the shell script's hardcoded roster falling behind the Swift
+// catalog — --all silently produced 21 of 39 characters until it did.
 const expectedIds = ['dinosaur', 'unicorn', 'robot', 'knight', 'wizard',
   'princess', 'astronaut', 'ninja', 'puppy', 'superhero', 'hero',
   'dog', 'cat', 'fish', 'bird', 'alien', 'monster', 'tree', 'rock',
-  'ghost', 'dragon'];
+  'ghost', 'dragon',
+  'pirate', 'chef', 'doctor', 'explorer', 'queen', 'king', 'witch', 'diver',
+  'bear', 'rabbit', 'fox', 'panda', 'tiger', 'penguin', 'owl', 'parrot',
+  'shark', 'octopus'];
 
 function parseCatalogIds(source) {
   return [...source.matchAll(/StarterCharacter\(\s*id:\s*"([a-z]+)"/g)]
@@ -63,7 +69,7 @@ mkdir -p "$output_dir"
 if [ "$mode" = 'character' ]; then
   printf 'generated:%s\\n' "$character" > "$output_dir/$character.glb"
 else
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon; do
+  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus; do
     printf 'generated:%s\\n' "$id" > "$output_dir/$id.glb"
     if [ "\${METAL_STARTERS_FORCE_FAILURE:-0}" = '1' ] && [ "$id" = 'robot' ]; then
       printf 'forced generator failure\\n' >&2
@@ -868,11 +874,14 @@ fi
     assert.equal(fs.existsSync(buildLog), false, 'metadata aliases must fail before compilation');
     assert.deepEqual(await generatedNames(['--character', 'robot']), ['robot.glb']);
     assert.deepEqual(await generatedNames(['--all']), [
-      'alien.glb', 'astronaut.glb', 'bird.glb', 'cat.glb', 'dinosaur.glb',
-      'dog.glb', 'dragon.glb', 'fish.glb', 'ghost.glb', 'hero.glb',
-      'knight.glb', 'monster.glb', 'ninja.glb', 'princess.glb', 'puppy.glb',
-      'robot.glb', 'rock.glb', 'superhero.glb', 'tree.glb', 'unicorn.glb',
-      'wizard.glb',
+      'alien.glb', 'astronaut.glb', 'bear.glb', 'bird.glb', 'cat.glb',
+      'chef.glb', 'dinosaur.glb', 'diver.glb', 'doctor.glb', 'dog.glb',
+      'dragon.glb', 'explorer.glb', 'fish.glb', 'fox.glb', 'ghost.glb',
+      'hero.glb', 'king.glb', 'knight.glb', 'monster.glb', 'ninja.glb',
+      'octopus.glb', 'owl.glb', 'panda.glb', 'parrot.glb', 'penguin.glb',
+      'pirate.glb', 'princess.glb', 'puppy.glb', 'queen.glb', 'rabbit.glb',
+      'robot.glb', 'rock.glb', 'shark.glb', 'superhero.glb', 'tiger.glb',
+      'tree.glb', 'unicorn.glb', 'witch.glb', 'wizard.glb',
     ]);
     assert.deepEqual(await outputsAfterForcedFailure(), outputsBeforeForcedFailure);
     assert.deepEqual(await outputsAfterPublishFailure(), outputsBeforePublishFailure);

@@ -33,6 +33,10 @@ eq(matchCharacterPrefab('paladin')?.id, 'knight', 'alias paladin → knight');
 // --- multi-word aliases ---
 eq(matchCharacterPrefab('a space explorer stuck on mars')?.id, 'astronaut', 'multi-word alias inside prompt');
 eq(matchCharacterPrefab('the main character of the game')?.id, 'hero', 'multi-word alias "main character"');
+// A multi-word alias is more specific than a single-word id: the catalog also
+// contains a character whose id is literally "explorer", and it must not
+// hijack astronaut's "space explorer" alias.
+eq(matchCharacterPrefab('an explorer')?.id, 'explorer', 'bare "explorer" still matches the explorer');
 
 // --- primitive shape names ---
 eq(matchCharacterPrefab('cube')?.id, 'cube', 'basic shape cube');
@@ -103,7 +107,7 @@ if (typeof buildCharacterVisualData === 'function') {
   eq(uploadedModelVisualData.properties.size, 1, 'generic uploaded model properties retain the default size');
 }
 
-eq(CHARACTER_TEMPLATES.length, 22, 'templates count (added Puppy + Dinosaur + Unicorn animals)');
+eq(CHARACTER_TEMPLATES.length, 40, 'templates count');
 eq(BASIC_SHAPES.length, 7, 'basic shapes count');
 eq(CHARACTER_TEMPLATES.every(t => t.aliases && t.aliases.length > 0), true, 'every template has aliases');
 

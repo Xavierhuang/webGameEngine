@@ -47,7 +47,7 @@ done
 if [ "$MODE" = 'character' ]; then
   [ -z "$METADATA_FILE" ] || { usage; exit 1; }
   case "$CHARACTER" in
-    dinosaur|unicorn|robot|knight|wizard|princess|astronaut|ninja|puppy|superhero|hero|dog|cat|fish|bird|alien|monster|tree|rock|ghost|dragon) ;;
+    dinosaur|unicorn|robot|knight|wizard|princess|astronaut|ninja|puppy|superhero|hero|dog|cat|fish|bird|alien|monster|tree|rock|ghost|dragon|pirate|chef|doctor|explorer|queen|king|witch|diver|bear|rabbit|fox|panda|tiger|penguin|owl|parrot|shark|octopus) ;;
     *)
       printf 'Unknown starter character: %s\n' "$CHARACTER" >&2
       exit 1
@@ -75,7 +75,11 @@ if [ "$MODE" = 'all' ]; then
   METADATA_BASENAME="$(basename "$METADATA_FILE")"
   METADATA_LOCK="$METADATA_PARENT/.lingplay-metal-starters.$METADATA_BASENAME.lock"
   METADATA_CASE_FOLDED="$(printf '%s' "$METADATA_FILE" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon; do
+  # Must list every id in starterCatalog(). This is the second place the
+  # roster is written down — the Swift binary iterates the catalog itself,
+  # but the shell needs the names up-front to reserve publication locks.
+  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
+            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus; do
     GENERATED_FILE="$OUTPUT_DIR/$id.glb"
     GENERATED_CASE_FOLDED="$(printf '%s' "$GENERATED_FILE" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
     if [ "$METADATA_CASE_FOLDED" = "$GENERATED_CASE_FOLDED" ]; then
@@ -403,7 +407,11 @@ else
     --output-dir "$STAGING_OUTPUT_DIR" \
     --metadata "$STAGING_METADATA"
 
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon; do
+  # Must list every id in starterCatalog(). This is the second place the
+  # roster is written down — the Swift binary iterates the catalog itself,
+  # but the shell needs the names up-front to reserve publication locks.
+  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
+            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus; do
     [ -f "$STAGING_OUTPUT_DIR/$id.glb" ] || {
       printf 'Generator did not produce %s.glb\n' "$id" >&2
       exit 1
@@ -418,7 +426,11 @@ else
   METADATA_TRANSACTION_DIR="$(mktemp -d "$METADATA_PARENT/.lingplay-metal-starters.publish.XXXXXX")"
   mkdir -p "$OUTPUT_TRANSACTION_DIR/new" "$OUTPUT_TRANSACTION_DIR/backup" "$OUTPUT_TRANSACTION_DIR/journal"
   mkdir -p "$METADATA_TRANSACTION_DIR/new" "$METADATA_TRANSACTION_DIR/backup" "$METADATA_TRANSACTION_DIR/journal"
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon; do
+  # Must list every id in starterCatalog(). This is the second place the
+  # roster is written down — the Swift binary iterates the catalog itself,
+  # but the shell needs the names up-front to reserve publication locks.
+  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
+            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus; do
     cp -- "$STAGING_OUTPUT_DIR/$id.glb" "$OUTPUT_TRANSACTION_DIR/new/$id.glb"
     register_target \
       "$OUTPUT_DIR/$id.glb" \

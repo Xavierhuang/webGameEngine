@@ -941,5 +941,183 @@ func starterCatalog() -> [StarterCharacter] {
         StarterPart(name: "TailTip", center: SIMD3(-1.34, -0.315, 0), radius: SIMD3(0.175, 0.085, 0.085), rotation: SIMD3(0, 0, -0.56), rings: 6, segments: 10, material: 0),
       ]
     ),
+    // --- Expanded roster. Each reuses an existing template and varies only by
+    // palette, proportion and accessories, so the whole cast still reads as one
+    // family in the picker rather than 39 unrelated silhouettes. ---
+    StarterCharacter(
+      id: "pirate", displayName: "Pirate", description: "A daring toy pirate.",
+      aliases: ["buccaneer", "captain"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Pirate Coat", color: SIMD4(0.55, 0.15, 0.18, 1), metallic: 0.2, roughness: 0.6),
+        StarterMaterial(name: "Pirate Trim", color: SIMD4(0.92, 0.82, 0.35, 1), metallic: 0.75, roughness: 0.25),
+        FACE_DARK,
+      ],
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .helmet, cape: true, bodyScale: SIMD3(1.05, 1, 1.02))
+    ),
+    StarterCharacter(
+      id: "chef", displayName: "Chef", description: "A cheerful toy chef.",
+      aliases: ["cook", "baker"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Chef White", color: SIMD4(0.94, 0.94, 0.92, 1), metallic: 0.05, roughness: 0.6),
+        StarterMaterial(name: "Chef Red", color: SIMD4(0.75, 0.2, 0.22, 1), metallic: 0.2, roughness: 0.55),
+        FACE_DARK,
+      ],
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .helmet, bodyScale: SIMD3(1.08, 0.98, 1.05))
+    ),
+    StarterCharacter(
+      id: "doctor", displayName: "Doctor", description: "A kind toy doctor.",
+      aliases: ["nurse", "medic"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Coat White", color: SIMD4(0.95, 0.96, 0.97, 1), metallic: 0.05, roughness: 0.55),
+        StarterMaterial(name: "Scrub Teal", color: SIMD4(0.18, 0.6, 0.62, 1), metallic: 0.2, roughness: 0.5),
+        FACE_DARK,
+      ],
+      parts: humanoid(body: 0, accent: 1, face: 2, bodyScale: SIMD3(1.02, 1, 1))
+    ),
+    StarterCharacter(
+      id: "explorer", displayName: "Explorer", description: "A toy adventurer ready to explore.",
+      aliases: ["adventurer", "scout"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Khaki", color: SIMD4(0.68, 0.6, 0.38, 1), metallic: 0.15, roughness: 0.65),
+        StarterMaterial(name: "Belt Brown", color: SIMD4(0.35, 0.24, 0.15, 1), metallic: 0.25, roughness: 0.55),
+        FACE_DARK,
+      ],
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .helmet, bodyScale: SIMD3(1.02, 1, 1))
+    ),
+    StarterCharacter(
+      id: "queen", displayName: "Queen", description: "A regal toy queen.",
+      aliases: ["ruler", "monarch"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Royal Purple", color: SIMD4(0.42, 0.2, 0.6, 1), metallic: 0.3, roughness: 0.45),
+        StarterMaterial(name: "Crown Gold", color: SIMD4(0.95, 0.78, 0.2, 1), metallic: 0.9, roughness: 0.15),
+        FACE_DARK,
+      ],
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .crown, robe: true, bodyScale: SIMD3(1, 1, 1))
+    ),
+    StarterCharacter(
+      id: "king", displayName: "King", description: "A grand toy king.",
+      aliases: ["emperor"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "King Crimson", color: SIMD4(0.6, 0.12, 0.2, 1), metallic: 0.3, roughness: 0.45),
+        StarterMaterial(name: "Crown Gold", color: SIMD4(0.95, 0.78, 0.2, 1), metallic: 0.9, roughness: 0.15),
+        FACE_DARK,
+      ],
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .crown, cape: true, bodyScale: SIMD3(1.08, 1, 1.05))
+    ),
+    StarterCharacter(
+      id: "witch", displayName: "Witch", description: "A friendly toy witch.",
+      aliases: ["sorceress"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Witch Violet", color: SIMD4(0.3, 0.16, 0.44, 1), metallic: 0.2, roughness: 0.55),
+        StarterMaterial(name: "Witch Green", color: SIMD4(0.3, 0.62, 0.32, 1), metallic: 0.25, roughness: 0.5),
+        FACE_DARK,
+      ],
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .wizardHat, robe: true, bodyScale: SIMD3(0.98, 1, 0.98))
+    ),
+    StarterCharacter(
+      id: "diver", displayName: "Diver", description: "A toy deep-sea diver.",
+      aliases: ["scuba"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Wetsuit Navy", color: SIMD4(0.12, 0.2, 0.35, 1), metallic: 0.3, roughness: 0.45),
+        StarterMaterial(name: "Tank Yellow", color: SIMD4(0.95, 0.78, 0.2, 1), metallic: 0.6, roughness: 0.3),
+        FACE_DARK,
+      ],
+      parts: humanoid(body: 0, accent: 1, face: 2, hat: .helmet, bodyScale: SIMD3(1.05, 1, 1.05))
+    ),
+    StarterCharacter(
+      id: "bear", displayName: "Bear", description: "A cuddly toy bear.",
+      aliases: ["teddy"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Bear Brown", color: SIMD4(0.45, 0.3, 0.18, 1), metallic: 0.1, roughness: 0.7),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, face: 1, bodyScale: SIMD3(1.3, 1.15, 1.05), headScale: 1.15, hasEars: true)
+    ),
+    StarterCharacter(
+      id: "rabbit", displayName: "Rabbit", description: "A hoppy toy rabbit.",
+      aliases: ["bunny", "hare"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Rabbit Cream", color: SIMD4(0.92, 0.88, 0.82, 1), metallic: 0.05, roughness: 0.65),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, face: 1, bodyScale: SIMD3(0.9, 0.95, 0.85), headScale: 1.05, hasEars: true)
+    ),
+    StarterCharacter(
+      id: "fox", displayName: "Fox", description: "A clever toy fox.",
+      aliases: [], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Fox Orange", color: SIMD4(0.85, 0.42, 0.14, 1), metallic: 0.15, roughness: 0.6),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, face: 1, bodyScale: SIMD3(1.1, 0.9, 0.85), headScale: 1.05, hasEars: true)
+    ),
+    StarterCharacter(
+      id: "panda", displayName: "Panda", description: "A gentle toy panda.",
+      aliases: [], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Panda White", color: SIMD4(0.94, 0.94, 0.93, 1), metallic: 0.05, roughness: 0.65),
+        StarterMaterial(name: "Panda Black", color: SIMD4(0.11, 0.11, 0.13, 1), metallic: 0.1, roughness: 0.6),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, accent: 1, face: 2, bodyScale: SIMD3(1.25, 1.15, 1.05), headScale: 1.15, hasEars: true)
+    ),
+    StarterCharacter(
+      id: "tiger", displayName: "Tiger", description: "A bold toy tiger.",
+      aliases: ["lion", "cub"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Tiger Orange", color: SIMD4(0.9, 0.5, 0.12, 1), metallic: 0.15, roughness: 0.6),
+        StarterMaterial(name: "Tiger Stripe", color: SIMD4(0.15, 0.12, 0.1, 1), metallic: 0.2, roughness: 0.55),
+        FACE_DARK,
+      ],
+      parts: quadruped(body: 0, accent: 1, face: 2, bodyScale: SIMD3(1.25, 1.0, 0.95), headScale: 1.1, hasEars: true)
+    ),
+    StarterCharacter(
+      id: "penguin", displayName: "Penguin", description: "A waddling toy penguin.",
+      aliases: [], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Penguin Black", color: SIMD4(0.13, 0.15, 0.2, 1), metallic: 0.15, roughness: 0.55),
+        StarterMaterial(name: "Penguin Beak", color: SIMD4(0.95, 0.65, 0.15, 1), metallic: 0.35, roughness: 0.4),
+        FACE_DARK,
+      ],
+      parts: bird(body: 0, beak: 1, face: 2, bodyScale: SIMD3(1.1, 1.2, 1.1))
+    ),
+    StarterCharacter(
+      id: "owl", displayName: "Owl", description: "A wise toy owl.",
+      aliases: [], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Owl Brown", color: SIMD4(0.52, 0.38, 0.24, 1), metallic: 0.1, roughness: 0.65),
+        StarterMaterial(name: "Owl Beak", color: SIMD4(0.9, 0.72, 0.25, 1), metallic: 0.4, roughness: 0.35),
+        FACE_DARK,
+      ],
+      parts: bird(body: 0, beak: 1, face: 2, bodyScale: SIMD3(1.15, 1.05, 1.15))
+    ),
+    StarterCharacter(
+      id: "parrot", displayName: "Parrot", description: "A colourful toy parrot.",
+      aliases: ["macaw"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Parrot Red", color: SIMD4(0.85, 0.18, 0.18, 1), metallic: 0.2, roughness: 0.5),
+        StarterMaterial(name: "Parrot Beak", color: SIMD4(0.25, 0.25, 0.28, 1), metallic: 0.4, roughness: 0.4),
+        FACE_DARK,
+      ],
+      parts: bird(body: 0, beak: 1, face: 2, bodyScale: SIMD3(0.95, 1.05, 0.95))
+    ),
+    StarterCharacter(
+      id: "shark", displayName: "Shark", description: "A toothy toy shark.",
+      aliases: [], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Shark Grey", color: SIMD4(0.42, 0.48, 0.55, 1), metallic: 0.3, roughness: 0.45),
+        FACE_DARK,
+      ],
+      parts: fish(body: 0, face: 1, bodyScale: SIMD3(1.5, 1.0, 0.9))
+    ),
+    StarterCharacter(
+      id: "octopus", displayName: "Octopus", description: "A curious toy octopus.",
+      aliases: ["squid"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Octopus Purple", color: SIMD4(0.62, 0.3, 0.66, 1), metallic: 0.2, roughness: 0.5),
+        FACE_DARK,
+      ],
+      parts: fish(body: 0, face: 1, bodyScale: SIMD3(1.0, 1.15, 1.0))
+    ),
   ]
 }

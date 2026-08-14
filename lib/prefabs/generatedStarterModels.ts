@@ -41,6 +41,27 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/astronaut.glb",
     "size" : 1
   },
+  "bear" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 1.244749903678894,
+        "y" : 0.71299999952316284,
+        "z" : 0.35157635807991028
+      },
+      "min" : {
+        "x" : -1.037901759147644,
+        "y" : -0.66699999570846558,
+        "z" : -0.35157638788223267
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.103424072265625,
+      "y" : 0.66699999570846558,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/bear.glb",
+    "size" : 1
+  },
   "bird" : {
     "model_bounds" : {
       "max" : {
@@ -83,6 +104,27 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/cat.glb",
     "size" : 1
   },
+  "chef" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.55079996585845947,
+        "y" : 0.92120003700256348,
+        "z" : 0.31499999761581421
+      },
+      "min" : {
+        "x" : -0.55079996585845947,
+        "y" : -0.82319998741149902,
+        "z" : -0.31499999761581421
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.82319998741149902,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/chef.glb",
+    "size" : 1
+  },
   "dinosaur" : {
     "model_bounds" : {
       "max" : {
@@ -102,6 +144,48 @@ export const STARTER_MODEL_METADATA = {
       "z" : 1.4901161193847656e-08
     },
     "model_url" : "\/models\/starters\/dinosaur.glb",
+    "size" : 1
+  },
+  "diver" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.5354999303817749,
+        "y" : 0.94000005722045898,
+        "z" : 0.31499999761581421
+      },
+      "min" : {
+        "x" : -0.5354999303817749,
+        "y" : -0.84000003337860107,
+        "z" : -0.31499999761581421
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.84000003337860107,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/diver.glb",
+    "size" : 1
+  },
+  "doctor" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.52020001411437988,
+        "y" : 0.87999999523162842,
+        "z" : 0.23902112245559692
+      },
+      "min" : {
+        "x" : -0.52020001411437988,
+        "y" : -0.84000003337860107,
+        "z" : -0.23635385930538177
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.84000003337860107,
+      "z" : -0.0013336315751075745
+    },
+    "model_url" : "\/models\/starters\/doctor.glb",
     "size" : 1
   },
   "dog" : {
@@ -146,6 +230,27 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/dragon.glb",
     "size" : 1
   },
+  "explorer" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.52020001411437988,
+        "y" : 0.94000005722045898,
+        "z" : 0.30000001192092896
+      },
+      "min" : {
+        "x" : -0.52020001411437988,
+        "y" : -0.84000003337860107,
+        "z" : -0.30000001192092896
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.84000003337860107,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/explorer.glb",
+    "size" : 1
+  },
   "fish" : {
     "model_bounds" : {
       "max" : {
@@ -165,6 +270,27 @@ export const STARTER_MODEL_METADATA = {
       "z" : 1.4901161193847656e-08
     },
     "model_url" : "\/models\/starters\/fish.glb",
+    "size" : 1
+  },
+  "fox" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 1.0477499961853027,
+        "y" : 0.55799996852874756,
+        "z" : 0.28460943698883057
+      },
+      "min" : {
+        "x" : -0.87688392400741577,
+        "y" : -0.52199995517730713,
+        "z" : -0.28460946679115295
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.085433036088943481,
+      "y" : 0.52199995517730713,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/fox.glb",
     "size" : 1
   },
   "ghost" : {
@@ -207,6 +333,27 @@ export const STARTER_MODEL_METADATA = {
       "z" : 0.012500002980232239
     },
     "model_url" : "\/models\/starters\/hero.glb",
+    "size" : 1
+  },
+  "king" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.55079996585845947,
+        "y" : 0.97000002861022949,
+        "z" : 0.25097218155860901
+      },
+      "min" : {
+        "x" : -0.55079996585845947,
+        "y" : -0.84000003337860107,
+        "z" : -0.313946932554245
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.84000003337860107,
+      "z" : 0.031487375497817993
+    },
+    "model_url" : "\/models\/starters\/king.glb",
     "size" : 1
   },
   "knight" : {
@@ -272,6 +419,132 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/ninja.glb",
     "size" : 1
   },
+  "octopus" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.56499999761581421,
+        "y" : 0.52899998426437378,
+        "z" : 0.31085789203643799
+      },
+      "min" : {
+        "x" : -0.90000003576278687,
+        "y" : -0.32199999690055847,
+        "z" : -0.31085792183876038
+      }
+    },
+    "model_origin_offset" : {
+      "x" : 0.16750001907348633,
+      "y" : 0.32199999690055847,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/octopus.glb",
+    "size" : 1
+  },
+  "owl" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.79699999094009399,
+        "y" : 0.54600000381469727,
+        "z" : 0.414000004529953
+      },
+      "min" : {
+        "x" : -0.62099999189376831,
+        "y" : -0.54600000381469727,
+        "z" : -0.414000004529953
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.087999999523162842,
+      "y" : 0.54600000381469727,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/owl.glb",
+    "size" : 1
+  },
+  "panda" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 1.1968749761581421,
+        "y" : 0.71299999952316284,
+        "z" : 0.35157635807991028
+      },
+      "min" : {
+        "x" : -0.99879395961761475,
+        "y" : -0.66699999570846558,
+        "z" : -0.35157638788223267
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.099040508270263672,
+      "y" : 0.66699999570846558,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/panda.glb",
+    "size" : 1
+  },
+  "parrot" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.67299997806549072,
+        "y" : 0.54600000381469727,
+        "z" : 0.34200000762939453
+      },
+      "min" : {
+        "x" : -0.5130000114440918,
+        "y" : -0.54600000381469727,
+        "z" : -0.34200000762939453
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.079999983310699463,
+      "y" : 0.54600000381469727,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/parrot.glb",
+    "size" : 1
+  },
+  "penguin" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.77800005674362183,
+        "y" : 0.62400001287460327,
+        "z" : 0.39600002765655518
+      },
+      "min" : {
+        "x" : -0.59400004148483276,
+        "y" : -0.62400001287460327,
+        "z" : -0.39600002765655518
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.092000007629394531,
+      "y" : 0.62400001287460327,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/penguin.glb",
+    "size" : 1
+  },
+  "pirate" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.5354999303817749,
+        "y" : 0.94000005722045898,
+        "z" : 0.3059999942779541
+      },
+      "min" : {
+        "x" : -0.5354999303817749,
+        "y" : -0.84000003337860107,
+        "z" : -0.3059999942779541
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.84000003337860107,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/pirate.glb",
+    "size" : 1
+  },
   "princess" : {
     "model_bounds" : {
       "max" : {
@@ -312,6 +585,48 @@ export const STARTER_MODEL_METADATA = {
       "z" : 1.4901161193847656e-08
     },
     "model_url" : "\/models\/starters\/puppy.glb",
+    "size" : 1
+  },
+  "queen" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.50999999046325684,
+        "y" : 0.97000002861022949,
+        "z" : 0.34000000357627869
+      },
+      "min" : {
+        "x" : -0.50999999046325684,
+        "y" : -0.8399999737739563,
+        "z" : -0.34000000357627869
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.8399999737739563,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/queen.glb",
+    "size" : 1
+  },
+  "rabbit" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.857249915599823,
+        "y" : 0.58899998664855957,
+        "z" : 0.28460943698883057
+      },
+      "min" : {
+        "x" : -0.72136992216110229,
+        "y" : -0.55099999904632568,
+        "z" : -0.28460946679115295
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.067939996719360352,
+      "y" : 0.55099999904632568,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/rabbit.glb",
     "size" : 1
   },
   "robot" : {
@@ -356,6 +671,27 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/rock.glb",
     "size" : 1
   },
+  "shark" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.84749996662139893,
+        "y" : 0.45999997854232788,
+        "z" : 0.27977210283279419
+      },
+      "min" : {
+        "x" : -1.3500000238418579,
+        "y" : -0.2800000011920929,
+        "z" : -0.27977210283279419
+      }
+    },
+    "model_origin_offset" : {
+      "x" : 0.25125002861022949,
+      "y" : 0.2800000011920929,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/shark.glb",
+    "size" : 1
+  },
   "superhero" : {
     "model_bounds" : {
       "max" : {
@@ -375,6 +711,27 @@ export const STARTER_MODEL_METADATA = {
       "z" : 0.030587755143642426
     },
     "model_url" : "\/models\/starters\/superhero.glb",
+    "size" : 1
+  },
+  "tiger" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 1.1937500238418579,
+        "y" : 0.62000000476837158,
+        "z" : 0.31809291243553162
+      },
+      "min" : {
+        "x" : -0.99604195356369019,
+        "y" : -0.57999998331069946,
+        "z" : -0.318092942237854
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.098854035139083862,
+      "y" : 0.57999998331069946,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/tiger.glb",
     "size" : 1
   },
   "tree" : {
@@ -417,6 +774,27 @@ export const STARTER_MODEL_METADATA = {
       "z" : 1.4901161193847656e-08
     },
     "model_url" : "\/models\/starters\/unicorn.glb",
+    "size" : 1
+  },
+  "witch" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.49979999661445618,
+        "y" : 1.5099999904632568,
+        "z" : 0.33320000767707825
+      },
+      "min" : {
+        "x" : -0.49979999661445618,
+        "y" : -0.8399999737739563,
+        "z" : -0.33320000767707825
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.8399999737739563,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/witch.glb",
     "size" : 1
   },
   "wizard" : {
