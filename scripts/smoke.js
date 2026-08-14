@@ -27,6 +27,7 @@ const PAGES = [
   { path: '/auth/login', expect: null },
   { path: '/parent/consent?token=smoke', expect: 'permission' },
   { path: '/admin/reports', expect: null },
+  { path: '/learn', expect: 'Learn' },
   { path: '/auth/forgot-password', expect: null },
   { path: '/auth/reset-password?token=smoke', expect: 'password' },
 ];

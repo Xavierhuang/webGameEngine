@@ -34,7 +34,7 @@ export function AppNav({
           <NavLink href="/projects/new">{t('nav.create')}</NavLink>
           <NavLink href="/explore">{t('nav.explore')}</NavLink>
           <NavLink href="/projects">{t('nav.myGames')}</NavLink>
-          <NavLink href="/#learn">{t('nav.learn')}</NavLink>
+          <NavLink href="/learn">{t('nav.learn')}</NavLink>
           <NavLink href="/#safety">{t('nav.forParents')}</NavLink>
         </div>
         <div className="flex items-center gap-2">

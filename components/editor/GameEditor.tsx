@@ -6,13 +6,14 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, useGLTF } from '@react-three/drei';
 import { useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Play, Save, Undo2, Redo2, Move3D, Maximize2, RotateCw, Share2 } from 'lucide-react';
+import { ArrowLeft, Play, Save, Undo2, Redo2, Move3D, Maximize2, RotateCw, Share2, GraduationCap } from 'lucide-react';
 import { ShareDialog } from './ShareDialog';
 import { LogoMark } from '../common/AppNav';
 import Toolbar from './Toolbar';
 import ObjectsPanel from './ObjectsPanel';
 import SceneTabs from './SceneTabs';
 import BackdropSelector from './BackdropSelector';
+import { TutorialPanel } from '../tutorials/TutorialPanel';
 import SceneView from './SceneView';
 import PropertiesPanel from './PropertiesPanel';
 import AIAssistant from './AIAssistant';
@@ -97,6 +98,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showBackdropSelector, setShowBackdropSelector] = useState(false);
+  const [showTutorials, setShowTutorials] = useState(false);
   const orbitRef = useRef<any>(null);
 
   // Eager starter-GLB preload — starts downloading every starter model the
@@ -557,6 +559,19 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           </button>
           <button
             type="button"
+            onClick={() => setShowTutorials((v) => !v)}
+            className={`inline-flex items-center gap-1.5 border text-sm font-semibold rounded-full px-4 py-1.5 transition ${
+              showTutorials
+                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+            }`}
+            title="Step-by-step tutorials"
+          >
+            <GraduationCap className="w-3.5 h-3.5" />
+            Learn
+          </button>
+          <button
+            type="button"
             onClick={() => setShowShareDialog(true)}
             className={`inline-flex items-center gap-1.5 border text-sm font-semibold rounded-full px-4 py-1.5 transition ${
               project?.visibility === 'public'
@@ -947,6 +962,10 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         </div>
 
         {/* Right Sidebar - Properties */}
+        {/* Tutorials dock beside the properties panel so a child can follow a
+            step while looking at the thing the step is about. */}
+        {showTutorials && <TutorialPanel onClose={() => setShowTutorials(false)} />}
+
         <div className="w-80 bg-white border-l border-slate-200 overflow-y-auto">
           <ErrorBoundary
             fallback={
