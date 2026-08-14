@@ -108,6 +108,23 @@ export async function POST(request: NextRequest) {
       age
     );
 
+    // Moderate the model's OUTPUT too, not just the child's input. An LLM in
+    // the loop on a kids' product means unmoderated model text is a real
+    // exposure — this previously went straight to the child.
+    const outputCheck = await moderateText(
+      [aiResponse.message, ...(aiResponse.suggestions ?? [])].filter(Boolean).join('\n'),
+      user?.id ?? null,
+      null
+    );
+    if (!outputCheck.safe) {
+      console.warn('[ai/chat] blocked unsafe model output:', outputCheck.reason);
+      return NextResponse.json({
+        message: "Sorry — I couldn't come up with a good answer for that one. Want to try asking a different way?",
+        update: null,
+        suggestions: [],
+      });
+    }
+
     return NextResponse.json({
       message: aiResponse.message,
       update: aiResponse.update,

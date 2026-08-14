@@ -33,6 +33,18 @@ export async function POST(request: NextRequest) {
       ? choices.map(String).filter((s) => s.trim() !== '')
       : undefined;
     const answer = await askAI(trimmed, constrained);
+
+    // Moderate the model's output as well as the prompt. This endpoint backs
+    // the ask_ai / ai_decide blocks, so its response is rendered straight into
+    // a published game that other children play.
+    if (answer && String(answer).trim() !== '') {
+      const outputCheck = await moderateText(String(answer), null, null);
+      if (!outputCheck.safe) {
+        console.warn('[ai/ask] blocked unsafe model output:', outputCheck.reason);
+        return NextResponse.json({ answer: '' });
+      }
+    }
+
     return NextResponse.json({ answer });
   } catch (error: any) {
     console.error('AI ask error:', error);

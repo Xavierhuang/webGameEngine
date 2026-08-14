@@ -1,0 +1,75 @@
+import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { AppNav } from '@/components/common/AppNav';
+import { PageBackdrop } from '@/components/common/PageBackdrop';
+import { ReportQueue } from '@/components/admin/ReportQueue';
+import { ShieldAlert } from 'lucide-react';
+
+/**
+ * Admin moderation queue. Requires `profiles.role = 'admin'` — the role has
+ * existed in the schema since 001 and was never checked anywhere.
+ */
+export default async function AdminReportsPage() {
+  const user = await getAuthenticatedUser();
+
+  const profile = user
+    ? await queryOne<{ id: string; role: string; display_name: string | null }>(
+        'SELECT id, role, display_name FROM profiles WHERE user_id = ?',
+        [user.id]
+      )
+    : null;
+
+  if (!profile || profile.role !== 'admin') {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-white">
+        <AppNav signedInAs={profile?.display_name ?? undefined} />
+        <PageBackdrop />
+        <div className="relative mx-auto max-w-md px-6 pt-24 text-center">
+          <ShieldAlert className="mx-auto mb-3 h-8 w-8 text-slate-400" />
+          <p className="font-bold text-slate-900">Moderators only</p>
+          <p className="mt-1 text-sm text-slate-600">
+            This page is for the lingplay moderation team.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const reports = await query<any>(
+    `SELECT r.id, r.reason, r.details, r.status, r.created_at,
+            r.reported_project_id,
+            p.title AS project_title, p.moderation_status,
+            reporter.display_name AS reporter_name
+     FROM reports r
+     LEFT JOIN projects p ON p.id = r.reported_project_id
+     LEFT JOIN profiles reporter ON reporter.id = r.reporter_profile_id
+     WHERE r.status = 'open'
+     ORDER BY r.created_at DESC
+     LIMIT 100`
+  );
+
+  // Projects awaiting a first review — moderation_status defaults to 'pending'
+  // and nothing used to move it, so these would sit invisible forever.
+  const pending = await query<any>(
+    `SELECT id, title, visibility, moderation_status, created_at
+     FROM projects
+     WHERE visibility = 'public' AND moderation_status = 'pending'
+     ORDER BY created_at DESC
+     LIMIT 50`
+  );
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-white">
+      <AppNav signedInAs={profile.display_name ?? undefined} />
+      <PageBackdrop />
+      <div className="relative mx-auto max-w-4xl px-6 pb-20 pt-10">
+        <h1 className="text-2xl font-black tracking-tight text-slate-900">Moderation</h1>
+        <p className="mt-1 text-slate-600">
+          {reports.length} open report{reports.length === 1 ? '' : 's'} ·{' '}
+          {pending.length} project{pending.length === 1 ? '' : 's'} awaiting review
+        </p>
+
+        <ReportQueue reports={reports} pending={pending} />
+      </div>
+    </div>
+  );
+}

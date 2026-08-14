@@ -6,10 +6,12 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, useGLTF } from '@react-three/drei';
 import { useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Play, Save, Undo2, Redo2, Move3D, Maximize2, RotateCw } from 'lucide-react';
+import { ArrowLeft, Play, Save, Undo2, Redo2, Move3D, Maximize2, RotateCw, Share2 } from 'lucide-react';
+import { ShareDialog } from './ShareDialog';
 import { LogoMark } from '../common/AppNav';
 import Toolbar from './Toolbar';
 import ObjectsPanel from './ObjectsPanel';
+import SceneTabs from './SceneTabs';
 import SceneView from './SceneView';
 import PropertiesPanel from './PropertiesPanel';
 import AIAssistant from './AIAssistant';
@@ -91,6 +93,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [showSoundSelector, setShowSoundSelector] = useState(false);
   const [transformMode, setTransformMode] = useState<'translate' | 'scale' | 'rotate'>('translate');
   const [focusRequest, setFocusRequest] = useState(0);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const orbitRef = useRef<any>(null);
 
   // Eager starter-GLB preload — starts downloading every starter model the
@@ -209,20 +213,158 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     }
   }, [project]);
 
+  // --- Scenes -------------------------------------------------------------
+  // Until now every code path resolved to scenes[0] and there was no scenes
+  // API, so projects were permanently single-scene.
+  const addScene = async () => {
+    try {
+      const response = await fetch('/api/scenes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          name: `Scene ${(project?.scenes?.length ?? 0) + 1}`,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.scene) return;
+      const scene = { ...data.scene, game_objects: [] };
+      setProject((prev: any) => ({ ...prev, scenes: [...(prev.scenes ?? []), scene] }));
+      setCurrentScene(scene);
+      setSelectedObject(null);
+    } catch (error) {
+      console.error('Failed to add scene:', error);
+    }
+  };
+
+  const renameScene = async (sceneId: string, name: string) => {
+    setProject((prev: any) => ({
+      ...prev,
+      scenes: (prev.scenes ?? []).map((s: any) => (s.id === sceneId ? { ...s, name } : s)),
+    }));
+    try {
+      await fetch(`/api/scenes/${sceneId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+    } catch (error) {
+      console.error('Failed to rename scene:', error);
+    }
+  };
+
+  const deleteScene = async (sceneId: string) => {
+    if ((project?.scenes?.length ?? 0) <= 1) return;
+    if (!confirm('Delete this scene and everything in it?')) return;
+    try {
+      const response = await fetch(`/api/scenes/${sceneId}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        alert(data?.error || 'Could not delete the scene.');
+        return;
+      }
+      setProject((prev: any) => {
+        const scenes = (prev.scenes ?? []).filter((s: any) => s.id !== sceneId);
+        return { ...prev, scenes };
+      });
+      setCurrentScene((cur: any) =>
+        cur?.id === sceneId ? project.scenes.find((s: any) => s.id !== sceneId) ?? null : cur
+      );
+      setSelectedObject(null);
+    } catch (error) {
+      console.error('Failed to delete scene:', error);
+    }
+  };
+
+  /**
+   * Duplicate a sprite, including its scripts — Scratch's right-click →
+   * duplicate. Offsets the copy slightly so it isn't hidden under the original.
+   */
+  const duplicateObject = async (source: any) => {
+    if (!currentScene || !source) return;
+    try {
+      const response = await fetch('/api/ai/apply-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          update: {
+            type: 'add_game_object',
+            game_object: {
+              scene_id: (currentScene as any).id,
+              type: source.type,
+              name: `${source.name || 'Object'} copy`,
+              position_x: (Number(source.position_x) || 0) + 40,
+              position_y: Number(source.position_y) || 0,
+              position_z: (Number(source.position_z) || 0) + 40,
+              rotation: source.rotation,
+              scale_x: source.scale_x,
+              scale_y: source.scale_y,
+              sprite_url: source.sprite_url,
+              color: source.color,
+              width: source.width,
+              height: source.height,
+              has_physics: source.has_physics,
+              is_static: source.is_static,
+              mass: source.mass,
+              properties: source.properties,
+            },
+          },
+        }),
+      });
+      if (!response.ok) return;
+
+      // Copy the source's scripts onto the new object.
+      const refreshed = await fetch(`/api/projects/${projectId}`).then((r) => r.json());
+      const scene = refreshed?.project?.scenes?.find((s: any) => s.id === (currentScene as any).id);
+      const copy = [...(scene?.game_objects ?? [])]
+        .reverse()
+        .find((o: any) => o.name === `${source.name || 'Object'} copy`);
+
+      if (copy && Array.isArray(source.logic_blocks) && source.logic_blocks.length > 0) {
+        await fetch(`/api/game-objects/${copy.id}/logic-blocks`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blocks: source.logic_blocks }),
+        });
+      }
+
+      if (refreshed?.project) {
+        commitProject(refreshed.project);
+        const updatedScene = refreshed.project.scenes?.find((s: any) => s.id === (currentScene as any).id);
+        if (updatedScene) setCurrentScene(updatedScene);
+      }
+    } catch (error) {
+      console.error('Failed to duplicate object:', error);
+    }
+  };
+
   const handleSave = async () => {
+    // Only the project's own columns are savable here; scenes, objects and
+    // blocks have their own autosave paths. Sending the whole project object
+    // meant any failure (401/403/422) was swallowed into a console.log.
+    setSaveState('saving');
     try {
       const response = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(project),
+        body: JSON.stringify({
+          title: project.title,
+          description: project.description ?? null,
+          genre: project.genre ?? null,
+        }),
       });
 
-      if (response.ok) {
-        // Show success message
-        console.log('Project saved!');
+      if (!response.ok) {
+        const detail = await response.json().catch(() => ({}));
+        console.error('Save failed:', response.status, detail);
+        setSaveState('error');
+        return;
       }
+      setSaveState('saved');
     } catch (error) {
       console.error('Save failed:', error);
+      setSaveState('error');
     }
   };
 
@@ -345,10 +487,29 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           {/* Save + Play */}
           <button
             onClick={handleSave}
-            className="ml-2 inline-flex items-center gap-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 text-sm font-semibold rounded-full px-4 py-1.5 transition"
+            disabled={saveState === 'saving'}
+            className={`ml-2 inline-flex items-center gap-1.5 bg-white border text-sm font-semibold rounded-full px-4 py-1.5 transition disabled:opacity-60 ${
+              saveState === 'error'
+                ? 'border-red-300 text-red-700'
+                : 'border-slate-200 hover:border-slate-300 text-slate-800'
+            }`}
+            title={saveState === 'error' ? 'Save failed — see console for details' : 'Save project details'}
           >
             <Save className="w-3.5 h-3.5" />
-            Save
+            {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Save failed' : 'Save'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowShareDialog(true)}
+            className={`inline-flex items-center gap-1.5 border text-sm font-semibold rounded-full px-4 py-1.5 transition ${
+              project?.visibility === 'public'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300'
+                : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300'
+            }`}
+            title="Share this game so others can play and remix it"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            {project?.visibility === 'public' ? 'Shared' : 'Share'}
           </button>
           <button
             type="button"
@@ -470,10 +631,22 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             }}
             onOpenAI={() => setShowAIAssistant(true)}
           />
+          <SceneTabs
+            scenes={project?.scenes ?? []}
+            currentSceneId={(currentScene as any)?.id ?? null}
+            onSelect={(scene) => {
+              setCurrentScene(scene);
+              setSelectedObject(null);
+            }}
+            onAdd={addScene}
+            onRename={renameScene}
+            onDelete={deleteScene}
+          />
           <ObjectsPanel
             scene={currentScene}
             selectedObject={selectedObject}
             onSelect={setSelectedObject}
+            onDuplicate={duplicateObject}
           />
         </div>
 
@@ -694,6 +867,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                   objectId={selectedObject.id}
                   objectName={selectedObject.name}
                   initialBlocks={selectedObject.logic_blocks ?? []}
+            objectNames={((currentScene as any)?.game_objects ?? []).map((o: any) => o.name).filter(Boolean)}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-slate-50">
@@ -813,6 +987,20 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           </ErrorBoundary>
         </div>
       </div>
+
+      {showShareDialog && (
+        <ShareDialog
+          projectId={projectId}
+          initialVisibility={project?.visibility ?? 'private'}
+          initialModerationStatus={project?.moderation_status ?? 'pending'}
+          onClose={() => setShowShareDialog(false)}
+          onVisibilityChange={(visibility, moderationStatus) =>
+            setProject((prev: any) =>
+              prev ? { ...prev, visibility, moderation_status: moderationStatus } : prev
+            )
+          }
+        />
+      )}
 
       {/* AI Assistant Overlay */}
       {showAIAssistant && (
@@ -1042,6 +1230,10 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                       color: item.color,
                       size: item.size || 40,
                       soundType: item.id,
+                      // The picker's own properties carry beat/bpm/autoplay_beat
+                      // for the Beats tab. These used to be dropped on the floor
+                      // here, so picking "Chill 90" persisted no beat at all.
+                      ...(item.properties ?? {}),
                     },
                   },
                 },

@@ -2,15 +2,33 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { getActorProfileId } from '@/lib/auth/access';
 
 const ALLOWED_EXTS = new Set(['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae']);
 
+/** The UI advertises "Max 20 MB" — this is what actually enforces it. */
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 export async function POST(request: NextRequest) {
   try {
+    // This route used to be completely unauthenticated with no size cap: a free
+    // disk-fill and arbitrary-static-file-hosting primitive on the droplet.
+    const actorProfileId = await getActorProfileId();
+    if (!actorProfileId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const form = await request.formData();
     const file = form.get('file') as File | null;
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    if (typeof file.size === 'number' && file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum size is 20 MB.' },
+        { status: 413 }
+      );
     }
 
     const original = (file as any).name || 'model.glb';
@@ -21,6 +39,15 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+
+    // Re-check after reading: `file.size` is caller-reported metadata.
+    if (buffer.byteLength > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: 'File too large. Maximum size is 20 MB.' },
+        { status: 413 }
+      );
+    }
+
     const id = crypto.randomUUID();
 
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'models');

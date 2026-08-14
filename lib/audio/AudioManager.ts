@@ -1,5 +1,7 @@
 'use client';
 
+import { getSound, isSampleUrl } from './soundCatalog';
+
 class AudioManager {
   private static instance: AudioManager | null = null;
   private context: AudioContext | null = null;
@@ -9,6 +11,9 @@ class AudioManager {
   private isBeatRunning = false;
   /** Live SFX sources so `stop all sounds` can silence them. */
   private activeSources = new Set<AudioScheduledSourceNode>();
+  /** Decoded audio files, keyed by URL, so loops don't refetch. */
+  private sampleCache = new Map<string, AudioBuffer>();
+  private samplesLoading = new Set<string>();
 
   static get(): AudioManager {
     if (!AudioManager.instance) {
@@ -62,68 +67,125 @@ class AudioManager {
    * Play a synthesized SFX. `volume` is 0-1 and scales this one sound.
    * Returns the sound's duration in seconds (for `play sound until done`).
    */
+  /**
+   * Play a sound from the catalog, or a real audio file when given a URL.
+   * `volume` is 0-1 and scales this one sound. Returns the duration in seconds
+   * so `play sound until done` knows how long to wait.
+   *
+   * This used to be a six-case switch over hand-tuned oscillator settings; the
+   * recipes now live in lib/audio/soundCatalog.ts so the picker, the block
+   * dropdown and this renderer can't drift apart.
+   */
   playSfx(type: string, volume: number = 1): number {
     this.ensureContext();
     if (!this.context || !this.masterGain) return 0;
-    const now = this.context.currentTime;
 
-    // Simple synthesized SFX by type
-    const osc = this.context.createOscillator();
-    const gain = this.context.createGain();
-    osc.connect(gain);
-    gain.connect(this.masterGain);
+    if (isSampleUrl(type)) return this.playSample(type, volume);
 
-    // Defaults
-    let frequency = 440;
-    let duration = 0.2;
-    let typeWave: OscillatorType = 'sine';
+    const spec = getSound(type) ?? getSound('click')!;
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    const vol = Math.max(0, Math.min(1, volume));
 
-    switch (type) {
-      case 'click':
-        frequency = 800;
-        duration = 0.05;
-        typeWave = 'square';
-        break;
-      case 'confirm':
-        frequency = 600;
-        duration = 0.15;
-        typeWave = 'triangle';
-        break;
-      case 'error':
-        frequency = 200;
-        duration = 0.25;
-        typeWave = 'sawtooth';
-        break;
-      case 'pickup':
-        frequency = 900;
-        duration = 0.12;
-        typeWave = 'triangle';
-        break;
-      case 'jump':
-        frequency = 500;
-        duration = 0.12;
-        typeWave = 'square';
-        break;
-      case 'hit':
-        frequency = 150;
-        duration = 0.18;
-        typeWave = 'square';
-        break;
-      default:
-        break;
+    for (const layer of spec.layers) {
+      const delay = (layer.delay ?? 0) * spec.duration;
+      const length = (layer.length ?? 1 - (layer.delay ?? 0)) * spec.duration;
+      if (length <= 0) continue;
+
+      const startAt = now + delay;
+      const peak = Math.max(0.0001, (layer.gain ?? 0.4) * vol);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, startAt);
+      gain.gain.exponentialRampToValueAtTime(peak, startAt + Math.min(0.015, length / 3));
+      gain.gain.exponentialRampToValueAtTime(0.0001, startAt + length);
+      gain.connect(this.masterGain);
+
+      let source: AudioScheduledSourceNode;
+
+      if (layer.wave === 'noise') {
+        // Filtered white noise — used for percussion, wind and explosions.
+        const frames = Math.max(1, Math.floor(ctx.sampleRate * length));
+        const buffer = ctx.createBuffer(1, frames, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(layer.cutoff ?? 2000, startAt);
+        noise.connect(filter);
+        filter.connect(gain);
+        source = noise;
+      } else {
+        const osc = ctx.createOscillator();
+        osc.type = layer.wave;
+        osc.frequency.setValueAtTime(layer.freq, startAt);
+        if (layer.toFreq !== undefined) {
+          // exponentialRamp cannot cross or reach zero.
+          osc.frequency.exponentialRampToValueAtTime(
+            Math.max(1, layer.toFreq),
+            startAt + length
+          );
+        }
+        osc.connect(gain);
+        source = osc;
+      }
+
+      source.start(startAt);
+      source.stop(startAt + length + 0.02);
+      this.activeSources.add(source);
+      source.onended = () => this.activeSources.delete(source);
     }
 
-    osc.type = typeWave;
-    osc.frequency.setValueAtTime(frequency, now);
-    const peak = Math.max(0.0001, 0.6 * Math.max(0, Math.min(1, volume)));
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(peak, now + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    osc.start(now);
-    osc.stop(now + duration + 0.02);
-    this.activeSources.add(osc);
-    osc.onended = () => this.activeSources.delete(osc);
-    return duration;
+    return spec.duration;
+  }
+
+  /**
+   * Play a real audio file by URL. Decoded buffers are cached, so replaying a
+   * sound in a loop doesn't refetch it.
+   */
+  private playSample(url: string, volume: number): number {
+    const ctx = this.context;
+    if (!ctx || !this.masterGain) return 0;
+
+    const cached = this.sampleCache.get(url);
+    if (cached) {
+      this.startBuffer(cached, volume);
+      return cached.duration;
+    }
+
+    // Not decoded yet — fetch, then play when ready. The reported duration is a
+    // best guess for this first play; subsequent plays report the real length.
+    if (!this.samplesLoading.has(url)) {
+      this.samplesLoading.add(url);
+      fetch(url)
+        .then((r) => r.arrayBuffer())
+        .then((buf) => ctx.decodeAudioData(buf))
+        .then((decoded) => {
+          this.sampleCache.set(url, decoded);
+          this.startBuffer(decoded, volume);
+        })
+        .catch(() => { /* unreachable or undecodable audio — stay silent */ })
+        .finally(() => this.samplesLoading.delete(url));
+    }
+    return 1;
+  }
+
+  private startBuffer(buffer: AudioBuffer, volume: number) {
+    const ctx = this.context;
+    if (!ctx || !this.masterGain) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = Math.max(0, Math.min(1, volume));
+    src.connect(gain);
+    gain.connect(this.masterGain);
+    src.start();
+    this.activeSources.add(src);
+    src.onended = () => this.activeSources.delete(src);
   }
 
   /** Stop every playing SFX and the beat loop (Scratch `stop all sounds`). */

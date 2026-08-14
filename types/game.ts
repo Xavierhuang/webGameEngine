@@ -124,6 +124,15 @@ export type LogicBlockType =
   | 'set_color'
   | 'switch_costume_to'
   | 'next_costume'
+  // Graphic effects + layer ordering
+  | 'set_effect'
+  | 'change_effect_by'
+  | 'clear_effects'
+  | 'go_to_layer'
+  | 'change_layer_by'
+  // Sensing statements
+  | 'ask_and_wait'
+  | 'reset_timer'
   // Phase 5c: AI blocks
   | 'ask_ai'
   | 'ai_decide';

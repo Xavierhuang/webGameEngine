@@ -75,3 +75,7 @@ public/uploads/models/
 .codex/
 .lingcode/
 .mcp.json
+
+# deploy scaffolding — contains JWT_SECRET and the MySQL password in plaintext.
+# Never commit; rotate anything that has already been pushed.
+.opendeploy/

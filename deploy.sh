@@ -47,9 +47,63 @@ ssh "$USER@$HOST" "set -e
   else
     echo '  lockfile unchanged, skipping npm ci'
   fi
-  rm -rf .next
-  npm run build
-  systemctl restart lingplay
+  # Apply schema migrations BEFORE building/restarting, so the new code never
+  # meets an old schema. There was no migration step here at all, which is why
+  # 002/003/004 had never reached production.
+  #
+  # Applied files are recorded in schema_migrations and skipped thereafter. That
+  # matters beyond mere speed: 001 creates a TRIGGER, and re-running it fails
+  # with ERROR 1419 on a managed MySQL where the app user lacks SUPER and binary
+  # logging is on. Tracking state means already-applied files are never re-run.
+  echo '  applying migrations'
+  set -a; . $REMOTE/.env; set +a
+  DB=\"\${MYSQL_DATABASE:-gameengine}\"
+  MYSQL_ARGS=\"-h \${MYSQL_HOST:-localhost} -u \${MYSQL_USER:-root}\"
+  if [ -n \"\${MYSQL_PASSWORD:-}\" ]; then MYSQL_ARGS=\"\$MYSQL_ARGS -p\${MYSQL_PASSWORD}\"; fi
+
+  mysql \$MYSQL_ARGS \"\$DB\" -e \"CREATE TABLE IF NOT EXISTS schema_migrations (
+      filename VARCHAR(255) PRIMARY KEY,
+      applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );\"
+
+  # A pre-existing database already has 001 applied; record it rather than
+  # re-running its trigger.
+  if mysql \$MYSQL_ARGS \"\$DB\" -N -B -e \"SHOW TABLES LIKE 'users';\" | grep -q users; then
+    mysql \$MYSQL_ARGS \"\$DB\" -e \"INSERT IGNORE INTO schema_migrations (filename) VALUES ('001_initial_schema.sql');\"
+  fi
+
+  for m in \$(ls $REMOTE/migrations/*.sql | sort); do
+    NAME=\$(basename \"\$m\")
+    APPLIED=\$(mysql \$MYSQL_ARGS \"\$DB\" -N -B -e \"SELECT COUNT(*) FROM schema_migrations WHERE filename='\$NAME';\")
+    if [ \"\$APPLIED\" != \"0\" ]; then
+      echo \"    -- \$NAME (already applied)\"
+      continue
+    fi
+    echo \"    -> \$NAME\"
+    mysql \$MYSQL_ARGS \"\$DB\" < \"\$m\"
+    mysql \$MYSQL_ARGS \"\$DB\" -e \"INSERT INTO schema_migrations (filename) VALUES ('\$NAME');\"
+  done
+
+  # Stop BEFORE wiping .next. The old process used to keep serving during the
+  # rebuild, handing browsers HTML that referenced chunk files the build had
+  # just deleted — which white-screens the app with
+  # \"Application error: a client-side exception has occurred\" for anyone who
+  # loads the site mid-deploy. A brief 502 from nginx is far better than a
+  # corrupted app: it retries cleanly.
+  systemctl stop lingplay
+  # Keep the previous build so a failed compile can be rolled back to a
+  # working site instead of leaving an empty .next behind.
+  rm -rf .next.prev
+  [ -d .next ] && mv .next .next.prev
+  if ! npm run build; then
+    echo 'BUILD FAILED — restoring the previous build'
+    rm -rf .next
+    [ -d .next.prev ] && mv .next.prev .next
+    systemctl start lingplay || true
+    exit 1
+  fi
+  rm -rf .next.prev
+  systemctl start lingplay
   sleep 3
   systemctl is-active lingplay
 "
@@ -57,5 +111,20 @@ ssh "$USER@$HOST" "set -e
 echo "==> verifying"
 ssh "$USER@$HOST" 'curl -sS -o /dev/null -w "  local :3010 -> HTTP %{http_code}\n" http://127.0.0.1:3010/'
 curl -sS -o /dev/null -w "  https://play.lingcode.dev -> HTTP %{http_code}\n" https://play.lingcode.dev/ 2>/dev/null || echo "  (public URL not reachable yet — check DNS/TLS)"
+
+# A 200 is NOT proof the app works: a deploy once white-screened every page with
+# a client-side exception while every status code stayed 200. Load the real
+# pages in a real browser before calling the deploy good.
+if [ -f node_modules/.bin/playwright ] || [ -d node_modules/playwright ]; then
+  echo "==> browser smoke test"
+  if node scripts/smoke.js "${LINGPLAY_PUBLIC_URL:-https://play.lingcode.dev}"; then
+    echo "  smoke passed"
+  else
+    echo "  SMOKE FAILED — the site is serving broken pages. Investigate or roll back."
+    exit 1
+  fi
+else
+  echo "==> skipping browser smoke test (playwright not installed locally)"
+fi
 
 echo "==> done"

@@ -52,6 +52,10 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   const [animationDuration, setAnimationDuration] = useState(5); // seconds
   const [animationName, setAnimationName] = useState('New Animation');
   const [transformMode, setTransformMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
+  // Lifted out of AnimatedModelView: the bone-hierarchy panel below renders in
+  // this component's JSX and needs to distinguish "still loading" from "loaded,
+  // but this model has no named parts".
+  const [modelLoaded, setModelLoaded] = useState(false);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const animationClipRef = useRef<THREE.AnimationClip | null>(null);
   const orbitRef = useRef<any>(null);
@@ -65,7 +69,6 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
     const groupRef = useRef<THREE.Group>(null);
     const modelRef = useRef<THREE.Object3D | null>(null);
     const bonesMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
-    const [modelLoaded, setModelLoaded] = useState(false);
 
     useEffect(() => {
       const loadModel = async () => {

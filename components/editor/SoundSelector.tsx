@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Music2, Volume2, Sparkles } from 'lucide-react';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
+import { soundsByCategory, type SoundCategory } from '@/lib/audio/soundCatalog';
+import AudioManager from '@/lib/audio/AudioManager';
 
 interface SoundSelectorProps {
   isOpen: boolean;
@@ -21,17 +23,21 @@ type Sound = {
   bpm?: number;
 };
 
-const UI_SOUNDS: Sound[] = [
-  { id: 'click', name: 'Click', color: PALETTE.motion, description: 'Sharp UI click' },
-  { id: 'confirm', name: 'Confirm', color: PALETTE.control, description: 'Positive chime' },
-  { id: 'error', name: 'Error', color: PALETTE.lists, description: 'Error buzz' },
+const CATEGORY_TABS: Array<{ id: SoundCategory; label: string }> = [
+  { id: 'ui', label: 'UI' },
+  { id: 'game', label: 'Gameplay' },
+  { id: 'animal', label: 'Animals' },
+  { id: 'music', label: 'Music' },
+  { id: 'ambient', label: 'Ambient' },
 ];
 
-const GAMEPLAY_SOUNDS: Sound[] = [
-  { id: 'pickup', name: 'Pickup', color: PALETTE.events, description: 'Collectible reward' },
-  { id: 'jump', name: 'Jump', color: PALETTE.looks, description: 'Player jump' },
-  { id: 'hit', name: 'Hit', color: PALETTE.variables, description: 'Damage / impact' },
-];
+const CATEGORY_COLORS: Record<SoundCategory, string> = {
+  ui: PALETTE.motion,
+  game: PALETTE.events,
+  animal: PALETTE.looks,
+  music: PALETTE.sound,
+  ambient: PALETTE.sensing,
+};
 
 const BEAT_LOOPS: (Sound & { bpm: number })[] = [
   { id: 'simple', name: 'Simple 4/4', color: PALETTE.control, description: 'Kick / snare / hat loop', bpm: 120 },
@@ -44,7 +50,17 @@ export default function SoundSelector({
   onClose,
   onSelect,
 }: SoundSelectorProps) {
-  const [tab, setTab] = useState<'ui' | 'gameplay' | 'beats'>('ui');
+  const [tab, setTab] = useState<SoundCategory | 'beats'>('ui');
+
+  /** Audition the sound before adding it — the picker used to be silent. */
+  const preview = (item: Sound) => {
+    try {
+      if (tab === 'beats') AudioManager.get().startBeat(item.id, item.bpm ?? 120);
+      else AudioManager.get().playSfx(item.id, 1);
+    } catch {
+      /* audio unavailable — the tile still selects fine */
+    }
+  };
 
   const handleSelect = (item: Sound) => {
     const selection: any = {
@@ -63,12 +79,20 @@ export default function SoundSelector({
     } else {
       selection.properties.soundType = item.id;
     }
+    try { AudioManager.get().stopBeat(); } catch { /* noop */ }
     onSelect(selection);
     onClose();
   };
 
-  const current =
-    tab === 'ui' ? UI_SOUNDS : tab === 'gameplay' ? GAMEPLAY_SOUNDS : BEAT_LOOPS;
+  const current: Sound[] =
+    tab === 'beats'
+      ? BEAT_LOOPS
+      : soundsByCategory(tab).map((spec) => ({
+          id: spec.id,
+          name: spec.name,
+          color: CATEGORY_COLORS[spec.category],
+          description: `${spec.duration < 0.25 ? 'Short' : spec.duration < 0.6 ? 'Medium' : 'Long'} · ${spec.layers.length} layer${spec.layers.length === 1 ? '' : 's'}`,
+        }));
 
   return (
     <SelectorModal
@@ -78,26 +102,20 @@ export default function SoundSelector({
       eyebrow="Add object"
       icon={<Music2 className="w-5 h-5" />}
       accent={PALETTE.sound}
-      tabs={[
-        { id: 'ui', label: 'UI' },
-        { id: 'gameplay', label: 'Gameplay' },
-        { id: 'beats', label: 'Beats' },
-      ]}
+      tabs={[...CATEGORY_TABS, { id: 'beats' as const, label: 'Beats' }]}
       activeTab={tab}
       onTabChange={(id) => setTab(id as typeof tab)}
     >
       <SelectorSection
         title={
-          tab === 'ui'
-            ? 'Interface sounds'
-            : tab === 'gameplay'
-            ? 'Gameplay effects'
-            : 'Background beats'
+          tab === 'beats'
+            ? 'Background beats'
+            : `${CATEGORY_TABS.find((t) => t.id === tab)?.label ?? ''} sounds`
         }
         description={
           tab === 'beats'
             ? 'Autoplaying loops that keep going in the background. Adjust BPM after adding.'
-            : 'One-shot sound effects triggered by `play sound` blocks.'
+            : 'One-shot effects triggered by `play sound` blocks. Click a tile to hear it.'
         }
         accent={PALETTE.sound}
       >
@@ -108,6 +126,7 @@ export default function SoundSelector({
               title={item.name}
               description={item.description}
               onClick={() => handleSelect(item)}
+              onMouseEnter={() => preview(item)}
               badge={'bpm' in item ? `${(item as any).bpm} BPM` : undefined}
             >
               <SoundPreview color={item.color} isBeat={tab === 'beats'} />

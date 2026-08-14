@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense, memo, useMemo } from 'react';
+import { useState, useEffect, useRef, Suspense, memo, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { Box, Sphere, Grid, useGLTF, Html } from '@react-three/drei';
+import { RotateCcw, Square, Maximize } from 'lucide-react';
+import { TouchControls } from './TouchControls';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
@@ -126,6 +128,15 @@ export default function GamePlayer({ project }: GamePlayerProps) {
   const world = worldRef.current;
   const vars = world.vars;
   const [showStartSplash, setShowStartSplash] = useState(true);
+  /**
+   * Bumping this remounts every scene object, which is exactly what "restart"
+   * means here — fresh runtimes, fresh positions. Variables live on the world,
+   * so they're cleared explicitly.
+   */
+  const [runNonce, setRunNonce] = useState(0);
+  const [askPrompt, setAskPrompt] = useState<{ prompt: string; resolve: (v: string) => void } | null>(null);
+  const [askDraft, setAskDraft] = useState('');
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     world.onSwitchScene = (name: string) => {
@@ -137,12 +148,106 @@ export default function GamePlayer({ project }: GamePlayerProps) {
     world.onNextScene = () => {
       if (scenes.length > 0) setSceneIndex((cur) => (cur + 1) % scenes.length);
     };
+    world.onAsk = (prompt: string) =>
+      new Promise<string>((resolve) => {
+        setAskDraft('');
+        setAskPrompt({ prompt, resolve });
+      });
     return () => {
       world.onSwitchScene = undefined;
       world.onNextScene = undefined;
+      world.onAsk = undefined;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, project.scenes]);
+
+  // Pointer tracking for the mouse x / mouse y / mouse down? reporters, in
+  // stage coordinates centred on the middle of the stage (Scratch convention).
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const onMove = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      world.pointer.x = Math.round(e.clientX - rect.left - rect.width / 2);
+      world.pointer.y = Math.round(rect.height / 2 - (e.clientY - rect.top));
+    };
+    const onDown = () => { world.pointer.down = true; };
+    const onUp = () => { world.pointer.down = false; };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, [world]);
+
+  /**
+   * Autoplaying background beats. SceneView started these in the *editor* only —
+   * GamePlayer never called startBeat and never read `autoplay_beat`, so a beat
+   * you picked was silent in the actual game.
+   */
+  useEffect(() => {
+    if (showStartSplash || !scene) return;
+    const objects = (scene as any).game_objects ?? [];
+    const beatObject = objects.find((o: any) => {
+      if (o?.type !== 'sound') return false;
+      const props = typeof o.properties === 'string' ? safeParse(o.properties) : o.properties;
+      return Boolean(props?.autoplay_beat);
+    });
+    if (!beatObject) return;
+
+    const props =
+      typeof beatObject.properties === 'string'
+        ? safeParse(beatObject.properties)
+        : beatObject.properties ?? {};
+    try {
+      AudioManager.get().startBeat(props.beat || 'simple', Number(props.bpm) || 120);
+    } catch {
+      /* audio unavailable */
+    }
+    return () => {
+      try { AudioManager.get().stopBeat(); } catch { /* noop */ }
+    };
+  }, [scene, showStartSplash]);
+
+  const stopRun = () => {
+    world.started = false;
+    setAskPrompt(null);
+    try { AudioManager.get().stopAllSfx(); } catch { /* noop */ }
+  };
+
+  /** `game_objects.properties` arrives as a string or an object depending on the driver. */
+  function safeParse(raw: string): any {
+    try { return JSON.parse(raw || '{}'); } catch { return {}; }
+  }
+
+  const restartRun = () => {
+    // Clear cross-run state, then remount every object.
+    world.vars.clearAll?.();
+    world.resetTimer(0);
+    world.setAnswer('');
+    setAskPrompt(null);
+    setSceneIndex(0);
+    setRunNonce((n) => n + 1);
+    world.started = true;
+  };
+
+  /**
+   * Touch controls write into exactly the same key state as the keyboard
+   * handler above, so the runtime needs no notion of touch at all.
+   */
+  const handleTouchKey = useCallback((key: string, down: boolean) => {
+    setKeys((prev) => ({ ...prev, [key]: down }));
+  }, []);
+
+  const toggleFullscreen = () => {
+    const el = stageRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else el.requestFullscreen?.().catch(() => {});
+  };
 
   useEffect(() => {
     if (scene) {
@@ -188,16 +293,52 @@ export default function GamePlayer({ project }: GamePlayerProps) {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-2 p-4">
         <div className="mb-4 text-white">
           <h1 className="text-2xl font-bold">{project.title || 'My Game'}</h1>
           {project.description && (
             <p className="text-gray-400 text-sm mt-1">{project.description}</p>
           )}
         </div>
-        <div className="relative rounded-lg shadow-2xl overflow-hidden" style={{ width: '800px', height: '600px', backgroundColor: SCENE.DEFAULT_BACKGROUND_COLOR }}>
+        {/* Responsive stage: keeps the 4:3 play area but shrinks to fit a
+            tablet or phone instead of overflowing at a fixed 800x600. */}
+        <div
+          ref={stageRef}
+          className="relative w-full max-w-[800px] aspect-[4/3] rounded-lg shadow-2xl overflow-hidden touch-none"
+          style={{ backgroundColor: SCENE.DEFAULT_BACKGROUND_COLOR }}
+        >
           <FPSCounter position="top-right" />
           <VariableWatchers vars={vars} />
+          {!showStartSplash && <TouchControls onKeyChange={handleTouchKey} />}
+
+          {/* ask-and-wait prompt. Sits above the canvas and blocks until answered. */}
+          {askPrompt && (
+            <form
+              className="absolute inset-x-0 bottom-0 z-30 flex items-center gap-2 bg-slate-900/90 p-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                askPrompt.resolve(askDraft);
+                setAskPrompt(null);
+                setAskDraft('');
+              }}
+            >
+              <label className="min-w-0 flex-1">
+                <span className="mb-1 block truncate text-xs text-slate-300">{askPrompt.prompt}</span>
+                <input
+                  autoFocus
+                  value={askDraft}
+                  onChange={(e) => setAskDraft(e.target.value)}
+                  className="w-full rounded-full border border-slate-600 bg-white px-4 py-2 text-sm text-slate-900 outline-none"
+                />
+              </label>
+              <button
+                type="submit"
+                className="shrink-0 self-end rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900"
+              >
+                OK
+              </button>
+            </form>
+          )}
           {showStartSplash && (
             <button
               type="button"
@@ -258,12 +399,50 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             position={SCENE.GRID_POSITION}
           />
           {scene && (
-            <GameScene key={(scene as any).id ?? sceneIndex} scene={scene} keys={keys} world={world} />
+            <GameScene
+              key={`${(scene as any).id ?? sceneIndex}:${runNonce}`}
+              scene={scene}
+              keys={keys}
+              world={world}
+            />
           )}
             </Canvas>
           </ErrorBoundary>
         </div>
-        <div className="mt-4 text-white text-sm text-center">
+
+        {/* Stage controls. Before this there was no way to stop or restart a
+            running game — you had to reload the page. */}
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={restartRun}
+            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-400"
+            title="Restart the game from the beginning"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Restart
+          </button>
+          <button
+            type="button"
+            onClick={stopRun}
+            className="inline-flex items-center gap-1.5 rounded-full bg-red-500 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-red-400"
+            title="Stop all scripts"
+          >
+            <Square className="h-3.5 w-3.5" />
+            Stop
+          </button>
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-600 px-4 py-1.5 text-sm font-semibold text-slate-200 transition hover:border-slate-400"
+            title="Toggle fullscreen"
+          >
+            <Maximize className="h-3.5 w-3.5" />
+            Fullscreen
+          </button>
+        </div>
+
+        <div className="mt-3 text-center text-sm text-white">
           <p>Use Arrow Keys or WASD to move (W/Up = Forward, S/Down = Backward)</p>
           <p className="text-gray-400">Press Space to jump</p>
         </div>
@@ -327,11 +506,12 @@ function SkyDome() {
   );
 }
 
-const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { game_objects?: GameObject[]; background_color?: string }; keys: KeyState; world: RuntimeWorld }) {
+const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { game_objects?: GameObject[]; background_color?: string; background_image_url?: string | null }; keys: KeyState; world: RuntimeWorld  }) {
   const { scene: threeScene, camera } = useThree();
   const skyBlueColor = useRef(new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR));
   const checkCount = useRef(0);
   const skyDomeRef = useRef<THREE.Mesh>(null);
+  const backdropTextureRef = useRef<THREE.Texture | null>(null);
   const characterPositionRef = useRef<THREE.Vector3 | null>(null);
   // Live clones spawned by create_clone_of blocks
   const [clones, setClones] = useState<{ cloneId: string; sourceId: string }[]>([]);
@@ -354,7 +534,31 @@ const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { gam
     logger.debug('[GameScene] Component mounted, setting background to', bg);
     skyBlueColor.current = new THREE.Color(bg);
     threeScene.background = new THREE.Color(bg);
-    
+
+    // Backdrop image. `scenes.background_image_url` has existed in the schema
+    // since the first migration and was never rendered — the colour always won.
+    // When set, it replaces the flat colour as the scene background.
+    const backdropUrl = scene?.background_image_url;
+    if (backdropUrl) {
+      let cancelled = false;
+      new THREE.TextureLoader().load(
+        backdropUrl,
+        (texture) => {
+          if (cancelled) { texture.dispose(); return; }
+          texture.colorSpace = THREE.SRGBColorSpace;
+          threeScene.background = texture;
+          backdropTextureRef.current = texture;
+        },
+        undefined,
+        () => logger.warn('[GameScene] backdrop image failed to load:', backdropUrl)
+      );
+      return () => {
+        cancelled = true;
+        backdropTextureRef.current?.dispose();
+        backdropTextureRef.current = null;
+      };
+    }
+
     // Check if sky dome is in the scene (debug only)
     if (logger.isDevelopment) {
       setTimeout(() => {
@@ -379,7 +583,10 @@ const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { gam
   }, [threeScene, scene]);
   
   useFrame(() => {
-    // Ensure background stays the scene's color
+    // Ensure background stays the scene's color.
+    // Skipped when a backdrop image is active — otherwise this would overwrite
+    // the texture with the flat colour on the very next frame.
+    if (backdropTextureRef.current) return;
     checkCount.current++;
     const currentBg = threeScene.background;
     const sceneBg = skyBlueColor.current;
@@ -693,6 +900,10 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   const visibleRef = useRef(true);
   const sizeMultiplierRef = useRef(1);
   const tintColorRef = useRef<string | null>(null);
+  // Graphic effects (ghost/brightness/color) and draw order, applied in the
+  // same per-frame material pass as the tint.
+  const effectsRef = useRef<Record<string, number>>({});
+  const layerRef = useRef(0);
   const [bubble, setBubble] = useState<{ text: string; style: 'say' | 'think'; expiresAt: number | null } | null>(null);
   // Costumes (Scratch analog) — refs feed the runtime callbacks (built once); state drives the appearance re-render.
   const costumesRef = useRef<Costume[]>([]);
@@ -887,6 +1098,16 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         const i = Math.max(0, Math.min(list.length - 1, costumeIndexRef.current));
         return { number: i + 1, name: String(list[i]?.name ?? '') };
       },
+      // Graphic effects — stored as refs and applied in the same frame loop that
+      // applies the colour tint (see the material pass below).
+      setEffect: (effect, value) => { effectsRef.current = { ...effectsRef.current, [effect]: value }; },
+      getEffect: (effect) => effectsRef.current[effect] ?? 0,
+      clearEffects: () => { effectsRef.current = {}; },
+      // Layer ordering maps to renderOrder; higher draws later (on top).
+      goToLayer: (layer) => { layerRef.current = layer === 'front' ? 1000 : -1000; },
+      changeLayerBy: (delta) => { layerRef.current += delta; },
+      // ask-and-wait: the prompt UI is stage-level, so delegate to the player.
+      ask: (prompt) => world.onAsk?.(prompt) ?? Promise.resolve(''),
     };
   }
 
@@ -1274,6 +1495,35 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
           }
         });
       }
+
+      // Graphic effects. ghost → opacity, brightness → emissive lift,
+      // color → hue rotation. Applied after the tint so both compose.
+      const effects = effectsRef.current;
+      const ghost = effects.ghost ?? 0;
+      const brightness = effects.brightness ?? 0;
+      const hueShift = effects.color ?? 0;
+      if (ghost || brightness || hueShift) {
+        meshRef.current.traverse((child: any) => {
+          const mats = Array.isArray(child?.material) ? child.material : child?.material ? [child.material] : [];
+          for (const mat of mats) {
+            if (!mat) continue;
+            if (ghost) {
+              mat.transparent = true;
+              mat.opacity = 1 - ghost / 100;
+            }
+            if (brightness && mat.emissive?.setScalar) {
+              mat.emissive.setScalar(Math.max(0, brightness) / 200);
+            }
+            if (hueShift && mat.color?.getHSL && mat.color?.setHSL && !mat.map) {
+              const hsl = { h: 0, s: 0, l: 0 };
+              mat.color.getHSL(hsl);
+              mat.color.setHSL((hsl.h + hueShift / 200) % 1, hsl.s, hsl.l);
+            }
+          }
+        });
+      }
+
+      meshRef.current.renderOrder = layerRef.current;
     }
 
     // Bubble expiry — check once per frame, don't setState unless needed

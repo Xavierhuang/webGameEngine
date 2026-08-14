@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { getProjectAccess } from '@/lib/auth/access';
 
 const HATS = new Set(['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'define_custom_block']);
 
@@ -56,14 +57,15 @@ export async function PUT(
       'SELECT owner_id, visibility FROM projects WHERE id = ?',
       [scene.project_id]
     );
-    if (project && user) {
-      const profile = await queryOne<{ id: string }>(
-        'SELECT id FROM profiles WHERE user_id = ?',
-        [user.id]
-      );
-      if (profile && project.owner_id !== profile.id && project.visibility !== 'public') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
+    // Writing scripts is owner-only. The old check lived inside `if (project &&
+    // user)`, so an unauthenticated caller skipped it entirely and could
+    // overwrite any project's scripts. Note "public" must NOT grant write.
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+    const access = await getProjectAccess(project);
+    if (!access.canEdit) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     await query('DELETE FROM logic_blocks WHERE game_object_id = ?', [id]);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, requireAuth, query, queryOne } from '@/lib/mysql/server';
+import { getProjectAccess, getActorProfileId } from '@/lib/auth/access';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
 export async function GET(
@@ -34,24 +35,10 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Check ownership or public access
-    // For authenticated users, check if they own the project
-    if (user) {
-      const profile = await queryOne<{ id: string }>(
-        'SELECT id FROM profiles WHERE user_id = ?',
-        [user.id]
-      );
-      
-      if (profile && project.owner_id !== profile.id && project.visibility !== 'public') {
+    // Owner-or-public, for signed-in users and cookie-identified guests alike.
+    const access = await getProjectAccess(project);
+    if (!access.canView) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-    } else {
-      // For guests, allow access to their own projects (owner_id might be a guest profile)
-      // Or public projects
-      if (project.visibility !== 'public') {
-        // Guests can access projects they created (we'll allow this for now)
-        // In production, you might want to track guest sessions differently
-      }
     }
 
     // Fetch scenes
@@ -174,16 +161,24 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const user = await requireAuth();
+    const user = await getAuthenticatedUser();
 
-    // Get profile id from user_id
-    const profile = await queryOne<{ id: string }>(
-      'SELECT id FROM profiles WHERE user_id = ?',
-      [user.id]
+    // Editing is owner-only, but "owner" includes a cookie-identified guest —
+    // requireAuth() here used to 401 every guest editing their own project.
+    const actorProfileId = await getActorProfileId();
+    if (!actorProfileId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const owner = await queryOne<{ owner_id: string }>(
+      'SELECT owner_id FROM projects WHERE id = ?',
+      [id]
     );
-
-    if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    if (!owner) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+    if (owner.owner_id !== actorProfileId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -203,7 +198,7 @@ export async function PATCH(
     const sanitizedDescription = typeof body.description === 'string' ? sanitizeUserInput(body.description) : undefined;
     const textToCheck = [sanitizedTitle, sanitizedDescription].filter(Boolean).join('\n');
     if (textToCheck) {
-      const modResult = await moderateText(textToCheck, user.id);
+      const modResult = await moderateText(textToCheck, user?.id ?? null, user ? null : actorProfileId);
       if (!modResult.safe) {
         return NextResponse.json(
           {
@@ -229,11 +224,68 @@ export async function PATCH(
       updateValues.push(value);
     });
 
+    // Publishing runs the project's text through moderation and records the
+    // verdict, so the gallery can filter on moderation_status. Nothing used to
+    // ever set this away from its 'pending' default.
+    // Under-13 accounts can't publish until a parent has granted consent.
+    // `can_share` was selected in the UI but never used in any conditional.
+    if (body.visibility === 'public' || body.is_published === true) {
+      const sharer = await queryOne<{ role: string; can_share: number | boolean; age: number | null }>(
+        'SELECT role, can_share, age FROM profiles WHERE id = ?',
+        [actorProfileId]
+      );
+
+      // Guests have no account and no recorded age, so we can't establish
+      // whether a parent needs to consent. Publishing requires an account —
+      // the same rule Scratch applies — and says so plainly rather than
+      // showing a parental-permission message to someone who never gave an age.
+      if (!user) {
+        return NextResponse.json(
+          {
+            error: 'Account needed',
+            reason:
+              'Create a free account to share your game. You can keep building and playing as a guest.',
+          },
+          { status: 403 }
+        );
+      }
+
+      // A registered under-13 needs a parent to consent first.
+      if (sharer && sharer.role === 'child' && !sharer.can_share) {
+        return NextResponse.json(
+          {
+            error: 'Parental permission needed',
+            reason:
+              "Because you're under 13, a parent or guardian needs to give permission before you can share games publicly.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (body.visibility === 'public' || body.is_published === true) {
+      // Fall back to the stored text so toggling "share" on an existing project
+      // still moderates what is actually about to become public.
+      const stored = await queryOne<{ title: string; description: string | null }>(
+        'SELECT title, description FROM projects WHERE id = ?',
+        [id]
+      );
+      const publishText = [
+        sanitizedTitle ?? stored?.title ?? '',
+        sanitizedDescription ?? stored?.description ?? '',
+      ].filter(Boolean).join('\n');
+      const verdict = publishText
+        ? await moderateText(publishText, user?.id ?? null, user ? null : actorProfileId)
+        : { safe: true as const };
+      updateFields.push('moderation_status = ?');
+      updateValues.push(verdict.safe ? 'approved' : 'rejected');
+    }
+
     if (updateFields.length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
-    updateValues.push(id, profile.id);
+    updateValues.push(id, actorProfileId);
 
     await query(
       `UPDATE projects SET ${updateFields.join(', ')} WHERE id = ? AND owner_id = ?`,
@@ -283,23 +335,15 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const user = await requireAuth();
 
-    // Get profile id from user_id
-    const profile = await queryOne<{ id: string }>(
-      'SELECT id FROM profiles WHERE user_id = ?',
-      [user.id]
-    );
-
-    if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    const actorProfileId = await getActorProfileId();
+    if (!actorProfileId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Delete project (cascade will handle related records)
-    const result = await query(
-      'DELETE FROM projects WHERE id = ? AND owner_id = ?',
-      [id, profile.id]
-    );
+    // Delete project (cascade will handle related records). Scoped to the owner,
+    // so a non-owner deletes nothing rather than erroring.
+    await query('DELETE FROM projects WHERE id = ? AND owner_id = ?', [id, actorProfileId]);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

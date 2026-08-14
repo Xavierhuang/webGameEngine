@@ -14,6 +14,10 @@
  *   procedures_callnoreturn (special-cased in the serializer).
  */
 
+// soundCatalog is pure data with no imports of its own, so pulling it in here
+// keeps this module node-requirable for the serializer tests.
+import { soundDropdownOptions } from '../audio/soundCatalog';
+
 export interface BlockSpec {
   fields: string[];
   values: string[];
@@ -52,7 +56,25 @@ const SCOPE_OPTIONS: [string, string][] = [
   ['for this object only', 'object'],
 ];
 
+/**
+ * Graphic effects. `ghost` is 0-100 transparency and `brightness` is -100..100,
+ * both matching Scratch. `color` shifts hue by 0-200 (Scratch's range) rather
+ * than replacing the tint outright — set_color already does replacement.
+ */
+const EFFECT_OPTIONS: [string, string][] = [
+  ['ghost', 'ghost'],
+  ['brightness', 'brightness'],
+  ['color', 'color'],
+];
+
 const text = (name: string, value = '') => ({ type: 'field_input', name, text: value });
+/**
+ * A name picker backed by the names already used in the workspace, with a
+ * "New…" option. Rendered by LingplayNameField (registered in the editor);
+ * still plain data here so this module stays Blockly-free.
+ */
+const nameField = (name: string, kind: 'variable' | 'list' | 'broadcast' | 'object', value = '') =>
+  ({ type: 'field_lingplay_name', name, kind, text: value });
 const num = (name: string, value = 0) => ({ type: 'field_number', name, value });
 const value = (name: string) => ({ type: 'input_value', name });
 const statements = (name: string) => ({ type: 'input_statement', name });
@@ -71,11 +93,11 @@ const statementDefs: object[] = [
   },
   { type: 'when_clicked', message0: 'when this object clicked', nextStatement: null, colour: COLOUR.event },
   {
-    type: 'when_touches', message0: 'when touching %1', args0: [text('target')],
+    type: 'when_touches', message0: 'when touching %1', args0: [nameField('target', 'object', '')],
     nextStatement: null, colour: COLOUR.event,
   },
   {
-    type: 'when_receive', message0: 'when I receive %1', args0: [text('message', 'message1')],
+    type: 'when_receive', message0: 'when I receive %1', args0: [nameField('message', 'broadcast', 'message1')],
     nextStatement: null, colour: COLOUR.event,
   },
   { type: 'when_clone_start', message0: 'when I start as a clone', nextStatement: null, colour: COLOUR.clone },
@@ -112,32 +134,17 @@ const statementDefs: object[] = [
     type: 'scale', message0: 'scale by %1', args0: [value('factor')],
     previousStatement: null, nextStatement: null, colour: COLOUR.looks,
   },
-  // Sound dropdown options match AudioManager.playSfx's built-in synthesized
-  // types (lib/audio/AudioManager.ts). Adding a new sound? Add the case in
-  // AudioManager first, then add its [label, value] here — both blocks stay in
-  // lockstep.
+  // Sound options are generated from lib/audio/soundCatalog.ts, which is also
+  // what AudioManager renders. They used to be two hand-maintained copies that
+  // had to be kept in lockstep with a switch statement by hand.
   {
     type: 'play_sound', message0: 'play sound %1',
-    args0: [dropdown('sound', [
-      ['click', 'click'],
-      ['confirm', 'confirm'],
-      ['error', 'error'],
-      ['pickup', 'pickup'],
-      ['jump', 'jump'],
-      ['hit', 'hit'],
-    ])],
+    args0: [dropdown('sound', soundDropdownOptions())],
     previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {
     type: 'play_sound_until_done', message0: 'play sound %1 until done',
-    args0: [dropdown('sound', [
-      ['click', 'click'],
-      ['confirm', 'confirm'],
-      ['error', 'error'],
-      ['pickup', 'pickup'],
-      ['jump', 'jump'],
-      ['hit', 'hit'],
-    ])],
+    args0: [dropdown('sound', soundDropdownOptions())],
     previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {
@@ -153,76 +160,76 @@ const statementDefs: object[] = [
     previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {
-    type: 'broadcast', message0: 'broadcast %1', args0: [text('message', 'message1')],
+    type: 'broadcast', message0: 'broadcast %1', args0: [nameField('message', 'broadcast', 'message1')],
     previousStatement: null, nextStatement: null, colour: COLOUR.event,
   },
   {
-    type: 'broadcast_and_wait', message0: 'broadcast %1 and wait', args0: [text('message', 'message1')],
+    type: 'broadcast_and_wait', message0: 'broadcast %1 and wait', args0: [nameField('message', 'broadcast', 'message1')],
     previousStatement: null, nextStatement: null, colour: COLOUR.event,
   },
 
   // Variables
   {
     type: 'set_variable', message0: 'set %1 to %2 %3',
-    args0: [text('name', 'score'), value('value'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [nameField('name', 'variable', 'score'), value('value'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.variable,
   },
   {
     type: 'change_variable', message0: 'change %1 by %2 %3',
-    args0: [text('name', 'score'), value('value'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [nameField('name', 'variable', 'score'), value('value'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.variable,
   },
   {
     type: 'show_variable', message0: 'show variable %1 %2',
-    args0: [text('name', 'score'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [nameField('name', 'variable', 'score'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.variable,
   },
   {
     type: 'hide_variable', message0: 'hide variable %1 %2',
-    args0: [text('name', 'score'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [nameField('name', 'variable', 'score'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.variable,
   },
 
   // Lists
   {
     type: 'add_to_list', message0: 'add %1 to list %2 %3',
-    args0: [value('item'), text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [value('item'), nameField('name', 'list', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.list,
   },
   {
     type: 'delete_from_list', message0: 'delete item %1 of list %2 %3',
-    args0: [value('index'), text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [value('index'), nameField('name', 'list', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.list,
   },
   {
     type: 'insert_into_list', message0: 'insert %1 at %2 of list %3 %4',
-    args0: [value('item'), value('index'), text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [value('item'), value('index'), nameField('name', 'list', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.list,
   },
   {
     type: 'replace_in_list', message0: 'replace item %1 of list %2 with %3 %4',
-    args0: [value('index'), text('name', 'my list'), value('item'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [value('index'), nameField('name', 'list', 'my list'), value('item'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.list,
   },
   {
     type: 'delete_all_of_list', message0: 'delete all of list %1 %2',
-    args0: [text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [nameField('name', 'list', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.list,
   },
   {
     type: 'show_list', message0: 'show list %1 %2',
-    args0: [text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [nameField('name', 'list', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.list,
   },
   {
     type: 'hide_list', message0: 'hide list %1 %2',
-    args0: [text('name', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
+    args0: [nameField('name', 'list', 'my list'), dropdown('scope', SCOPE_OPTIONS)],
     previousStatement: null, nextStatement: null, colour: COLOUR.list,
   },
 
   // Clones
   {
-    type: 'create_clone_of', message0: 'create clone of %1', args0: [text('target', 'myself')],
+    type: 'create_clone_of', message0: 'create clone of %1', args0: [nameField('target', 'object', 'myself')],
     previousStatement: null, nextStatement: null, colour: COLOUR.clone,
   },
   {
@@ -272,7 +279,7 @@ const statementDefs: object[] = [
     previousStatement: null, nextStatement: null, colour: COLOUR.action,
   },
   {
-    type: 'goto_object', message0: 'go to object %1', args0: [text('target')],
+    type: 'goto_object', message0: 'go to object %1', args0: [nameField('target', 'object', '')],
     previousStatement: null, nextStatement: null, colour: COLOUR.action,
   },
   {
@@ -288,7 +295,7 @@ const statementDefs: object[] = [
     previousStatement: null, nextStatement: null, colour: COLOUR.action,
   },
   {
-    type: 'point_towards', message0: 'point towards %1', args0: [text('target')],
+    type: 'point_towards', message0: 'point towards %1', args0: [nameField('target', 'object', '')],
     previousStatement: null, nextStatement: null, colour: COLOUR.action,
   },
   {
@@ -312,6 +319,40 @@ const statementDefs: object[] = [
   { type: 'clear_bubble', message0: 'clear bubble', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
   { type: 'set_color', message0: 'set color to %1', args0: [text('hex', '#ffcc00')], previousStatement: null, nextStatement: null, colour: COLOUR.looks },
 
+  // Graphic effects. Scratch's fisheye/whirl/pixelate/mosaic are 2D-canvas
+  // filters with no meaningful 3D analog; ghost (opacity) and brightness do,
+  // and colour shifts hue.
+  {
+    type: 'set_effect', message0: 'set %1 effect to %2',
+    args0: [dropdown('effect', EFFECT_OPTIONS), value('value')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
+    type: 'change_effect_by', message0: 'change %1 effect by %2',
+    args0: [dropdown('effect', EFFECT_OPTIONS), value('delta')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  { type: 'clear_effects', message0: 'clear graphic effects', previousStatement: null, nextStatement: null, colour: COLOUR.looks },
+
+  // Layer ordering — controls draw order for overlapping objects.
+  {
+    type: 'go_to_layer', message0: 'go to %1 layer',
+    args0: [dropdown('layer', [['front', 'front'], ['back', 'back']])],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
+    type: 'change_layer_by', message0: 'go %1 %2 layers',
+    args0: [dropdown('direction', [['forward', 'forward'], ['backward', 'backward']]), value('amount')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+
+  // Sensing statements
+  {
+    type: 'ask_and_wait', message0: 'ask %1 and wait', args0: [value('prompt')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.sensing,
+  },
+  { type: 'reset_timer', message0: 'reset timer', previousStatement: null, nextStatement: null, colour: COLOUR.sensing },
+
   // Phase 5c: AI blocks
   {
     type: 'ask_ai', message0: 'ask AI %1 store in %2', args0: [value('prompt'), text('into_var', 'answer')],
@@ -331,18 +372,26 @@ const statementDefs: object[] = [
 const BINARY_OPS: [string, string][] = [
   ['add', '%1 + %2'], ['sub', '%1 - %2'], ['mul', '%1 × %2'], ['div', '%1 ÷ %2'],
   ['mod', '%1 mod %2'], ['lt', '%1 < %2'], ['gt', '%1 > %2'], ['eq', '%1 = %2'],
+  ['neq', '%1 ≠ %2'], ['lte', '%1 ≤ %2'], ['gte', '%1 ≥ %2'],
   ['and', '%1 and %2'], ['or', '%1 or %2'], ['join', 'join %1 %2'],
 ];
 
+// Every entry here auto-generates both the block definition and its toolbox
+// entry, so exposing a runtime operator is a one-line change. The trig/log set
+// was already implemented in lib/runtime/operators.ts but unreachable from the
+// palette — only AI-generated JSON could produce it.
 const UNARY_OPS: [string, string][] = [
   ['not', 'not %1'], ['abs', 'abs %1'], ['floor', 'floor %1'],
   ['ceiling', 'ceiling %1'], ['sqrt', 'sqrt %1'], ['round', 'round %1'],
+  ['sin', 'sin %1'], ['cos', 'cos %1'], ['tan', 'tan %1'],
+  ['asin', 'asin %1'], ['acos', 'acos %1'], ['atan', 'atan %1'],
+  ['ln', 'ln %1'], ['log', 'log %1'], ['exp', 'e^ %1'], ['exp10', '10^ %1'],
 ];
 
 const exprDefs: object[] = [
   { type: 'expr_number', message0: '%1', args0: [num('NUM', 0)], output: null, colour: COLOUR.operator },
   { type: 'expr_text', message0: '%1', args0: [text('TEXT', 'hello')], output: null, colour: COLOUR.operator },
-  { type: 'expr_var', message0: '%1', args0: [text('value', 'score')], output: null, colour: COLOUR.variable },
+  { type: 'expr_var', message0: '%1', args0: [nameField('value', 'variable', 'score')], output: null, colour: COLOUR.variable },
   ...BINARY_OPS.map(([op, msg]) => ({
     type: `expr_${op}`, message0: msg, args0: [value('arg0'), value('arg1')], output: null, colour: COLOUR.operator,
   })),
@@ -363,22 +412,22 @@ const exprDefs: object[] = [
     output: null, colour: COLOUR.operator,
   },
   // Sensing
-  { type: 'expr_touching', message0: 'touching %1 ?', args0: [text('value')], output: null, colour: COLOUR.sensing },
-  { type: 'expr_distance_to', message0: 'distance to %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_touching', message0: 'touching %1 ?', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_distance_to', message0: 'distance to %1', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
   { type: 'expr_key_pressed', message0: 'key %1 pressed ?', args0: [dropdown('value', KEY_OPTIONS)], output: null, colour: COLOUR.sensing },
   { type: 'expr_timer', message0: 'timer', output: null, colour: COLOUR.sensing },
   // List reporters
   {
-    type: 'expr_list_item', message0: 'item %2 of list %1', args0: [text('value', 'my list'), value('arg0')],
+    type: 'expr_list_item', message0: 'item %2 of list %1', args0: [nameField('value', 'list', 'my list'), value('arg0')],
     output: null, colour: COLOUR.list,
   },
-  { type: 'expr_list_length', message0: 'length of list %1', args0: [text('value', 'my list')], output: null, colour: COLOUR.list },
+  { type: 'expr_list_length', message0: 'length of list %1', args0: [nameField('value', 'list', 'my list')], output: null, colour: COLOUR.list },
   {
-    type: 'expr_list_contains', message0: 'list %1 contains %2 ?', args0: [text('value', 'my list'), value('arg0')],
+    type: 'expr_list_contains', message0: 'list %1 contains %2 ?', args0: [nameField('value', 'list', 'my list'), value('arg0')],
     output: null, colour: COLOUR.list,
   },
   {
-    type: 'expr_list_index_of', message0: 'item # of %2 in list %1', args0: [text('value', 'my list'), value('arg0')],
+    type: 'expr_list_index_of', message0: 'item # of %2 in list %1', args0: [nameField('value', 'list', 'my list'), value('arg0')],
     output: null, colour: COLOUR.list,
   },
   // Phase 5a: motion reporters
@@ -388,9 +437,18 @@ const exprDefs: object[] = [
   { type: 'expr_rotation_x', message0: 'x rotation', output: null, colour: COLOUR.sensing },
   { type: 'expr_rotation_y', message0: 'y rotation', output: null, colour: COLOUR.sensing },
   { type: 'expr_rotation_z', message0: 'z rotation', output: null, colour: COLOUR.sensing },
-  { type: 'expr_object_x', message0: 'x of %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
-  { type: 'expr_object_y', message0: 'y of %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
-  { type: 'expr_object_z', message0: 'z of %1', args0: [text('value')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_object_x', message0: 'x of %1', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_object_y', message0: 'y of %1', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_object_z', message0: 'z of %1', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
+  // Already implemented in the interpreter (object_rotation_*) but had no block.
+  { type: 'expr_object_rotation_x', message0: 'x rotation of %1', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_object_rotation_y', message0: 'y rotation of %1', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
+  { type: 'expr_object_rotation_z', message0: 'z rotation of %1', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
+  // Sensing additions
+  { type: 'expr_answer', message0: 'answer', output: null, colour: COLOUR.sensing },
+  { type: 'expr_mouse_x', message0: 'mouse x', output: null, colour: COLOUR.sensing },
+  { type: 'expr_mouse_y', message0: 'mouse y', output: null, colour: COLOUR.sensing },
+  { type: 'expr_mouse_down', message0: 'mouse down?', output: null, colour: COLOUR.sensing },
   // Phase 5b: looks reporters
   { type: 'expr_size', message0: 'size', output: null, colour: COLOUR.looks },
   { type: 'expr_volume', message0: 'volume', output: null, colour: COLOUR.sound },
@@ -456,6 +514,11 @@ export const TOOLBOX = {
         blk('change_size_by', { delta: numShadow(10) }),
         blk('scale', { factor: numShadow(2) }),
         blk('set_color'),
+        blk('set_effect', { value: numShadow(50) }),
+        blk('change_effect_by', { delta: numShadow(25) }),
+        blk('clear_effects'),
+        blk('go_to_layer'),
+        blk('change_layer_by', { amount: numShadow(1) }),
         blk('switch_to_scene'),
         blk('next_scene'),
         blk('switch_costume_to'),
@@ -550,10 +613,16 @@ export const TOOLBOX = {
     {
       kind: 'category', name: 'Sensing', colour: String(COLOUR.sensing),
       contents: [
+        blk('ask_and_wait', { prompt: textShadow("What's your name?") }),
+        blk('expr_answer'),
         blk('expr_touching'),
         blk('expr_distance_to'),
         blk('expr_key_pressed'),
+        blk('expr_mouse_x'),
+        blk('expr_mouse_y'),
+        blk('expr_mouse_down'),
         blk('expr_timer'),
+        blk('reset_timer'),
         blk('expr_position_x'),
         blk('expr_position_y'),
         blk('expr_position_z'),
@@ -563,6 +632,9 @@ export const TOOLBOX = {
         blk('expr_object_x'),
         blk('expr_object_y'),
         blk('expr_object_z'),
+        blk('expr_object_rotation_x'),
+        blk('expr_object_rotation_y'),
+        blk('expr_object_rotation_z'),
       ],
     },
     { kind: 'category', name: 'My Blocks', colour: '290', custom: 'PROCEDURE' },

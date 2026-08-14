@@ -84,10 +84,14 @@ export const operators: Record<string, (...args: Value[]) => Value> = {
   log: (a) => Math.log10(toNumber(a)),
   exp: (a) => Math.exp(toNumber(a)),
   exp10: (a) => Math.pow(10, toNumber(a)),
-  // Comparison
+  // Comparison. Scratch 3 ships only < > =; neq/lte/gte are conveniences kids
+  // reach for constantly, and they reuse the same comparison semantics.
   lt: (a, b) => toNumber(a) < toNumber(b),
   gt: (a, b) => toNumber(a) > toNumber(b),
   eq: (a, b) => scratchEquals(a, b),
+  neq: (a, b) => !scratchEquals(a, b),
+  lte: (a, b) => toNumber(a) <= toNumber(b),
+  gte: (a, b) => toNumber(a) >= toNumber(b),
   // Logic
   and: (a, b) => toBool(a) && toBool(b),
   or: (a, b) => toBool(a) || toBool(b),

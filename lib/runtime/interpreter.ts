@@ -42,6 +42,16 @@ export class VariableStore {
     this.notify();
   }
 
+  /**
+   * Drop every variable and list in every scope. Used by the player's Restart
+   * control, which needs a clean slate without rebuilding the world.
+   */
+  clearAll() {
+    this.global.clear();
+    this.scopes.clear();
+    this.notify();
+  }
+
   private scopeMap(objectId: string, scope: VariableScope): Map<string, VariableEntry> {
     if (scope === 'global') return this.global;
     let m = this.scopes.get(objectId);
@@ -214,6 +224,28 @@ export interface EvalEnv {
   ctx?: RuntimeContext;
   /** Per-object sound volume (0-100); provided by ObjectRuntime. */
   getVolume?(): number;
+  /** Pointer state in stage coordinates; provided by the player. */
+  pointer?: { x: number; y: number; down: boolean };
+}
+
+/**
+ * Clamp a graphic effect to Scratch's range: ghost 0..100, brightness
+ * -100..100, colour wraps modulo 200.
+ */
+export function clampEffect(effect: string, value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  switch (effect) {
+    case 'ghost':
+      return Math.min(100, Math.max(0, value));
+    case 'brightness':
+      return Math.min(100, Math.max(-100, value));
+    case 'color': {
+      const wrapped = value % 200;
+      return wrapped < 0 ? wrapped + 200 : wrapped;
+    }
+    default:
+      return value;
+  }
 }
 
 export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Value {
@@ -239,7 +271,17 @@ export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Valu
     case 'key_pressed':
       return isKeyDown(env.keys, String(expr.value ?? ''));
     case 'timer':
-      return env.time;
+      // Relative to the last reset_timer, matching Scratch. Falls back to the
+      // raw world clock when there's no world (headless expression tests).
+      return env.world ? env.world.timerValue(env.time) : env.time;
+    case 'answer':
+      return env.world?.getAnswer() ?? '';
+    case 'mouse_x':
+      return env.pointer?.x ?? 0;
+    case 'mouse_y':
+      return env.pointer?.y ?? 0;
+    case 'mouse_down':
+      return env.pointer?.down ?? false;
     case 'touching': {
       if (!env.world) return false;
       const target = expr.value !== undefined ? String(expr.value) : expr.args?.[0] !== undefined ? String(evalExpr(expr.args[0], env)) : '';
@@ -398,6 +440,47 @@ export class RuntimeWorld {
   /** Scene switching — set by the player; per-object ctx delegates here. */
   onSwitchScene?: (name: string) => void;
   onNextScene?: () => void;
+  /**
+   * "Ask and wait" — set by the player, which owns the stage-level prompt UI.
+   * Resolves with the player's typed answer.
+   */
+  onAsk?: (prompt: string) => Promise<string>;
+
+  /**
+   * Pointer state in stage coordinates, written by the player's pointer
+   * listeners. Lives on the world rather than being drilled through the scene
+   * and object components, same as the scene-switch handlers above.
+   */
+  pointer = { x: 0, y: 0, down: false };
+
+  /**
+   * Scratch's timer is world-global and resettable. `expr_timer` reads
+   * `env.time - timerEpoch`, so resetting is just re-stamping the epoch.
+   */
+  private timerEpoch = 0;
+  /** Last value written by `ask and wait`, read by the `answer` reporter. */
+  private answer = '';
+
+  resetTimer(now?: number) {
+    this.timerEpoch = now ?? this.lastKnownTime;
+  }
+
+  /** Elapsed seconds since the last reset. */
+  timerValue(now: number): number {
+    this.lastKnownTime = now;
+    return Math.max(0, now - this.timerEpoch);
+  }
+
+  setAnswer(value: string) {
+    this.answer = value;
+  }
+
+  getAnswer(): string {
+    return this.answer;
+  }
+
+  /** Tracks the most recent frame time so resetTimer() works without an argument. */
+  private lastKnownTime = 0;
 
   register(id: string, hooks: WorldObjectHooks) {
     this.objects.set(id, hooks);
@@ -596,6 +679,23 @@ export interface RuntimeContext {
   nextCostume?(): void;
   /** Current costume state; number is 1-based like Scratch. */
   getCostume?(): { number: number; name: string };
+
+  // --- Graphic effects ---
+  /** Apply a named effect ('ghost' | 'brightness' | 'color') at an already-clamped value. */
+  setEffect?(effect: string, value: number): void;
+  /** Read the current value of a named effect; 0 when unset. */
+  getEffect?(effect: string): number;
+  /** Reset every effect to 0. */
+  clearEffects?(): void;
+
+  // --- Layer ordering ---
+  goToLayer?(layer: 'front' | 'back'): void;
+  /** Positive moves forward (towards the camera), negative backward. */
+  changeLayerBy?(delta: number): void;
+
+  // --- Sensing ---
+  /** Prompt the player and resolve with their typed answer (Scratch "ask and wait"). */
+  ask?(prompt: string): Promise<string>;
 }
 
 interface ScriptState {
@@ -722,7 +822,7 @@ export class ObjectRuntime {
   }
 
   private env(time: number): EvalEnv {
-    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack, ctx: this.ctx, getVolume: () => this.volume };
+    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack, ctx: this.ctx, getVolume: () => this.volume, pointer: this.world?.pointer };
   }
 
   step(delta: number, time: number) {
@@ -1181,6 +1281,57 @@ export class ObjectRuntime {
           return;
         case 'set_color':
           this.ctx.setColor?.(String(getInput(block, 'hex', env, getInput(block, 'value', env, '#ffffff'))));
+          return;
+
+        // --- Graphic effects ---
+        // Effects are clamped to Scratch's ranges: ghost 0..100, brightness
+        // -100..100, colour wraps modulo 200.
+        case 'set_effect': {
+          const effect = String(getInput(block, 'effect', env, 'ghost'));
+          const raw = toNumber(getInput(block, 'value', env, 0));
+          this.ctx.setEffect?.(effect, clampEffect(effect, raw));
+          return;
+        }
+        case 'change_effect_by': {
+          const effect = String(getInput(block, 'effect', env, 'ghost'));
+          const delta = toNumber(getInput(block, 'delta', env, getInput(block, 'value', env, 0)));
+          const current = this.ctx.getEffect?.(effect) ?? 0;
+          this.ctx.setEffect?.(effect, clampEffect(effect, current + delta));
+          return;
+        }
+        case 'clear_effects':
+          this.ctx.clearEffects?.();
+          return;
+
+        // --- Layer ordering ---
+        case 'go_to_layer':
+          this.ctx.goToLayer?.(String(getInput(block, 'layer', env, 'front')) === 'back' ? 'back' : 'front');
+          return;
+        case 'change_layer_by': {
+          const amount = Math.trunc(toNumber(getInput(block, 'amount', env, 1)));
+          const backward = String(getInput(block, 'direction', env, 'forward')) === 'backward';
+          this.ctx.changeLayerBy?.(backward ? -amount : amount);
+          return;
+        }
+
+        // --- Sensing statements ---
+        // ask_and_wait suspends the script until the player answers, exactly
+        // like Scratch's "ask and wait".
+        case 'ask_and_wait': {
+          const prompt = String(getInput(block, 'prompt', env, ''));
+          if (!this.ctx.ask) return;
+          let settled = false;
+          let answer = '';
+          this.ctx.ask(prompt).then(
+            (response: string) => { answer = String(response ?? ''); settled = true; },
+            () => { answer = ''; settled = true; }
+          );
+          while (!settled) yield { type: 'frame' };
+          this.world?.setAnswer(answer);
+          return;
+        }
+        case 'reset_timer':
+          this.world?.resetTimer(time);
           return;
 
         // --- Scene switching ---

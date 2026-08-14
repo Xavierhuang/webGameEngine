@@ -73,7 +73,7 @@ function Hero() {
               Start Building
             </Link>
             <Link
-              href="/projects"
+              href="/explore"
               className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 font-semibold rounded-full px-6 py-3 text-base transition"
             >
               Explore Projects
@@ -500,7 +500,7 @@ function GallerySection() {
             copy="Remix any starter or build from scratch. Every project runs in the browser — no downloads, no accounts required."
           />
           <Link
-            href="/projects"
+            href="/explore"
             className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700 hover:text-slate-900"
           >
             Browse all <ArrowRight className="w-4 h-4" />
@@ -624,7 +624,7 @@ function Footer() {
         </div>
         <FooterCol title="Build">
           <FooterLink href="/projects/new">Start a project</FooterLink>
-          <FooterLink href="/projects">Explore</FooterLink>
+          <FooterLink href="/explore">Explore</FooterLink>
           <FooterLink href="/auth/signup">Create account</FooterLink>
         </FooterCol>
         <FooterCol title="Learn">

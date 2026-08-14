@@ -33,23 +33,42 @@ echo "  User: $MYSQL_USER"
 echo "  Database: $MYSQL_DATABASE"
 echo ""
 
-# Run the migration (with or without password)
-echo "Running database migration..."
+# Resolve credentials once, up front. The old script prompted for a password
+# inside a fallback for a single hardcoded migration file, which is why 002 was
+# never applied — it simply wasn't referenced anywhere.
 if [ -z "$MYSQL_PASSWORD" ]; then
-    # Try without password first (common for local dev)
-    $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" < migrations/001_initial_schema.sql 2>/dev/null || {
-        # If that fails, prompt for password
+    if ! $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -e "SELECT 1" >/dev/null 2>&1; then
         read -sp "Enter MySQL password for $MYSQL_USER (or press Enter if no password): " MYSQL_PASSWORD
         echo ""
-        if [ -z "$MYSQL_PASSWORD" ]; then
-            $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" < migrations/001_initial_schema.sql
-        else
-            $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < migrations/001_initial_schema.sql
-        fi
-    }
-else
-    $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < migrations/001_initial_schema.sql
+    fi
 fi
+
+run_sql() {
+    if [ -z "$MYSQL_PASSWORD" ]; then
+        $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" < "$1"
+    else
+        $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < "$1"
+    fi
+}
+
+# Apply every migration in lexical order. Migrations are written to be
+# re-runnable (IF NOT EXISTS / information_schema guards), so this is safe to
+# run repeatedly.
+echo "Running database migrations..."
+shopt -s nullglob
+migrations=(migrations/*.sql)
+if [ ${#migrations[@]} -eq 0 ]; then
+    echo "❌ No migration files found in migrations/."
+    exit 1
+fi
+
+for migration in "${migrations[@]}"; do
+    echo "  → $(basename "$migration")"
+    if ! run_sql "$migration"; then
+        echo "❌ Migration failed: $migration"
+        exit 1
+    fi
+done
 
 if [ $? -eq 0 ]; then
     echo "✅ Database setup completed successfully!"

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { getProjectAccess } from '@/lib/auth/access';
 
 export async function GET(
   request: NextRequest,
@@ -110,15 +111,16 @@ export async function PATCH(
         [scene.project_id]
       );
 
-      if (project && user) {
-        const profile = await queryOne<{ id: string }>(
-          'SELECT id FROM profiles WHERE user_id = ?',
-          [user.id]
-        );
-        
-        if (profile && project.owner_id !== profile.id && project.visibility !== 'public') {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+      // Writes are owner-only. This check used to sit inside `if (project &&
+      // user)`, so an unauthenticated caller skipped it entirely and could
+      // mutate any project's objects. `visibility === 'public'` must never
+      // grant write access.
+      if (!project) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+      const access = await getProjectAccess(project);
+      if (!access.canEdit) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
 
@@ -198,15 +200,16 @@ export async function DELETE(
         [scene.project_id]
       );
 
-      if (project && user) {
-        const profile = await queryOne<{ id: string }>(
-          'SELECT id FROM profiles WHERE user_id = ?',
-          [user.id]
-        );
-        
-        if (profile && project.owner_id !== profile.id && project.visibility !== 'public') {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+      // Writes are owner-only. This check used to sit inside `if (project &&
+      // user)`, so an unauthenticated caller skipped it entirely and could
+      // mutate any project's objects. `visibility === 'public'` must never
+      // grant write access.
+      if (!project) {
+        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      }
+      const access = await getProjectAccess(project);
+      if (!access.canEdit) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
     }
 

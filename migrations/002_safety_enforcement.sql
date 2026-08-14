@@ -31,5 +31,21 @@ CREATE TABLE IF NOT EXISTS reports (
 -- The moderation gate uses status to filter public listings. Existing rows
 -- default to 'pending' — anything that pre-dates this migration needs manual
 -- review before it appears in a public gallery.
-ALTER TABLE projects ADD INDEX idx_projects_moderation (moderation_status);
-ALTER TABLE projects ADD INDEX idx_projects_visibility (visibility);
+--
+-- MySQL has no `ADD INDEX IF NOT EXISTS`, so guard on information_schema to
+-- keep this migration re-runnable (scripts/setup-db.sh applies every file).
+SET @idx := (SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE table_schema = DATABASE() AND table_name = 'projects'
+               AND index_name = 'idx_projects_moderation');
+SET @sql := IF(@idx = 0,
+               'ALTER TABLE projects ADD INDEX idx_projects_moderation (moderation_status)',
+               'SET @noop = 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx := (SELECT COUNT(*) FROM information_schema.STATISTICS
+             WHERE table_schema = DATABASE() AND table_name = 'projects'
+               AND index_name = 'idx_projects_visibility');
+SET @sql := IF(@idx = 0,
+               'ALTER TABLE projects ADD INDEX idx_projects_visibility (visibility)',
+               'SET @noop = 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

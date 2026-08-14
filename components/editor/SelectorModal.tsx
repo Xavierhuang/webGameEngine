@@ -125,12 +125,15 @@ export function SelectorTile({
   title,
   description,
   onClick,
+  onMouseEnter,
   children,
   badge,
 }: {
   title: string;
   description?: string;
   onClick: () => void;
+  /** Optional hover handler — used by the sound picker to audition a sound. */
+  onMouseEnter?: () => void;
   /** The preview shown in the top square of the tile (usually a ShapePreview). */
   children: React.ReactNode;
   /** Optional label overlaid on the preview (e.g., "NEW"). */
@@ -139,6 +142,7 @@ export function SelectorTile({
   return (
     <button
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
       className="group text-left rounded-2xl border border-slate-200 bg-white p-3 hover:border-slate-300 hover:shadow-md transition"
     >
       <div className="relative aspect-square rounded-xl bg-slate-50 mb-3 overflow-hidden">

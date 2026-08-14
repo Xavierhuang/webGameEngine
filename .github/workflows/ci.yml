@@ -1,0 +1,53 @@
+name: CI
+
+# The repo had no CI at all, and next.config.js sets both
+# `typescript.ignoreBuildErrors` and `eslint.ignoreDuringBuilds` — so nothing,
+# anywhere, ever type-checked or linted this project. A real type error sat in
+# the tree undetected as a result.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Node 20: the local build segfaults on Node 22 + @next/swc-darwin-arm64.
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Tests
+        # Covers the runtime, serializer, name fields, access control, COPPA,
+        # moderation keyword scan, prefabs and the asset generators.
+        run: npm run test:all
+
+      - name: Build
+        run: npm run build
+        env:
+          # The build only needs these to exist; it never connects.
+          JWT_SECRET: ci-placeholder-not-a-real-secret
+
+      # Status codes are not proof a page works — a deploy once white-screened
+      # the whole site with a client-side exception while every page returned
+      # HTTP 200. This loads each page in real Chromium and fails on any
+      # uncaught exception, console error, or missing JS chunk.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke test
+        run: |
+          JWT_SECRET=ci-placeholder-not-a-real-secret npx next start -p 3000 &
+          npx wait-on -t 60000 http://localhost:3000 || sleep 15
+          node scripts/smoke.js http://localhost:3000

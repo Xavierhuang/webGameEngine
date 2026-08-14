@@ -1,4 +1,5 @@
 import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { getProjectAccess } from '@/lib/auth/access';
 import GamePlayer from '@/components/player/GamePlayer';
 import type { Project } from '@/types/game';
 import Link from 'next/link';
@@ -21,6 +22,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
     title: string;
     description: string | null;
     visibility: string;
+    moderation_status: string;
   }>('SELECT * FROM projects WHERE id = ?', [id]);
 
   if (!project) {
@@ -33,25 +35,31 @@ export default async function PlayPage({ params }: PlayPageProps) {
     );
   }
 
-  // Check access
-  if (user) {
-    const profile = await queryOne<{ id: string }>(
-      'SELECT id FROM profiles WHERE user_id = ?',
-      [user.id]
+  // Owner-or-public, for signed-in users and cookie-identified guests alike.
+  // The guest branch here used to be an empty `if`, so any logged-out visitor
+  // with the UUID could play a private game.
+  const access = await getProjectAccess(project);
+  if (!access.canView) {
+    return (
+      <PlayerErrorScreen
+        icon={<Lock className="w-6 h-6" />}
+        title="Private game"
+        body="This game hasn't been shared publicly. Ask the creator to make it public if you want to play."
+      />
     );
+  }
 
-    if (profile && project.owner_id !== profile.id && project.visibility !== 'public') {
-      return (
-        <PlayerErrorScreen
-          icon={<Lock className="w-6 h-6" />}
-          title="Private game"
-          body="This game hasn't been shared publicly. Ask the creator to make it public if you want to play."
-        />
+  // Count the play. `play_count` and `last_played_at` have been rendered in the
+  // UI since the initial schema but nothing ever wrote to them. Owners playing
+  // their own game don't inflate the count.
+  if (!access.isOwner) {
+    try {
+      await query(
+        'UPDATE projects SET play_count = play_count + 1, last_played_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [id]
       );
-    }
-  } else {
-    if (project.visibility !== 'public') {
-      // Guests can access their own projects
+    } catch (error) {
+      console.error('[play] failed to record play count:', error);
     }
   }
 

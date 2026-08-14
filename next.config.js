@@ -1,9 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Skip lint/TS gates at build time — these are lift-and-shift deploys; fix in follow-up PRs.
+  // Lint stays off at build time (not yet audited), but the TypeScript gate is
+  // ON again: the tree is at zero errors and CI runs `type-check` on every
+  // push. With both gates off and no CI, a real type error sat undetected.
   eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
+  typescript: { ignoreBuildErrors: false },
   images: {
     domains: [
       'localhost',

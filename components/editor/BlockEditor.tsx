@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as Blockly from 'blockly';
 import 'blockly/blocks'; // built-in procedures_defnoreturn / procedures_callnoreturn
 import { BLOCK_DEFINITIONS, TOOLBOX } from '../../lib/blockly/definitions';
+import { registerNameField, setKnownObjectNames } from '../../lib/blockly/nameField';
 import { blocklyToLogic, logicToBlockly, normalizeDbBlocks } from '../../lib/blockly/serializer';
 import { HAT_TYPES, ObjectRuntime, RuntimeWorld, VariableStore, type RuntimeContext } from '../../lib/runtime/interpreter';
 import AudioManager from '../../lib/audio/AudioManager';
@@ -16,6 +17,8 @@ interface BlockEditorProps {
   objectName: string;
   /** Raw logic_blocks rows (or LogicBlock[]) for the selected object. */
   initialBlocks: any[];
+  /** Names of the other sprites in this scene, for the object-name pickers. */
+  objectNames?: string[];
 }
 
 /** "My Blocks" flyout: one define block plus a caller per existing definition. */
@@ -90,7 +93,7 @@ function createPreviewContext(): RuntimeContext {
   };
 }
 
-export default function BlockEditor({ objectId, objectName, initialBlocks }: BlockEditorProps) {
+export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames }: BlockEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -106,9 +109,16 @@ export default function BlockEditor({ objectId, objectName, initialBlocks }: Blo
   useEffect(() => {
     if (!hostRef.current) return;
     if (!blocksRegistered) {
+      // Must precede defineBlocksWithJsonArray — the definitions reference the
+      // `field_lingplay_name` field type.
+      registerNameField();
       Blockly.defineBlocksWithJsonArray(BLOCK_DEFINITIONS as any[]);
       blocksRegistered = true;
     }
+
+    // Object-name pickers list the sprites in the current scene, which the
+    // workspace itself has no way to know about.
+    setKnownObjectNames(objectNames ?? []);
 
     // React strict-mode double-invokes effects in dev. If the previous mount's
     // workspace.dispose() left any Blockly SVG residue in the host, the second

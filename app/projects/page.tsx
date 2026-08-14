@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Plus, Play, Edit, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
+import { ImportButton } from '@/components/projects/ImportButton';
 
 export default async function ProjectsPage(props: {
   searchParams?: Promise<{ signup?: string }>;
@@ -86,13 +87,16 @@ export default async function ProjectsPage(props: {
               Every project you build lives here. Open one to keep editing, or start a fresh world.
             </p>
           </div>
-          <Link
-            href="/projects/new"
-            className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-6 py-3 shadow-lg shadow-slate-900/10 transition"
-          >
-            <Plus className="w-4 h-4" />
-            New Game
-          </Link>
+          <div className="flex items-center gap-2">
+            <ImportButton />
+            <Link
+              href="/projects/new"
+              className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-6 py-3 shadow-lg shadow-slate-900/10 transition"
+            >
+              <Plus className="w-4 h-4" />
+              New Game
+            </Link>
+          </div>
         </div>
 
         {projects && projects.length > 0 ? (

@@ -1,18 +1,35 @@
+import { cookies } from 'next/headers';
 import { query, queryOne } from '@/lib/mysql/server';
 import { randomUUID } from 'crypto';
+import { GUEST_COOKIE, GUEST_COOKIE_MAX_AGE } from '@/lib/auth/access';
 
 /**
- * Get or create a guest user and profile
- * Guest users are temporary and can be converted to real accounts later
+ * Get or create a guest user and profile.
+ *
+ * This used to mint a brand-new users+profiles row on *every* call with no way
+ * to reconnect the caller to it, which both leaked orphaned rows and left guest
+ * projects unauthorizable (see lib/auth/access.ts). We now persist the guest's
+ * profile id in a cookie and reuse it.
  */
 export async function getOrCreateGuestUser(): Promise<{
   userId: string;
   profileId: string;
 }> {
-  // Check if there's a guest user in the session/cookie
-  // For now, we'll create a new guest user each time
-  // In production, you might want to store guest ID in localStorage/cookie
-  
+  const cookieStore = await cookies();
+  const existingGuestId = cookieStore.get(GUEST_COOKIE)?.value;
+
+  if (existingGuestId) {
+    const existing = await queryOne<{ id: string; user_id: string }>(
+      'SELECT id, user_id FROM profiles WHERE id = ?',
+      [existingGuestId]
+    );
+    if (existing) {
+      return { userId: existing.user_id, profileId: existing.id };
+    }
+    // Cookie points at a profile that no longer exists — fall through and mint
+    // a fresh one rather than failing the request.
+  }
+
   const userId = randomUUID();
   const profileId = randomUUID();
   
@@ -65,11 +82,34 @@ export async function getOrCreateGuestUser(): Promise<{
       [userId]
     );
     if (profile) {
+      await rememberGuest(profile.id);
       return { userId, profileId: profile.id };
     }
     throw error;
   }
-  
+
+  await rememberGuest(profileId);
   return { userId, profileId };
+}
+
+/**
+ * Persist the guest's profile id so subsequent requests can be authorized as
+ * the same actor. Only callable from a Route Handler / Server Action — every
+ * caller of getOrCreateGuestUser is one.
+ */
+async function rememberGuest(profileId: string): Promise<void> {
+  try {
+    const cookieStore = await cookies();
+    cookieStore.set(GUEST_COOKIE, profileId, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: GUEST_COOKIE_MAX_AGE,
+    });
+  } catch {
+    // Setting cookies throws in a Server Component render. Guest identity is
+    // best-effort there; the project is still created.
+  }
 }
 
