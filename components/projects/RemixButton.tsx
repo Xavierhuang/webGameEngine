@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GitFork } from 'lucide-react';
+import { useTranslator } from '../common/LocaleProvider';
 
 /**
  * Remix a project — deep-copies it under your ownership and drops you into the
@@ -10,6 +11,7 @@ import { GitFork } from 'lucide-react';
  */
 export function RemixButton({ projectId }: { projectId: string }) {
   const router = useRouter();
+  const t = useTranslator();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +43,7 @@ export function RemixButton({ projectId }: { projectId: string }) {
         title="Make your own copy of this game"
       >
         <GitFork className="h-4 w-4" />
-        {busy ? 'Remixing…' : 'Remix'}
+        {busy ? t('project.remixing') : t('project.remix')}
       </button>
       {error && <span className="mt-1 text-xs text-red-600">{error}</span>}
     </div>

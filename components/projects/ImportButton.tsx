@@ -3,10 +3,12 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload } from 'lucide-react';
+import { useTranslator } from '../common/LocaleProvider';
 
 /** Import a `.lingplay` file exported from another account or instance. */
 export function ImportButton() {
   const router = useRouter();
+  const t = useTranslator();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export function ImportButton() {
         title="Import a .lingplay project file"
       >
         <Upload className="h-3.5 w-3.5" />
-        {busy ? 'Importing…' : 'Import'}
+        {busy ? t('projects.importing') : t('projects.import')}
       </button>
       {error && <span className="mt-1 text-xs text-red-600">{error}</span>}
     </div>

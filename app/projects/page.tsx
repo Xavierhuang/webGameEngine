@@ -4,6 +4,7 @@ import { Plus, Play, Edit, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
 import { ImportButton } from '@/components/projects/ImportButton';
+import { getTranslator } from '@/lib/i18n/server';
 
 export default async function ProjectsPage(props: {
   searchParams?: Promise<{ signup?: string }>;
@@ -12,6 +13,7 @@ export default async function ProjectsPage(props: {
 
   // Allow both authenticated and guest users
   const user = await getAuthenticatedUser();
+  const t = await getTranslator();
 
   let projects: any[] = [];
   let displayName = 'Guest';
@@ -78,7 +80,7 @@ export default async function ProjectsPage(props: {
         <div className="flex items-end justify-between flex-wrap gap-4 mb-8 mt-2">
           <div>
             <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-              {user ? 'Signed in' : 'Guest mode'}
+              {user ? t('projects.signedIn') : t('projects.guestMode')}
             </div>
             <h1 className="mt-1 text-4xl font-black tracking-tight text-slate-900">
               {displayName}&apos;s Games
@@ -94,7 +96,7 @@ export default async function ProjectsPage(props: {
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-6 py-3 shadow-lg shadow-slate-900/10 transition"
             >
               <Plus className="w-4 h-4" />
-              New Game
+              {t('projects.newGame')}
             </Link>
           </div>
         </div>

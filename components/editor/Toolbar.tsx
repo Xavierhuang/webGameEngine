@@ -1,6 +1,7 @@
 'use client';
 
 import { Box, Circle, Star, User, Music, Sparkles, Plus } from 'lucide-react';
+import { useTranslator } from '../common/LocaleProvider';
 import { PALETTE } from '../common/design';
 
 interface ToolbarProps {
@@ -27,7 +28,20 @@ const GAME_OBJECTS: ToolbarItem[] = [
   { type: 'sound', name: 'Sound', icon: Music, description: 'Music and sound effects', accent: PALETTE.sound },
 ];
 
+/**
+ * Toolbar labels are translated at render time — GAME_OBJECTS is module-level
+ * data, so it can't call a hook itself.
+ */
+const TOOLBAR_LABELS: Record<string, any> = {
+  character: 'toolbar.character',
+  platform: 'toolbar.platform',
+  collectible: 'toolbar.collectible',
+  obstacle: 'toolbar.obstacle',
+  sound: 'toolbar.sound',
+};
+
 export default function Toolbar({ onAddObject, onOpenAI }: ToolbarProps) {
+  const t = useTranslator();
   return (
     <div className="p-4">
       <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
@@ -50,7 +64,7 @@ export default function Toolbar({ onAddObject, onOpenAI }: ToolbarProps) {
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block font-semibold text-slate-900 text-sm truncate">
-                  {obj.name}
+                  {TOOLBAR_LABELS[obj.type] ? t(TOOLBAR_LABELS[obj.type]) : obj.name}
                 </span>
                 <span className="block text-[11px] text-slate-500 truncate">
                   {obj.description}

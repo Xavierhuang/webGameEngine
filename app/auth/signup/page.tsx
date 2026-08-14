@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AuthShell } from '@/components/common/AuthCard';
+import { useTranslator } from '@/components/common/LocaleProvider';
 import { ageFromDateOfBirth, COPPA_AGE } from '@/lib/safety/coppa';
 
 export default function SignUpPage() {
@@ -19,6 +20,7 @@ export default function SignUpPage() {
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [awaitingConsent, setAwaitingConsent] = useState(false);
   const router = useRouter();
+  const t = useTranslator();
 
   // Ask for a parent's email as soon as the entered birthday puts the child
   // under 13 — mirrors the server-side rule in lib/safety/coppa.ts.
@@ -142,7 +144,7 @@ export default function SignUpPage() {
           />
         </Field>
 
-        <Field label="Email">
+        <Field label={t('auth.email')}>
           <input
             type="email"
             value={email}
@@ -217,7 +219,7 @@ export default function SignUpPage() {
           disabled={loading}
           className="w-full inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-full font-semibold shadow-lg shadow-slate-900/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Creating account…' : 'Create account'}
+          {loading ? t('auth.creating') : t('auth.signUp')}
         </button>
 
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">

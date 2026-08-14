@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AuthShell } from '@/components/common/AuthCard';
+import { useTranslator } from '@/components/common/LocaleProvider';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const t = useTranslator();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,7 +62,7 @@ export default function LoginPage() {
       }
     >
       <form onSubmit={handleLogin} className="space-y-4">
-        <Field label="Email">
+        <Field label={t('auth.email')}>
           <input
             type="email"
             value={email}
@@ -72,7 +74,7 @@ export default function LoginPage() {
           />
         </Field>
 
-        <Field label="Password">
+        <Field label={t('auth.password')}>
           <input
             type="password"
             value={password}
@@ -104,7 +106,7 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-full font-semibold shadow-lg shadow-slate-900/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Signing in…' : 'Sign in'}
+          {loading ? t('auth.signingIn') : t('auth.signIn')}
         </button>
       </form>
     </AuthShell>

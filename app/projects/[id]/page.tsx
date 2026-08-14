@@ -7,6 +7,7 @@ import { PageBackdrop } from '@/components/common/PageBackdrop';
 import { RemixButton } from '@/components/projects/RemixButton';
 import { LikeButton } from '@/components/projects/LikeButton';
 import { ReportButton } from '@/components/projects/ReportButton';
+import { getTranslator } from '@/lib/i18n/server';
 
 /**
  * A project's landing page — title, author, description, and the Remix button.
@@ -17,6 +18,7 @@ import { ReportButton } from '@/components/projects/ReportButton';
 export default async function ProjectPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
   const user = await getAuthenticatedUser();
+  const t = await getTranslator();
 
   const project = await queryOne<any>(
     `SELECT p.*, author.display_name AS author_name, author.username AS author_username,
@@ -76,7 +78,7 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
               className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               <Play className="h-4 w-4" />
-              Play
+              {t('project.play')}
             </Link>
 
             <RemixButton projectId={project.id} />
@@ -89,7 +91,7 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
                 className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-300"
               >
                 <Edit className="h-4 w-4" />
-                Edit
+                {t('project.edit')}
               </Link>
             ) : (
               <ReportButton projectId={project.id} />
@@ -99,7 +101,7 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
 
         <div>
           <h1 className="text-3xl font-black tracking-tight text-slate-900">{project.title}</h1>
-          <p className="mt-1 text-slate-600">by {project.author_name || 'Someone'}</p>
+          <p className="mt-1 text-slate-600">{t('project.by')} {project.author_name || 'Someone'}</p>
 
           {project.parent_title && (
             <p className="mt-3 text-sm text-slate-500">
@@ -112,13 +114,13 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
           )}
 
           <p className="mt-5 whitespace-pre-line leading-relaxed text-slate-700">
-            {project.description || 'No description yet.'}
+            {project.description || t('project.noDescription')}
           </p>
 
           <dl className="mt-6 flex gap-6 text-sm text-slate-600">
-            <Stat icon={<Heart className="h-4 w-4" />} value={project.like_count ?? 0} label="loves" />
-            <Stat icon={<GitFork className="h-4 w-4" />} value={project.remix_count ?? 0} label="remixes" />
-            <Stat icon={<Play className="h-4 w-4" />} value={project.play_count ?? 0} label="plays" />
+            <Stat icon={<Heart className="h-4 w-4" />} value={project.like_count ?? 0} label={t('project.loves')} />
+            <Stat icon={<GitFork className="h-4 w-4" />} value={project.remix_count ?? 0} label={t('project.remixes')} />
+            <Stat icon={<Play className="h-4 w-4" />} value={project.play_count ?? 0} label={t('project.plays')} />
           </dl>
 
           {remixes.length > 0 && (
