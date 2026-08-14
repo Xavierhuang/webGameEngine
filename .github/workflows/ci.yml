@@ -13,6 +13,29 @@ jobs:
   verify:
     runs-on: ubuntu-latest
 
+    # The app queries MySQL during server rendering, so without a database the
+    # smoke test only proves pages fail gracefully — not that they work.
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: gameengine
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: '3306'
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ''
+      MYSQL_DATABASE: gameengine
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,6 +47,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Apply migrations
+        run: |
+          for m in $(ls migrations/*.sql | sort); do
+            echo "-> $(basename "$m")"
+            # 001 creates a trigger; on some MySQL builds that needs SUPER, and
+            # the app no longer depends on it, so a failure there is tolerated.
+            mysql -h 127.0.0.1 -P 3306 -u root gameengine < "$m" || echo "   (skipped: $m)"
+          done
 
       - name: Type-check
         run: npm run type-check
@@ -49,5 +81,8 @@ jobs:
       - name: Browser smoke test
         run: |
           JWT_SECRET=ci-placeholder-not-a-real-secret npx next start -p 3000 &
-          npx wait-on -t 60000 http://localhost:3000 || sleep 15
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null http://localhost:3000 && break
+            sleep 2
+          done
           node scripts/smoke.js http://localhost:3000

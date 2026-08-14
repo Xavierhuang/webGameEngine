@@ -29,11 +29,15 @@ export default async function ExplorePage(props: {
 
   let displayName = 'Guest';
   if (user) {
-    const profile = await queryOne<{ display_name: string | null; username: string | null }>(
-      'SELECT display_name, username FROM profiles WHERE user_id = ?',
-      [user.id]
-    );
-    displayName = profile?.display_name || profile?.username || 'Player';
+    try {
+      const profile = await queryOne<{ display_name: string | null; username: string | null }>(
+        'SELECT display_name, username FROM profiles WHERE user_id = ?',
+        [user.id]
+      );
+      displayName = profile?.display_name || profile?.username || 'Player';
+    } catch {
+      displayName = 'Player';
+    }
   }
 
   const where = ["p.visibility = 'public'", "p.moderation_status = 'approved'"];
@@ -43,19 +47,27 @@ export default async function ExplorePage(props: {
     args.push(`%${rawQuery}%`, `%${rawQuery}%`);
   }
 
-  const projects = await query<any>(
-    `SELECT p.id, p.title, p.description, p.thumbnail_url, p.genre, p.created_at,
-            p.play_count, p.like_count, p.remix_count, p.remixed_from,
-            author.display_name AS author_name, author.username AS author_username,
-            parent.title AS parent_title
-     FROM projects p
-     LEFT JOIN profiles author ON author.id = p.owner_id
-     LEFT JOIN projects parent ON parent.id = p.remixed_from
-     WHERE ${where.join(' AND ')}
-     ORDER BY ${SORTS[sortKey].order}
-     LIMIT 48`,
-    args
-  );
+  // Unlike the other pages, this one always hits the database — there is no
+  // signed-out short circuit. An unreachable DB used to 500 the whole page
+  // rather than showing the empty state, so a transient blip took Explore down.
+  let projects: any[] = [];
+  try {
+    projects = await query<any>(
+      `SELECT p.id, p.title, p.description, p.thumbnail_url, p.genre, p.created_at,
+              p.play_count, p.like_count, p.remix_count, p.remixed_from,
+              author.display_name AS author_name, author.username AS author_username,
+              parent.title AS parent_title
+       FROM projects p
+       LEFT JOIN profiles author ON author.id = p.owner_id
+       LEFT JOIN projects parent ON parent.id = p.remixed_from
+       WHERE ${where.join(' AND ')}
+       ORDER BY ${SORTS[sortKey].order}
+       LIMIT 48`,
+      args
+    );
+  } catch (error) {
+    console.error('[explore] project query failed:', error);
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-white">
