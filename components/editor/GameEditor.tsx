@@ -943,6 +943,9 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                   objectName={selectedObject.name}
                   initialBlocks={selectedObject.logic_blocks ?? []}
             objectNames={((currentScene as any)?.game_objects ?? []).map((o: any) => o.name).filter(Boolean)}
+            recordedSounds={(project?.assets ?? [])
+              .filter((a: any) => a.asset_type === 'sound' && a.file_url)
+              .map((a: any) => ({ name: a.name, url: a.file_url }))}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-slate-50">

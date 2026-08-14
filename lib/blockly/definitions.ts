@@ -76,7 +76,7 @@ const text = (name: string, value = '') => ({ type: 'field_input', name, text: v
  * "New…" option. Rendered by LingplayNameField (registered in the editor);
  * still plain data here so this module stays Blockly-free.
  */
-const nameField = (name: string, kind: 'variable' | 'list' | 'broadcast' | 'object', value = '') =>
+const nameField = (name: string, kind: 'variable' | 'list' | 'broadcast' | 'object' | 'sound', value = '') =>
   ({ type: 'field_lingplay_name', name, kind, text: value });
 const num = (name: string, value = 0) => ({ type: 'field_number', name, value });
 const value = (name: string) => ({ type: 'input_value', name });
@@ -149,12 +149,12 @@ const statementDefs: object[] = [
   // had to be kept in lockstep with a switch statement by hand.
   {
     type: 'play_sound', message0: 'play sound %1',
-    args0: [dropdown('sound', soundDropdownOptions())],
+    args0: [nameField('sound', 'sound', 'click')],
     previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {
     type: 'play_sound_until_done', message0: 'play sound %1 until done',
-    args0: [dropdown('sound', soundDropdownOptions())],
+    args0: [nameField('sound', 'sound', 'click')],
     previousStatement: null, nextStatement: null, colour: COLOUR.sound,
   },
   {

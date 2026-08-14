@@ -6,6 +6,7 @@ import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
 import { soundsByCategory, type SoundCategory } from '@/lib/audio/soundCatalog';
 import AudioManager from '@/lib/audio/AudioManager';
+import { SoundRecorder } from './SoundRecorder';
 
 interface SoundSelectorProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export default function SoundSelector({
   onClose,
   onSelect,
 }: SoundSelectorProps) {
-  const [tab, setTab] = useState<SoundCategory | 'beats'>('ui');
+  const [tab, setTab] = useState<SoundCategory | 'beats' | 'record'>('ui');
 
   /** Audition the sound before adding it — the picker used to be silent. */
   const preview = (item: Sound) => {
@@ -87,6 +88,8 @@ export default function SoundSelector({
   const current: Sound[] =
     tab === 'beats'
       ? BEAT_LOOPS
+      : tab === 'record'
+      ? [] // the Record tab renders the recorder, not a tile grid
       : soundsByCategory(tab).map((spec) => ({
           id: spec.id,
           name: spec.name,
@@ -102,10 +105,34 @@ export default function SoundSelector({
       eyebrow="Add object"
       icon={<Music2 className="w-5 h-5" />}
       accent={PALETTE.sound}
-      tabs={[...CATEGORY_TABS, { id: 'beats' as const, label: 'Beats' }]}
+      tabs={[...CATEGORY_TABS, { id: 'beats' as const, label: 'Beats' }, { id: 'record' as const, label: 'Record' }]}
       activeTab={tab}
       onTabChange={(id) => setTab(id as typeof tab)}
     >
+      {tab === 'record' ? (
+        <SelectorSection
+          title="Record your own"
+          description="Use your microphone to record a real sound. It only records while you hold the button, and nothing is sent until you save."
+          accent={PALETTE.sound}
+        >
+          <SoundRecorder
+            onSaved={({ url, name }) => {
+              // A recorded sound is referenced by URL; AudioManager plays URLs
+              // through its sample path rather than the synth catalog.
+              onSelect({
+                id: url,
+                name,
+                color: PALETTE.sound,
+                shape: 'box',
+                size: 40,
+                description: 'Recorded sound',
+                properties: { soundType: url, recorded: true },
+              });
+              onClose();
+            }}
+          />
+        </SelectorSection>
+      ) : (
       <SelectorSection
         title={
           tab === 'beats'
@@ -134,6 +161,7 @@ export default function SoundSelector({
           ))}
         </div>
       </SelectorSection>
+      )}
     </SelectorModal>
   );
 }

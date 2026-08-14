@@ -9,7 +9,7 @@
  */
 const Blockly = require('blockly');
 const { BLOCK_DEFINITIONS } = require('../.build/lib/blockly/definitions.js');
-const { registerNameField, setKnownObjectNames } = require('../.build/lib/blockly/nameField.js');
+const { registerNameField, setKnownObjectNames, setKnownSounds } = require('../.build/lib/blockly/nameField.js');
 
 let failures = 0;
 function eq(actual, expected, label) {
@@ -80,6 +80,30 @@ const workspace = new Blockly.Workspace();
   const options = touching.getField('value').getOptions(false).map((o) => o[1]);
   ok(options.includes('Cat'), 'object picker lists scene objects pushed in from the editor');
   ok(options.includes('Dog'), 'object picker lists every scene object');
+}
+
+// --- sounds: built-ins plus recordings, which are stored as URLs -----------
+{
+  setKnownSounds([
+    { label: 'Click', value: 'click' },
+    { label: 'My roar', value: '/uploads/audio/abc.webm' },
+  ]);
+  const block = workspace.newBlock('play_sound');
+  const options = block.getField('sound').getOptions(false);
+  const values = options.map((o) => o[1]);
+  ok(values.includes('click'), 'built-in sounds are offered');
+  ok(values.includes('/uploads/audio/abc.webm'), 'recorded sounds are offered');
+  // A URL is unreadable as a menu label.
+  const recorded = options.find((o) => o[1] === '/uploads/audio/abc.webm');
+  eq(recorded[0], 'My roar', 'recording shows its name, not its URL');
+
+  // A saved project referencing a recording that is no longer listed must keep
+  // playing it rather than being silently rewritten to another sound.
+  const orphan = workspace.newBlock('play_sound');
+  orphan.setFieldValue('/uploads/audio/gone.webm', 'sound');
+  eq(orphan.getFieldValue('sound'), '/uploads/audio/gone.webm', 'unknown recording value is preserved');
+  const orphanLabels = orphan.getField('sound').getOptions(false).map((o) => o[0]);
+  ok(orphanLabels.includes('gone'), 'orphaned recording gets a readable label');
 }
 
 // --- round-trip through Blockly serialization -------------------------------

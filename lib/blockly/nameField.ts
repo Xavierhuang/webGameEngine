@@ -14,7 +14,7 @@ import * as Blockly from 'blockly';
  * definitions.ts stays pure data with no Blockly import.
  */
 
-export type NameKind = 'variable' | 'list' | 'broadcast' | 'object';
+export type NameKind = 'variable' | 'list' | 'broadcast' | 'object' | 'sound';
 
 const NEW_SENTINEL = '__lingplay_new__';
 
@@ -27,6 +27,22 @@ let knownObjectNames: string[] = [];
 
 export function setKnownObjectNames(names: string[]) {
   knownObjectNames = Array.from(new Set(names.filter((n) => n && n.trim() !== '')));
+}
+
+/**
+ * Sounds the project can play: the built-in synth catalog plus anything the
+ * child recorded. Recorded sounds are referenced by URL, which AudioManager
+ * routes through its sample player rather than the synth.
+ */
+let knownSounds: Array<{ label: string; value: string }> = [];
+
+export function setKnownSounds(sounds: Array<{ label: string; value: string }>) {
+  const seen = new Set<string>();
+  knownSounds = sounds.filter((s) => {
+    if (!s?.value || seen.has(s.value)) return false;
+    seen.add(s.value);
+    return true;
+  });
 }
 
 /** Which (blockType, fieldName) pairs hold each kind of name. */
@@ -57,6 +73,10 @@ const FIELD_KINDS: Record<NameKind, Array<[blockType: string, fieldName: string]
     ['broadcast', 'message'],
     ['broadcast_and_wait', 'message'],
     ['when_receive', 'message'],
+  ],
+  sound: [
+    ['play_sound', 'sound'],
+    ['play_sound_until_done', 'sound'],
   ],
   object: [
     ['goto_object', 'target'],
@@ -114,6 +134,17 @@ export class LingplayNameField extends Blockly.FieldDropdown {
     const kind = this.kind ?? 'variable';
     const current = String(this.getValue() ?? '');
 
+    if (kind === 'sound') {
+      const options: Blockly.MenuOption[] = knownSounds.map((s) => [s.label, s.value]);
+      // The stored value must always be selectable, or loading a saved project
+      // would silently rewrite which sound a block plays.
+      if (current !== '' && !options.some(([, v]) => v === current)) {
+        options.unshift([labelForSoundValue(current), current]);
+      }
+      if (options.length === 0) options.push(['click', 'click']);
+      return options;
+    }
+
     const names =
       kind === 'object'
         ? Array.from(new Set([...knownObjectNames, ...namesInWorkspace(this.getSourceBlock()?.workspace ?? null, kind)]))
@@ -167,11 +198,20 @@ export class LingplayNameField extends Blockly.FieldDropdown {
   }
 }
 
+/** Recorded sounds are stored as URLs; show a readable label instead. */
+function labelForSoundValue(value: string): string {
+  if (/^(https?:)?\/\//.test(value) || value.startsWith('/')) {
+    return value.split('/').pop()?.replace(/\.[a-z0-9]+$/i, '') || 'Recording';
+  }
+  return value;
+}
+
 function defaultFor(kind: NameKind): string {
   switch (kind) {
     case 'list': return 'my list';
     case 'broadcast': return 'message1';
     case 'object': return '';
+    case 'sound': return 'click';
     default: return 'score';
   }
 }
@@ -181,6 +221,7 @@ function newLabelFor(kind: NameKind): string {
     case 'list': return 'New list…';
     case 'broadcast': return 'New message…';
     case 'object': return 'Type a name…';
+    case 'sound': return 'Type a sound name…';
     default: return 'New variable…';
   }
 }
@@ -190,6 +231,7 @@ function promptFor(kind: NameKind): string {
     case 'list': return 'New list name:';
     case 'broadcast': return 'New message name:';
     case 'object': return 'Object name:';
+    case 'sound': return 'Sound name or URL:';
     default: return 'New variable name:';
   }
 }

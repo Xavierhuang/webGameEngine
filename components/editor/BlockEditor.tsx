@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import * as Blockly from 'blockly';
 import 'blockly/blocks'; // built-in procedures_defnoreturn / procedures_callnoreturn
 import { BLOCK_DEFINITIONS, TOOLBOX } from '../../lib/blockly/definitions';
-import { registerNameField, setKnownObjectNames } from '../../lib/blockly/nameField';
+import { registerNameField, setKnownObjectNames, setKnownSounds } from '../../lib/blockly/nameField';
+import { SOUND_CATALOG } from '../../lib/audio/soundCatalog';
 import { blocklyToLogic, logicToBlockly, normalizeDbBlocks } from '../../lib/blockly/serializer';
 import { HAT_TYPES, ObjectRuntime, RuntimeWorld, VariableStore, type RuntimeContext } from '../../lib/runtime/interpreter';
 import AudioManager from '../../lib/audio/AudioManager';
@@ -19,6 +20,8 @@ interface BlockEditorProps {
   initialBlocks: any[];
   /** Names of the other sprites in this scene, for the object-name pickers. */
   objectNames?: string[];
+  /** Sounds recorded in this project, so `play sound` can offer them. */
+  recordedSounds?: Array<{ name: string; url: string }>;
 }
 
 /** "My Blocks" flyout: one define block plus a caller per existing definition. */
@@ -93,7 +96,7 @@ function createPreviewContext(): RuntimeContext {
   };
 }
 
-export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames }: BlockEditorProps) {
+export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames, recordedSounds }: BlockEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -119,6 +122,11 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
     // Object-name pickers list the sprites in the current scene, which the
     // workspace itself has no way to know about.
     setKnownObjectNames(objectNames ?? []);
+    // Built-in synth sounds plus anything recorded in this project.
+    setKnownSounds([
+      ...SOUND_CATALOG.map((s) => ({ label: s.name, value: s.id })),
+      ...(recordedSounds ?? []).map((s) => ({ label: s.name, value: s.url })),
+    ]);
 
     // React strict-mode double-invokes effects in dev. If the previous mount's
     // workspace.dispose() left any Blockly SVG residue in the host, the second
