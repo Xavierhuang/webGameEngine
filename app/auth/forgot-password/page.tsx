@@ -18,10 +18,19 @@ export default function ForgotPasswordPage() {
     setError(null);
 
     try {
-      // TODO: implement the reset endpoint. Until then, tell the user honestly.
-      setMessage(
-        "Password reset isn't wired up yet. Ping us and we'll help you back into your account."
-      );
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setError(data?.error || 'Failed to send reset email');
+        return;
+      }
+      // Deliberately the same message whether or not the account exists.
+      setMessage(data?.message || "If that email has an account, we've sent a reset link.");
     } catch (err: any) {
       setError(err.message || 'Failed to send reset email');
     } finally {

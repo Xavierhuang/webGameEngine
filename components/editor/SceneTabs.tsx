@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Plus, Trash2, Pencil } from 'lucide-react';
+import { useTranslator } from '../common/LocaleProvider';
 
 interface SceneTabsProps {
   scenes: any[];
@@ -27,6 +28,7 @@ export default function SceneTabs({
   onRename,
   onDelete,
 }: SceneTabsProps) {
+  const t = useTranslator();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
@@ -39,7 +41,7 @@ export default function SceneTabs({
     <div className="border-b border-slate-200 bg-white px-3 py-2">
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-          Scenes
+          {t('editor.scenes')}
         </span>
         <button
           onClick={onAdd}
@@ -47,7 +49,7 @@ export default function SceneTabs({
           title="Add a scene"
         >
           <Plus className="h-3.5 w-3.5" />
-          Add
+          {t('editor.addScene')}
         </button>
       </div>
 

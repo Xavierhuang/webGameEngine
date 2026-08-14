@@ -1,12 +1,15 @@
 'use client';
 
-import { Box, Circle, Star, User, Image, Copy } from 'lucide-react';
+import { Box, Circle, Star, User, Image, Copy, ChevronUp, ChevronDown } from 'lucide-react';
+import { useTranslator } from '../common/LocaleProvider';
 
 interface ObjectsPanelProps {
   scene: any;
   selectedObject?: any;
   onSelect: (obj: any) => void;
   onDuplicate?: (obj: any) => void;
+  /** Move a sprite up or down in the list. */
+  onReorder?: (obj: any, direction: -1 | 1) => void;
 }
 
 const typeToIcon: Record<string, any> = {
@@ -18,16 +21,17 @@ const typeToIcon: Record<string, any> = {
   sound: Circle,
 };
 
-export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplicate }: ObjectsPanelProps) {
+export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplicate, onReorder }: ObjectsPanelProps) {
+  const t = useTranslator();
   const objects = scene?.game_objects || [];
   return (
     <div className="p-4 border-t border-gray-200">
-      <h3 className="text-lg font-bold text-gray-800 mb-3">Scene Objects</h3>
+      <h3 className="text-lg font-bold text-gray-800 mb-3">{t('editor.sceneObjects')}</h3>
       {objects.length === 0 ? (
-        <div className="text-gray-500 text-sm">No objects yet</div>
+        <div className="text-gray-500 text-sm">{t('editor.noObjects')}</div>
       ) : (
         <ul className="space-y-2">
-          {objects.map((obj: any) => {
+          {objects.map((obj: any, index: number) => {
             const Icon = typeToIcon[obj.type] || Box;
             const isSelected = selectedObject?.id === obj.id;
             return (
@@ -47,6 +51,26 @@ export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplic
                       <div className="text-xs text-gray-500">{obj.type}</div>
                     </div>
                   </button>
+                  {onReorder && (
+                    <span className="flex shrink-0 flex-col opacity-0 transition group-hover:opacity-100">
+                      <button
+                        onClick={() => onReorder(obj, -1)}
+                        disabled={index === 0}
+                        className="rounded p-0.5 text-gray-400 hover:bg-white hover:text-gray-700 disabled:opacity-30"
+                        title="Move up"
+                      >
+                        <ChevronUp className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => onReorder(obj, 1)}
+                        disabled={index === objects.length - 1}
+                        className="rounded p-0.5 text-gray-400 hover:bg-white hover:text-gray-700 disabled:opacity-30"
+                        title="Move down"
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
                   {onDuplicate && (
                     <button
                       onClick={() => onDuplicate(obj)}

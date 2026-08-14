@@ -98,7 +98,7 @@ export default async function PlayPage({ params }: PlayPageProps) {
         mass: number;
         properties: any;
       }>(
-        `SELECT * FROM game_objects WHERE scene_id IN (${sceneIds.map(() => '?').join(',')})`,
+        `SELECT * FROM game_objects WHERE scene_id IN (${sceneIds.map(() => '?').join(',')}) ORDER BY order_index, created_at`,
         sceneIds
       )
     : [];

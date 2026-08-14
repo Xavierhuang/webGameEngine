@@ -1,9 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Lint stays off at build time (not yet audited), but the TypeScript gate is
-  // ON again: the tree is at zero errors and CI runs `type-check` on every
-  // push. With both gates off and no CI, a real type error sat undetected.
+  // ESLint stays off at build time: 29 pre-existing errors remain, including
+  // react-hooks/rules-of-hooks violations in SceneView.tsx that need a real
+  // refactor. CI reports the count (non-blocking) so it can be driven down;
+  // flip this once it reaches zero. The TypeScript gate IS on — the tree is at
+  // zero type errors and CI enforces it.
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
   images: {

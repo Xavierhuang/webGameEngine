@@ -3,12 +3,13 @@ import Link from 'next/link';
 import { Play, Search, Heart, GitFork, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
+import { getTranslator } from '@/lib/i18n/server';
 
-const SORTS: Record<string, { label: string; order: string }> = {
-  newest: { label: 'Newest', order: 'p.created_at DESC' },
-  loved: { label: 'Most loved', order: 'p.like_count DESC, p.created_at DESC' },
-  remixed: { label: 'Most remixed', order: 'p.remix_count DESC, p.created_at DESC' },
-  played: { label: 'Most played', order: 'p.play_count DESC, p.created_at DESC' },
+const SORTS: Record<string, { labelKey: 'explore.sort.newest' | 'explore.sort.loved' | 'explore.sort.remixed' | 'explore.sort.played'; order: string }> = {
+  newest: { labelKey: 'explore.sort.newest', order: 'p.created_at DESC' },
+  loved: { labelKey: 'explore.sort.loved', order: 'p.like_count DESC, p.created_at DESC' },
+  remixed: { labelKey: 'explore.sort.remixed', order: 'p.remix_count DESC, p.created_at DESC' },
+  played: { labelKey: 'explore.sort.played', order: 'p.play_count DESC, p.created_at DESC' },
 };
 
 /**
@@ -23,6 +24,7 @@ export default async function ExplorePage(props: {
 }) {
   const searchParams = await props.searchParams;
   const user = await getAuthenticatedUser();
+  const t = await getTranslator();
 
   const rawQuery = (searchParams?.q ?? '').trim().substring(0, 100);
   const sortKey = searchParams?.sort && SORTS[searchParams.sort] ? searchParams.sort : 'newest';
@@ -76,9 +78,9 @@ export default async function ExplorePage(props: {
 
       <div className="relative mx-auto max-w-7xl px-6 pb-20 pt-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-black tracking-tight text-slate-900">Explore</h1>
+          <h1 className="text-3xl font-black tracking-tight text-slate-900">{t('explore.title')}</h1>
           <p className="mt-1 text-slate-600">
-            Play games other people made — then remix one to make it your own.
+            {t('explore.subtitle')}
           </p>
         </div>
 
@@ -89,12 +91,12 @@ export default async function ExplorePage(props: {
               type="search"
               name="q"
               defaultValue={rawQuery}
-              placeholder="Search games…"
+              placeholder={t('explore.search')}
               className="w-full rounded-full border border-slate-200 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none transition focus:border-slate-400"
             />
           </div>
           <div className="flex gap-1.5">
-            {Object.entries(SORTS).map(([key, { label }]) => (
+            {Object.entries(SORTS).map(([key, { labelKey }]) => (
               <Link
                 key={key}
                 href={`/explore?sort=${key}${rawQuery ? `&q=${encodeURIComponent(rawQuery)}` : ''}`}
@@ -104,14 +106,14 @@ export default async function ExplorePage(props: {
                     : 'border border-slate-200 text-slate-700 hover:border-slate-300'
                 }`}
               >
-                {label}
+                {t(labelKey)}
               </Link>
             ))}
           </div>
         </form>
 
         {projects.length === 0 ? (
-          <EmptyState hasQuery={Boolean(rawQuery)} />
+          <EmptyState hasQuery={Boolean(rawQuery)} t={t} />
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {projects.map((project) => (
@@ -191,23 +193,23 @@ function ExploreCard({ project }: { project: any }) {
   );
 }
 
-function EmptyState({ hasQuery }: { hasQuery: boolean }) {
+function EmptyState({ hasQuery, t }: { hasQuery: boolean; t: (k: any) => string }) {
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
       <Sparkles className="mx-auto mb-3 h-8 w-8 text-slate-400" />
       <p className="font-bold text-slate-800">
-        {hasQuery ? 'No games match that search' : 'No shared games yet'}
+        {hasQuery ? t('explore.empty.search') : t('explore.empty.title')}
       </p>
       <p className="mx-auto mt-1 max-w-md text-sm text-slate-600">
         {hasQuery
-          ? 'Try a different word, or browse everything by clearing the search.'
-          : 'Be the first — make a game, then hit Share in the editor so everyone can play it.'}
+          ? t('explore.empty.search')
+          : t('explore.empty.body')}
       </p>
       <Link
         href="/projects/new"
         className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
       >
-        Make a game
+        {t('explore.makeAGame')}
       </Link>
     </div>
   );

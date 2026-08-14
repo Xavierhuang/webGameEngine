@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { Box, Sphere, Grid, useGLTF, Html } from '@react-three/drei';
 import { RotateCcw, Square, Maximize } from 'lucide-react';
 import { TouchControls } from './TouchControls';
+import { useTranslator } from '../common/LocaleProvider';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
@@ -109,6 +110,7 @@ export default function GamePlayer({ project }: GamePlayerProps) {
   useEffect(() => {
     AudioManager.get();
   }, []);
+  const t = useTranslator();
   const [keys, setKeys] = useState<KeyState>({});
   // Scene switching: scenes arrive ordered by order_index; blocks change the
   // active index. Variables/broadcast state persist across switches (Scratch
@@ -359,8 +361,8 @@ export default function GamePlayer({ project }: GamePlayerProps) {
                   <path d="M8 5v14l11-7z" />
                 </svg>
               </span>
-              <span className="text-xl font-semibold">Click to start</span>
-              <span className="text-xs text-slate-300">Unlocks sound in this window</span>
+              <span className="text-xl font-semibold">{t('player.clickToStart')}</span>
+              <span className="text-xs text-slate-300">{t('player.unlocksSound')}</span>
             </button>
           )}
           <ErrorBoundary
@@ -420,7 +422,7 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             title="Restart the game from the beginning"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            Restart
+            {t('player.restart')}
           </button>
           <button
             type="button"
@@ -429,7 +431,7 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             title="Stop all scripts"
           >
             <Square className="h-3.5 w-3.5" />
-            Stop
+            {t('player.stop')}
           </button>
           <button
             type="button"
@@ -438,13 +440,13 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             title="Toggle fullscreen"
           >
             <Maximize className="h-3.5 w-3.5" />
-            Fullscreen
+            {t('player.fullscreen')}
           </button>
         </div>
 
         <div className="mt-3 text-center text-sm text-white">
-          <p>Use Arrow Keys or WASD to move (W/Up = Forward, S/Down = Backward)</p>
-          <p className="text-gray-400">Press Space to jump</p>
+          <p>{t('player.controls')}</p>
+          <p className="text-gray-400">{t('player.jump')}</p>
         </div>
       </div>
     </ErrorBoundary>

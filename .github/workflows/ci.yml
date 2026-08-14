@@ -60,6 +60,14 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
+      # Not blocking yet: there are 29 pre-existing errors, and several are
+      # genuine react-hooks/rules-of-hooks violations in SceneView.tsx (hooks
+      # called conditionally) that need a careful refactor rather than a quick
+      # fix. Surfaced here so the count is visible and can be driven down.
+      - name: Lint (report only)
+        run: npm run lint || true
+        continue-on-error: true
+
       - name: Tests
         # Covers the runtime, serializer, name fields, access control, COPPA,
         # moderation keyword scan, prefabs and the asset generators.

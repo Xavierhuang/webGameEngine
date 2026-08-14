@@ -2,6 +2,13 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
+import {
+  classifyPart,
+  partTransform,
+  isAnimating,
+  REST,
+  type PartKind,
+} from '../../lib/models/proceduralAnimation';
 import { useAnimations, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { repairMinionMaterials } from '../../lib/models/minionMaterials';
@@ -152,6 +159,46 @@ function GLTFAnimatedModelInstance({
 }) {
   const { actions } = useAnimations(animations, instance);
   const groupRef = useRef<THREE.Group>(null);
+
+  // Procedural fallback for models with no embedded clips — which is every
+  // starter GLB. Without this the Idle/Walk/Run dropdown selects a clip that
+  // doesn't exist and nothing moves.
+  const hasClips = animations.length > 0;
+  const restPoseRef = useRef<Map<THREE.Object3D, { rot: THREE.Euler; posY: number; kind: PartKind }> | null>(null);
+
+  useEffect(() => {
+    if (hasClips) { restPoseRef.current = null; return; }
+    // Capture the rest pose once so offsets are applied on top of it rather
+    // than accumulating frame over frame.
+    const rest = new Map<THREE.Object3D, { rot: THREE.Euler; posY: number; kind: PartKind }>();
+    instance.traverse((child) => {
+      if (child === instance) return;
+      const kind = classifyPart(child.name);
+      if (kind === 'other') return;
+      rest.set(child, { rot: child.rotation.clone(), posY: child.position.y, kind });
+    });
+    restPoseRef.current = rest;
+    return () => {
+      // Restore the rest pose so a stopped model doesn't freeze mid-stride.
+      for (const [node, r] of rest) {
+        node.rotation.copy(r.rot);
+        node.position.y = r.posY;
+      }
+      restPoseRef.current = null;
+    };
+  }, [instance, hasClips]);
+
+  useFrame((state) => {
+    const rest = restPoseRef.current;
+    if (!rest) return;
+    const active = playAnimation && isAnimating(animationState);
+    const t = state.clock.elapsedTime;
+    for (const [node, r] of rest) {
+      const d = active ? partTransform(r.kind, animationState ?? 'idle', t) : REST;
+      node.rotation.set(r.rot.x + d.rotationX, r.rot.y + d.rotationY, r.rot.z + d.rotationZ);
+      node.position.y = r.posY + d.offsetY;
+    }
+  });
   
   useEffect(() => {
     if (!actions) return;

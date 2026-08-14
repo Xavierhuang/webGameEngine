@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Check, Copy, Globe, Lock, X } from 'lucide-react';
+import { useTranslator } from '../common/LocaleProvider';
 
 interface ShareDialogProps {
   projectId: string;
@@ -26,6 +27,7 @@ export function ShareDialog({
   onClose,
   onVisibilityChange,
 }: ShareDialogProps) {
+  const t = useTranslator();
   const [visibility, setVisibility] = useState(initialVisibility);
   const [moderationStatus, setModerationStatus] = useState(initialModerationStatus);
   const [busy, setBusy] = useState(false);
@@ -88,7 +90,7 @@ export function ShareDialog({
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 className="text-base font-semibold text-slate-900">Share your game</h2>
+          <h2 className="text-base font-semibold text-slate-900">{t('share.title')}</h2>
           <button
             onClick={onClose}
             className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
@@ -107,12 +109,12 @@ export function ShareDialog({
             )}
             <div className="text-sm">
               <div className="font-semibold text-slate-900">
-                {isPublic ? 'Anyone with the link can play' : 'Only you can see this'}
+                {isPublic ? t('share.public') : t('share.private')}
               </div>
               <p className="mt-0.5 leading-relaxed text-slate-600">
                 {isPublic
-                  ? 'Your game appears in Explore, and other people can remix it to make their own version.'
-                  : 'Share it publicly so friends can play it and remix it.'}
+                  ? t('share.publicBody')
+                  : t('share.privateBody')}
               </p>
             </div>
           </div>
@@ -138,7 +140,7 @@ export function ShareDialog({
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
               >
                 {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-                {copied ? 'Copied' : 'Copy'}
+                {copied ? t('share.copied') : t('share.copy')}
               </button>
             </div>
           )}
@@ -166,7 +168,7 @@ export function ShareDialog({
                 : 'bg-slate-900 text-white hover:bg-slate-800'
             }`}
           >
-            {busy ? 'Working…' : isPublic ? 'Make it private again' : 'Share publicly'}
+            {busy ? 'Working…' : isPublic ? t('share.makePrivate') : t('share.makePublic')}
           </button>
 
           {/* Export gives you a portable copy of the whole project — there was
@@ -175,7 +177,7 @@ export function ShareDialog({
             href={`/api/projects/${projectId}/export`}
             className="block w-full rounded-full border border-slate-200 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300"
           >
-            Download a copy
+            {t('share.download')}
           </a>
         </div>
       </div>

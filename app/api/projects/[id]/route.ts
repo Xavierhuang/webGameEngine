@@ -80,7 +80,7 @@ export async function GET(
           created_at: Date;
           updated_at: Date;
         }>(
-          `SELECT * FROM game_objects WHERE scene_id IN (${sceneIds.map(() => '?').join(',')})`,
+          `SELECT * FROM game_objects WHERE scene_id IN (${sceneIds.map(() => '?').join(',')}) ORDER BY order_index, created_at`,
           sceneIds
         )
       : [];

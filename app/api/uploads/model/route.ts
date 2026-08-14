@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { getActorProfileId } from '@/lib/auth/access';
+import { query } from '@/lib/mysql/server';
 
 const ALLOWED_EXTS = new Set(['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae']);
 
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
 
     const form = await request.formData();
     const file = form.get('file') as File | null;
+    const projectId = form.get('projectId');
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
@@ -57,6 +59,31 @@ export async function POST(request: NextRequest) {
     await fs.writeFile(filepath, buffer);
 
     const url = `/uploads/models/${filename}`;
+
+    // Record the upload. The `assets` table has existed since migration 001 and
+    // was read in two places but never written to, so uploads were untracked:
+    // no owner, no size, nothing to moderate or clean up against.
+    try {
+      await query(
+        `INSERT INTO assets
+           (id, project_id, owner_id, asset_type, name, file_url, file_size, mime_type, generated_by_ai)
+         VALUES (?, ?, ?, 'model', ?, ?, ?, ?, FALSE)`,
+        [
+          id,
+          typeof projectId === 'string' && projectId ? projectId : null,
+          actorProfileId,
+          original.substring(0, 255),
+          url,
+          buffer.byteLength,
+          (file as any).type || null,
+        ]
+      );
+    } catch (error) {
+      // The file is already on disk and usable; losing the bookkeeping row
+      // shouldn't fail the upload.
+      console.error('[upload] failed to record asset row:', error);
+    }
+
     return NextResponse.json({ url, name: original });
   } catch (e: any) {
     console.error('Upload failed:', e);

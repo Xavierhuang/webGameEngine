@@ -30,7 +30,20 @@ test('AnimatedModel source delegates GLTF timing to Drei and retains FBX frame u
 
   assert.match(gltfSection, /mountOwnedMaterialScene/);
   assert.doesNotMatch(gltfSection, /useMemo/);
-  assert.doesNotMatch(gltfSection, /useFrame/);
+
+  // The real invariant is that the GLTF path must never advance an
+  // AnimationMixer itself — Drei's useAnimations already does, and doing it
+  // twice runs clips at double speed. This used to be approximated as "no
+  // useFrame at all", which the procedural fallback for clip-less models
+  // (every starter GLB) legitimately needs.
+  assert.doesNotMatch(gltfSection, /new THREE\.AnimationMixer/);
+  assert.doesNotMatch(gltfSection, /mixer(Ref\.current)?\??\.update\(/);
+
+  // ...and that fallback must only move parts when the model ships no clips,
+  // or it would fight a real animation.
+  assert.match(gltfSection, /const hasClips = animations\.length > 0/);
+  assert.match(gltfSection, /if \(hasClips\) \{ restPoseRef\.current = null; return; \}/);
+
   assert.match(fbxSection, /useFrame/);
 });
 

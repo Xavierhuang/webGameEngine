@@ -339,6 +339,37 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     }
   };
 
+  /** Move a sprite up/down in the scene list and persist the new order. */
+  const reorderObject = async (target: any, direction: -1 | 1) => {
+    const sceneId = (currentScene as any)?.id;
+    const objects = [...((currentScene as any)?.game_objects ?? [])];
+    const from = objects.findIndex((o: any) => o.id === target.id);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= objects.length) return;
+
+    const [moved] = objects.splice(from, 1);
+    objects.splice(to, 0, moved);
+
+    // Optimistic: reorder locally, then persist.
+    setProject((prev: any) => ({
+      ...prev,
+      scenes: (prev.scenes ?? []).map((s: any) =>
+        s.id === sceneId ? { ...s, game_objects: objects } : s
+      ),
+    }));
+    setCurrentScene((cur: any) => (cur?.id === sceneId ? { ...cur, game_objects: objects } : cur));
+
+    try {
+      await fetch('/api/game-objects/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sceneId, orderedIds: objects.map((o: any) => o.id) }),
+      });
+    } catch (error) {
+      console.error('Failed to persist sprite order:', error);
+    }
+  };
+
   const handleSave = async () => {
     // Only the project's own columns are savable here; scenes, objects and
     // blocks have their own autosave paths. Sending the whole project object
@@ -647,6 +678,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             selectedObject={selectedObject}
             onSelect={setSelectedObject}
             onDuplicate={duplicateObject}
+            onReorder={reorderObject}
           />
         </div>
 

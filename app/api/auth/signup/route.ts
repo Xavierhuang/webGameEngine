@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, clientKey } from '@/lib/safety/rateLimit';
 import { query, queryOne } from '@/lib/mysql/client';
 import { hashPassword } from '@/lib/auth/password';
 import { generateToken } from '@/lib/auth/jwt';
@@ -14,6 +15,16 @@ import { createConsentRequest } from '@/lib/safety/parentalConsent';
 import { sendEmail, parentalConsentEmail } from '@/lib/email/send';
 
 export async function POST(request: NextRequest) {
+  // Credential stuffing / account-spam guard — there was no rate limiting
+  // anywhere on the auth endpoints.
+  const limit = rateLimit(clientKey(request, 'signup'), 5, 60 * 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many attempts. Please wait a few minutes and try again.' },
+      { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
+    );
+  }
+
   try {
     const { email, password, username, isParent, dateOfBirth, parentEmail } = await request.json();
 
