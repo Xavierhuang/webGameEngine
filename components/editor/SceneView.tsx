@@ -146,7 +146,7 @@ function GameObject({
   // changed (or a sound object took a list position previously held by a
   // visible one) React saw a different number of hooks for the same position
   // and the component's state became invalid.
-  const meshRef = useRef<any>();
+  const meshRef = useRef<any>(null);
   const hasMovedRef = useRef(false);
   const [localPosition, setLocalPosition] = useState<[number, number, number] | null>(null);
   const rotationStartPositionRef = useRef<[number, number, number] | null>(null);

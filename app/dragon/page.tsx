@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import DragonShowcase from '@/components/showcase/DragonShowcase';
+import DragonClient from './DragonClient';
 
 export const metadata: Metadata = {
   title: 'Red Metal Dragon — lingplay',
@@ -24,7 +24,7 @@ export default function DragonPage() {
           </p>
         </header>
         <section className="mt-8" aria-label="Interactive Red Metal Dragon model">
-          <DragonShowcase />
+          <DragonClient />
         </section>
         <p className="mt-5 text-center text-sm text-red-100/70">Drag to orbit · Scroll to zoom</p>
       </div>

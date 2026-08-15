@@ -850,7 +850,9 @@ function FollowerBubble({
   bubble,
   yOffset,
 }: {
-  meshRef: React.RefObject<THREE.Object3D>;
+  // RefObject<T | null>: React 19 stopped pretending a ref initialised to
+  // null is non-null.
+  meshRef: React.RefObject<THREE.Object3D | null>;
   bubble: { text: string; style: 'say' | 'think' } | null;
   yOffset: number;
 }) {

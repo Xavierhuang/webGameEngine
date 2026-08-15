@@ -151,7 +151,7 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
       updatePart(part.id, next);
     };
 
-    const wrap = (node: JSX.Element) => {
+    const wrap = (node: React.JSX.Element) => {
       if (!isSelected) return node;
       const rotationSnap = rotateSnapDeg ? (rotateSnapDeg * Math.PI) / 180 : undefined;
       return (

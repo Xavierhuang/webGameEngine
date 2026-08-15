@@ -1,25 +1,28 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Both gates are ON. They were both disabled with no CI, which is how a real
-  // type error and a set of react-hooks/rules-of-hooks violations (hooks called
-  // conditionally in SceneView) sat undetected. The tree is now at zero type
-  // errors and zero lint errors, and CI enforces both on every push.
-  eslint: { ignoreDuringBuilds: false },
+  // The type gate is ON. It was disabled with no CI, which is how a real type
+  // error sat undetected.
+  //
+  // There is deliberately no `eslint` key here: Next 16 removed `next lint`
+  // and the lint-on-build integration with it, so `ignoreDuringBuilds: false`
+  // was reassurance that no longer did anything. Linting is enforced by
+  // `npm run lint` in CI, and nowhere else — if that step is removed, the
+  // rules stop being checked entirely.
   typescript: { ignoreBuildErrors: false },
   images: {
-    domains: [
-      'localhost',
-      'replicate.delivery',
+    // `domains` was removed in Next 16; remotePatterns is stricter about
+    // protocol and path, which is the point of the change.
+    remotePatterns: [
+      { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'https', hostname: 'replicate.delivery' },
     ],
   },
-  webpack: (config) => {
-    config.externals.push({
-      'bufferutil': 'bufferutil',
-      'utf-8-validate': 'utf-8-validate',
-    });
-    return config;
-  },
+  // The webpack block that used to live here marked `bufferutil` and
+  // `utf-8-validate` external. Those are optional native add-ons of `ws`;
+  // Turbopack (the default bundler from Next 16) resolves optional
+  // dependencies without help, so the config is gone rather than translated.
+  turbopack: {},
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
