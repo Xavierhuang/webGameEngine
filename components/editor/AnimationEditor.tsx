@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Grid, TransformControls } from '@react-three/drei';
 import { X, Play, Pause, Square, Save, Download, Bone, Move3D, RotateCw, Maximize2 } from 'lucide-react';
 import * as THREE from 'three';
@@ -56,6 +56,8 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   const [animationName, setAnimationName] = useState('New Animation');
   const [transformMode, setTransformMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  /** Camera framing derived from the loaded model's bounds. */
+  const [modelFraming, setModelFraming] = useState<{ center: [number, number, number]; distance: number } | null>(null);
   /** Wall-clock second at which playback began, for sampling. */
   const playbackStartRef = useRef(0);
   // Lifted out of AnimatedModelView: the bone-hierarchy panel below renders in
@@ -69,6 +71,19 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   if (!isOpen) return null;
 
   const ext = (modelUrl.split('.').pop() || '').toLowerCase();
+
+  /** Positions the camera to frame the model once its bounds are known. */
+  function FrameCamera({ framing }: { framing: { center: [number, number, number]; distance: number } }) {
+    const { camera } = useThree();
+    useEffect(() => {
+      const [cx, cy, cz] = framing.center;
+      // Slightly above and in front, which reads better than dead-on.
+      camera.position.set(cx, cy + framing.distance * 0.35, cz + framing.distance);
+      camera.lookAt(cx, cy, cz);
+      camera.updateProjectionMatrix();
+    }, [framing, camera]);
+    return null;
+  }
 
   // Model renderer component
   function AnimatedModelView() {
@@ -118,6 +133,27 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
           }
 
           modelRef.current = loadedModel;
+
+          // Frame the model. The camera was fixed at [0, 1.5, 3] regardless of
+          // what loaded, so a small model — every metal-generated starter is
+          // roughly a unit tall — appeared as a speck near the gizmo. Measure
+          // the bounds and pull the camera back to fit, the way the character
+          // picker already does.
+          try {
+            const box = new THREE.Box3().setFromObject(loadedModel);
+            const size = box.getSize(new THREE.Vector3());
+            const center = box.getCenter(new THREE.Vector3());
+            const extent = Math.max(size.x, size.y, size.z);
+            if (Number.isFinite(extent) && extent > 0) {
+              setModelFraming({
+                center: [center.x, center.y, center.z],
+                // 2.2x the largest extent leaves comfortable margin at fov 50.
+                distance: Math.max(1.2, extent * 2.2),
+              });
+            }
+          } catch {
+            /* an unmeasurable model just keeps the default camera */
+          }
 
           // Extract animatable-node hierarchy. Prefer a real skeleton (skinned
           // models like Minion); fall back to loose Bones in the scene; finally
@@ -564,14 +600,21 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
 
           {/* Center: 3D Viewport */}
           <div className="flex-1 relative bg-slate-900">
+            {/* Lighting matches the main editor scene. It used to be about a
+                third as bright, which rendered the starter characters almost
+                black: their materials are metallic (0.05-0.9), and metallic PBR
+                surfaces reflect light rather than emitting it — under-lit, they
+                have nothing to reflect and go dark. */}
             <Canvas camera={{ position: [0, 1.5, 3], fov: 50 }}>
-              <ambientLight intensity={0.6} />
-              <directionalLight position={[5, 10, 5]} intensity={0.8} />
-              <pointLight position={[-5, 5, -5]} intensity={0.5} />
+              <ambientLight intensity={1.2} />
+              <pointLight position={[10, 10, 10]} intensity={2.0} />
+              <directionalLight position={[-10, 10, -5]} intensity={1.0} />
+              <directionalLight position={[10, 5, 5]} intensity={0.8} />
               <Grid args={[10, 10]} cellSize={0.5} cellColor="#334155" sectionColor="#475569" />
               <AnimatedModelView />
               {selectedBone && <BoneController boneName={selectedBone} />}
-              <OrbitControls ref={orbitRef} />
+              <OrbitControls ref={orbitRef} target={modelFraming?.center ?? [0, 0, 0]} />
+              {modelFraming && <FrameCamera framing={modelFraming} />}
             </Canvas>
             <div className="absolute top-3 left-3 inline-flex items-center gap-1 text-[11px] font-semibold bg-white/95 text-slate-800 px-2.5 py-1 rounded-full border border-slate-200 shadow-sm">
               {transformMode === 'translate' && <><Move3D className="w-3 h-3" /> Move · press 1</>}
