@@ -139,6 +139,16 @@ This is a product for children, and the safety paths are load-bearing:
   write. Guests are identified by cookie, which is what made those checks
   possible at all.
 
+## Deliberate omissions
+
+**No comments, and no studios.** Not a gap — a decision. "There is no open chat
+between children" is in the privacy policy, not only the marketing, which makes
+it a representation to parents and a COPPA-relevant statement for under-13s.
+Shipping comments would make it false on deploy. Remix carries the community
+loop instead, and `test:journey` covers the whole chain: share → open it signed
+out → remix it. Revisit only by changing the promise first, in public, on
+purpose.
+
 ## Known gaps
 
 Honest, not exhaustive:
@@ -149,5 +159,9 @@ Honest, not exhaustive:
 - **7 languages**, and the privacy policy and tutorial prose are intentionally
   English-only — machine-translating a legal document is worse than not.
 - **No error monitoring.** Failures surface in `journalctl -u lingplay`.
+- **The React Compiler rules are off in thirteen files.** Every one of the 67
+  violations was reviewed; one was a real defect and is fixed, and the rest are
+  deliberate patterns (SSR-safe state, an imperative game loop). The rules are
+  errors everywhere else. See the reasoning in `eslint.config.mjs`.
 - **None of this has been tested with an actual child.** Everything is verified
   against the author's assumptions about what a child will do.

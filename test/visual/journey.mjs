@@ -227,6 +227,50 @@ await step('clicking a category shows draggable blocks', async () => {
   }
 });
 
+// Share -> view signed-out -> remix. The project plan called this chain "the
+// actual acceptance test for a replacement for Scratch" and noted it could not
+// be run at all. Remix is the whole community story now that comments are
+// deliberately not being built, so it had better work.
+const projectId = page.url().split('/editor/')[1]?.split(/[?#]/)[0];
+
+await step('share the project publicly', async () => {
+  await page.locator('button', { hasText: /^Share$/ }).first().click({ timeout: 10000 });
+  await page.waitForTimeout(1500);
+  const publish = page
+    .locator('button', { hasText: /share publicly|publish|make public/i })
+    .first();
+  if ((await publish.count()) === 0) {
+    const seen = await page.locator('[role="dialog"] button, .fixed button').allTextContents();
+    throw new Error(`no publish control in the share dialog; saw: ${seen.slice(0, 8).join(' / ')}`);
+  }
+  await publish.click();
+  await page.waitForTimeout(3000);
+});
+
+await step('a signed-out visitor can open the shared project', async () => {
+  const anon = await browser.newContext();
+  const visitor = await anon.newPage();
+  const res = await visitor.goto(`${BASE}/projects/${projectId}`, { waitUntil: 'networkidle' });
+  if (!res || res.status() >= 400) throw new Error(`shared page returned ${res && res.status()}`);
+  const body = ((await visitor.textContent('body')) || '').trim();
+  if (body.length < 40) throw new Error('the shared project page is empty');
+  await anon.close();
+});
+
+await step('the project can be remixed', async () => {
+  const before = await page.evaluate(async () => (await (await fetch('/api/projects')).json()));
+  const remix = await page.evaluate(async (pid) => {
+    const r = await fetch(`/api/projects/${pid}/remix`, { method: 'POST' });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  }, projectId);
+  if (remix.status >= 400) {
+    throw new Error(`remix returned ${remix.status}: ${JSON.stringify(remix.body).slice(0, 160)}`);
+  }
+  const newId = remix.body?.project?.id || remix.body?.id;
+  if (!newId || newId === projectId) throw new Error('remix did not produce a new project');
+  void before;
+});
+
 await step('no uncaught errors during the journey', async () => {
   if (consoleErrors.length) {
     throw new Error(`${consoleErrors.length} console error(s): ${consoleErrors.slice(0, 3).join(' | ')}`);
