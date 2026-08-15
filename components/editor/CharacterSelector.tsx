@@ -8,7 +8,7 @@ import ShapePreview from './ShapePreview';
 import { filterStarters } from '@/lib/editor/starterSearch';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
-import { CHARACTER_TEMPLATES, BASIC_SHAPES } from '../../lib/prefabs/characters';
+import { PICKER_CHARACTERS, CHARACTER_TEMPLATES, BASIC_SHAPES } from '../../lib/prefabs/characters';
 
 interface CharacterSelectorProps {
   isOpen: boolean;
@@ -122,7 +122,7 @@ export default function CharacterSelector({
 
   // Filtered on every keystroke; the list is small enough that debouncing
   // would only add lag between typing and seeing the result.
-  const visibleStarters = filterStarters(CHARACTER_TEMPLATES, query);
+  const visibleStarters = filterStarters(PICKER_CHARACTERS, query);
 
   return (
     <>

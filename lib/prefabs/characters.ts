@@ -516,6 +516,210 @@ export const CHARACTER_TEMPLATES: CharacterPrefab[] = [
     description: 'Curious eight-armed friend',
     aliases: ['squid','tentacle'],
   },
+  // Objects, vehicles and small creatures. Added because the original 39
+  // starters came from only ten silhouettes — fifteen of them the same
+  // humanoid recoloured — so the picker looked far more repetitive than its
+  // count suggested. These are new shapes, not new palettes.
+  {
+    id: 'car',
+    name: 'Car',
+    color: '#D92E33',
+    shape: 'box',
+    ...starterModel('car'),
+    size: 60,
+    description: 'A little racing car',
+    aliases: ['vehicle', 'racer', 'automobile', 'race car'],
+  },
+  {
+    id: 'rocket',
+    name: 'Rocket',
+    color: '#EB3B2E',
+    shape: 'cone',
+    ...starterModel('rocket'),
+    size: 55,
+    description: 'A spaceship ready for launch',
+    aliases: ['spaceship', 'spacecraft', 'launch', 'space'],
+  },
+  {
+    id: 'boat',
+    name: 'Boat',
+    color: '#8C5423',
+    shape: 'box',
+    ...starterModel('boat'),
+    size: 60,
+    description: 'A little sailing boat',
+    aliases: ['ship', 'sailboat', 'yacht', 'sail'],
+  },
+  {
+    id: 'airplane',
+    name: 'Airplane',
+    color: '#387AD9',
+    shape: 'box',
+    ...starterModel('airplane'),
+    size: 55,
+    description: 'A propeller plane',
+    aliases: ['plane', 'aeroplane', 'jet', 'flying', 'flight'],
+  },
+  {
+    id: 'train',
+    name: 'Train',
+    color: '#246E4C',
+    shape: 'box',
+    ...starterModel('train'),
+    size: 58,
+    description: 'A steam engine',
+    aliases: ['locomotive', 'steam engine', 'railway', 'choo choo'],
+  },
+  {
+    id: 'spider',
+    name: 'Spider',
+    color: '#3D2952',
+    shape: 'sphere',
+    ...starterModel('spider'),
+    size: 58,
+    description: 'An eight-legged spider',
+    aliases: ['bug', 'arachnid', 'creepy', 'halloween'],
+  },
+  {
+    id: 'crab',
+    name: 'Crab',
+    color: '#E05C29',
+    shape: 'box',
+    ...starterModel('crab'),
+    size: 58,
+    description: 'A snappy little crab',
+    aliases: ['shellfish', 'claw', 'beach', 'ocean'],
+  },
+  {
+    id: 'butterfly',
+    name: 'Butterfly',
+    color: '#F28C26',
+    shape: 'box',
+    ...starterModel('butterfly'),
+    size: 55,
+    description: 'A bright butterfly',
+    aliases: ['moth', 'wings', 'insect', 'garden'],
+  },
+  {
+    id: 'bee',
+    name: 'Bee',
+    color: '#F5C728',
+    shape: 'sphere',
+    ...starterModel('bee'),
+    size: 55,
+    description: 'A stripy buzzing bee',
+    aliases: ['bumblebee', 'wasp', 'honey', 'insect', 'buzz'],
+  },
+  {
+    id: 'snake',
+    name: 'Snake',
+    color: '#4A9E43',
+    shape: 'box',
+    ...starterModel('snake'),
+    size: 58,
+    description: 'A coiled snake',
+    aliases: ['serpent', 'python', 'cobra', 'reptile'],
+  },
+  {
+    id: 'frog',
+    name: 'Frog',
+    color: '#57B348',
+    shape: 'sphere',
+    ...starterModel('frog'),
+    size: 56,
+    description: 'A hopping frog',
+    aliases: ['toad', 'amphibian', 'pond', 'ribbit'],
+  },
+  {
+    id: 'turtle',
+    name: 'Turtle',
+    color: '#6B4D29',
+    shape: 'box',
+    ...starterModel('turtle'),
+    size: 58,
+    description: 'A slow friendly turtle',
+    aliases: ['tortoise', 'shell', 'sea turtle'],
+  },
+  {
+    id: 'jellyfish',
+    name: 'Jellyfish',
+    color: '#F08CC6',
+    shape: 'sphere',
+    ...starterModel('jellyfish'),
+    size: 56,
+    description: 'A drifting jellyfish',
+    aliases: ['jelly', 'sea creature', 'ocean', 'stingy'],
+  },
+  {
+    id: 'snail',
+    name: 'Snail',
+    color: '#C78533',
+    shape: 'sphere',
+    ...starterModel('snail'),
+    size: 56,
+    description: 'A snail with a spiral shell',
+    aliases: ['slug', 'shell', 'garden', 'slow'],
+  },
+  {
+    id: 'house',
+    name: 'House',
+    color: '#EBDEBF',
+    shape: 'box',
+    ...starterModel('house'),
+    size: 60,
+    description: 'A little cottage',
+    aliases: ['home', 'cottage', 'building', 'hut'],
+  },
+  {
+    id: 'castle',
+    name: 'Castle',
+    color: '#9E9E99',
+    shape: 'cylinder',
+    ...starterModel('castle'),
+    size: 60,
+    description: 'A stone keep with battlements',
+    aliases: ['tower', 'fortress', 'keep', 'palace'],
+  },
+  {
+    id: 'mushroom',
+    name: 'Mushroom',
+    color: '#D13333',
+    shape: 'sphere',
+    ...starterModel('mushroom'),
+    size: 56,
+    description: 'A spotted toadstool',
+    aliases: ['toadstool', 'fungus', 'forest', 'mario'],
+  },
+  {
+    id: 'flower',
+    name: 'Flower',
+    color: '#F27AAD',
+    shape: 'sphere',
+    ...starterModel('flower'),
+    size: 55,
+    description: 'A cheerful flower',
+    aliases: ['daisy', 'bloom', 'plant', 'garden', 'petal'],
+  },
+  {
+    id: 'star',
+    name: 'Star',
+    color: '#FACC38',
+    shape: 'cone',
+    ...starterModel('star'),
+    size: 55,
+    description: 'A twinkling star',
+    aliases: ['sparkle', 'shine', 'space', 'collectible', 'gold star'],
+  },
+  {
+    id: 'chest',
+    name: 'Treasure Chest',
+    color: '#7A4D29',
+    shape: 'box',
+    ...starterModel('chest'),
+    size: 58,
+    description: 'A chest full of treasure',
+    aliases: ['treasure', 'loot', 'box', 'pirate chest', 'reward'],
+  },
 ];
 
 /**
@@ -624,6 +828,37 @@ export function matchCharacterPrefab(prompt: string): CharacterPrefab | null {
 
   return null;
 }
+
+
+/**
+ * Display order for the picker grid.
+ *
+ * Deliberately separate from CHARACTER_TEMPLATES, which the AI matcher walks:
+ * that matcher breaks ties by array position, so reordering it in place would
+ * quietly change which character a prompt resolves to.
+ *
+ * The problem this solves is what the picker looked like with 59 starters —
+ * the first two rows were all humanoids, because that is the order they were
+ * added in, and the vehicles and creatures sat below the fold where most
+ * children never scroll. A child should see the range in the first screenful.
+ *
+ * The same list drives the editor's preload, so the models warmed on mount are
+ * exactly the ones shown first.
+ */
+const FEATURED_FIRST = [
+  'hero', 'dinosaur', 'car', 'dragon',
+  'robot', 'cat', 'rocket', 'unicorn',
+  'spider', 'house', 'star', 'mushroom',
+  'astronaut', 'frog', 'airplane', 'butterfly',
+];
+
+/** CHARACTER_TEMPLATES reordered for display: variety first, then the rest. */
+export const PICKER_CHARACTERS: CharacterPrefab[] = (() => {
+  const byId = new Map(CHARACTER_TEMPLATES.map((c) => [c.id, c]));
+  const featured = FEATURED_FIRST.map((id) => byId.get(id)).filter(Boolean) as CharacterPrefab[];
+  const seen = new Set(featured.map((c) => c.id));
+  return [...featured, ...CHARACTER_TEMPLATES.filter((c) => !seen.has(c.id))];
+})();
 
 /** Builds the exact prefab-first payload returned by generate-character. */
 export function buildPrefabCharacterResponse(prompt: string, prefab: CharacterPrefab) {

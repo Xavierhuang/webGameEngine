@@ -1,4 +1,25 @@
 export const STARTER_MODEL_METADATA = {
+  "airplane" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.71999996900558472,
+        "y" : 0.36000001430511475,
+        "z" : 0.60445529222488403
+      },
+      "min" : {
+        "x" : -0.54000002145767212,
+        "y" : -0.14000186324119568,
+        "z" : -0.60445535182952881
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.089999973773956299,
+      "y" : 0.14000186324119568,
+      "z" : 2.9802322387695312e-08
+    },
+    "model_url" : "\/models\/starters\/airplane.glb",
+    "size" : 1
+  },
   "alien" : {
     "model_bounds" : {
       "max" : {
@@ -62,6 +83,27 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/bear.glb",
     "size" : 1
   },
+  "bee" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.49000000953674316,
+        "y" : 0.43589869141578674,
+        "z" : 0.46165639162063599
+      },
+      "min" : {
+        "x" : -0.62999999523162842,
+        "y" : -0.23999999463558197,
+        "z" : -0.46165639162063599
+      }
+    },
+    "model_origin_offset" : {
+      "x" : 0.069999992847442627,
+      "y" : 0.23999999463558197,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/bee.glb",
+    "size" : 1
+  },
   "bird" : {
     "model_bounds" : {
       "max" : {
@@ -81,6 +123,90 @@ export const STARTER_MODEL_METADATA = {
       "z" : -0
     },
     "model_url" : "\/models\/starters\/bird.glb",
+    "size" : 1
+  },
+  "boat" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.57999998331069946,
+        "y" : 0.60000002384185791,
+        "z" : 0.2560499906539917
+      },
+      "min" : {
+        "x" : -0.57999998331069946,
+        "y" : -0.51999998092651367,
+        "z" : -0.25605002045631409
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.51999998092651367,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/boat.glb",
+    "size" : 1
+  },
+  "butterfly" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.090000003576278687,
+        "y" : 0.61052733659744263,
+        "z" : 0.58453702926635742
+      },
+      "min" : {
+        "x" : -0.090000003576278687,
+        "y" : -0.34235835075378418,
+        "z" : -0.5845370888710022
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.34235835075378418,
+      "z" : 2.9802322387695312e-08
+    },
+    "model_url" : "\/models\/starters\/butterfly.glb",
+    "size" : 1
+  },
+  "car" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.62000000476837158,
+        "y" : 0.37999999523162842,
+        "z" : 0.47000002861022949
+      },
+      "min" : {
+        "x" : -0.62000000476837158,
+        "y" : -0.37000060081481934,
+        "z" : -0.47000002861022949
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.37000060081481934,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/car.glb",
+    "size" : 1
+  },
+  "castle" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.48500001430511475,
+        "y" : 0.87999999523162842,
+        "z" : 0.47495192289352417
+      },
+      "min" : {
+        "x" : -0.48500001430511475,
+        "y" : -0.47999998927116394,
+        "z" : -0.47495192289352417
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.47999998927116394,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/castle.glb",
     "size" : 1
   },
   "cat" : {
@@ -123,6 +249,48 @@ export const STARTER_MODEL_METADATA = {
       "z" : -0
     },
     "model_url" : "\/models\/starters\/chef.glb",
+    "size" : 1
+  },
+  "chest" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.43999999761581421,
+        "y" : 0.325001060962677,
+        "z" : 0.38755282759666443
+      },
+      "min" : {
+        "x" : -0.43999999761581421,
+        "y" : -0.5,
+        "z" : -0.34000000357627869
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.5,
+      "z" : -0.023776412010192871
+    },
+    "model_url" : "\/models\/starters\/chest.glb",
+    "size" : 1
+  },
+  "crab" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.56709414720535278,
+        "y" : 0.40000000596046448,
+        "z" : 0.43999999761581421
+      },
+      "min" : {
+        "x" : -0.43999999761581421,
+        "y" : -0.37002313137054443,
+        "z" : -0.43999999761581421
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.063547074794769287,
+      "y" : 0.37002313137054443,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/crab.glb",
     "size" : 1
   },
   "dinosaur" : {
@@ -272,6 +440,27 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/fish.glb",
     "size" : 1
   },
+  "flower" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.43999999761581421,
+        "y" : 0.36000001430511475,
+        "z" : 0.40248748660087585
+      },
+      "min" : {
+        "x" : -0.43999999761581421,
+        "y" : -0.58000004291534424,
+        "z" : -0.40248847007751465
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.58000004291534424,
+      "z" : 4.9173831939697266e-07
+    },
+    "model_url" : "\/models\/starters\/flower.glb",
+    "size" : 1
+  },
   "fox" : {
     "model_bounds" : {
       "max" : {
@@ -291,6 +480,27 @@ export const STARTER_MODEL_METADATA = {
       "z" : 1.4901161193847656e-08
     },
     "model_url" : "\/models\/starters\/fox.glb",
+    "size" : 1
+  },
+  "frog" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.37000000476837158,
+        "y" : 0.29000002145767212,
+        "z" : 0.39000001549720764
+      },
+      "min" : {
+        "x" : -0.36330047249794006,
+        "y" : -0.37999999523162842,
+        "z" : -0.39000001549720764
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.0033497661352157593,
+      "y" : 0.37999999523162842,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/frog.glb",
     "size" : 1
   },
   "ghost" : {
@@ -333,6 +543,48 @@ export const STARTER_MODEL_METADATA = {
       "z" : 0.012500002980232239
     },
     "model_url" : "\/models\/starters\/hero.glb",
+    "size" : 1
+  },
+  "house" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.40000000596046448,
+        "y" : 0.58000004291534424,
+        "z" : 0.34000000357627869
+      },
+      "min" : {
+        "x" : -0.37999999523162842,
+        "y" : -0.46000000834465027,
+        "z" : -0.34000000357627869
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.01000000536441803,
+      "y" : 0.46000000834465027,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/house.glb",
+    "size" : 1
+  },
+  "jellyfish" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.37999999523162842,
+        "y" : 0.54000002145767212,
+        "z" : 0.37422692775726318
+      },
+      "min" : {
+        "x" : -0.37999999523162842,
+        "y" : -0.5313294529914856,
+        "z" : -0.37422695755958557
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.5313294529914856,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/jellyfish.glb",
     "size" : 1
   },
   "king" : {
@@ -396,6 +648,27 @@ export const STARTER_MODEL_METADATA = {
       "z" : -0.045000001788139343
     },
     "model_url" : "\/models\/starters\/monster.glb",
+    "size" : 1
+  },
+  "mushroom" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.43999999761581421,
+        "y" : 0.47999998927116394,
+        "z" : 0.43331539630889893
+      },
+      "min" : {
+        "x" : -0.43999999761581421,
+        "y" : -0.5,
+        "z" : -0.43331542611122131
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0,
+      "y" : 0.5,
+      "z" : 1.4901161193847656e-08
+    },
+    "model_url" : "\/models\/starters\/mushroom.glb",
     "size" : 1
   },
   "ninja" : {
@@ -671,6 +944,27 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/rock.glb",
     "size" : 1
   },
+  "rocket" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.31385964155197144,
+        "y" : 0.87999999523162842,
+        "z" : 0.27180969715118408
+      },
+      "min" : {
+        "x" : -0.20000000298023224,
+        "y" : -0.65999996662139893,
+        "z" : -0.27181196212768555
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.056929819285869598,
+      "y" : 0.65999996662139893,
+      "z" : 1.1324882507324219e-06
+    },
+    "model_url" : "\/models\/starters\/rocket.glb",
+    "size" : 1
+  },
   "shark" : {
     "model_bounds" : {
       "max" : {
@@ -690,6 +984,90 @@ export const STARTER_MODEL_METADATA = {
       "z" : -0
     },
     "model_url" : "\/models\/starters\/shark.glb",
+    "size" : 1
+  },
+  "snail" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.56999999284744263,
+        "y" : 0.39995735883712769,
+        "z" : 0.20000000298023224
+      },
+      "min" : {
+        "x" : -0.41999998688697815,
+        "y" : -0.46000000834465027,
+        "z" : -0.20000000298023224
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.075000002980232239,
+      "y" : 0.46000000834465027,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/snail.glb",
+    "size" : 1
+  },
+  "snake" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.69000005722045898,
+        "y" : -0.11000000685453415,
+        "z" : 0.50842773914337158
+      },
+      "min" : {
+        "x" : -0.44160658121109009,
+        "y" : -0.4035000205039978,
+        "z" : -0.37759023904800415
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.12419673800468445,
+      "y" : 0.4035000205039978,
+      "z" : -0.065418750047683716
+    },
+    "model_url" : "\/models\/starters\/snake.glb",
+    "size" : 1
+  },
+  "spider" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.42000001668930054,
+        "y" : 0.2800000011920929,
+        "z" : 0.53499805927276611
+      },
+      "min" : {
+        "x" : -0.40000000596046448,
+        "y" : -0.3806857168674469,
+        "z" : -0.53499805927276611
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.01000000536441803,
+      "y" : 0.3806857168674469,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/spider.glb",
+    "size" : 1
+  },
+  "star" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.57066100835800171,
+        "y" : 0.60000002384185791,
+        "z" : 0.13853169977664948
+      },
+      "min" : {
+        "x" : -0.57062739133834839,
+        "y" : -0.48544865846633911,
+        "z" : -0.11999999731779099
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -1.6808509826660156e-05,
+      "y" : 0.48544865846633911,
+      "z" : -0.009265851229429245
+    },
+    "model_url" : "\/models\/starters\/star.glb",
     "size" : 1
   },
   "superhero" : {
@@ -734,6 +1112,27 @@ export const STARTER_MODEL_METADATA = {
     "model_url" : "\/models\/starters\/tiger.glb",
     "size" : 1
   },
+  "train" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.77999997138977051,
+        "y" : 0.41999998688697815,
+        "z" : 0.37000000476837158
+      },
+      "min" : {
+        "x" : -0.60000002384185791,
+        "y" : -0.4082455039024353,
+        "z" : -0.37000000476837158
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.089999973773956299,
+      "y" : 0.4082455039024353,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/train.glb",
+    "size" : 1
+  },
   "tree" : {
     "model_bounds" : {
       "max" : {
@@ -753,6 +1152,27 @@ export const STARTER_MODEL_METADATA = {
       "z" : -0
     },
     "model_url" : "\/models\/starters\/tree.glb",
+    "size" : 1
+  },
+  "turtle" : {
+    "model_bounds" : {
+      "max" : {
+        "x" : 0.60000002384185791,
+        "y" : 0.25999999046325684,
+        "z" : 0.38559511303901672
+      },
+      "min" : {
+        "x" : -0.51999998092651367,
+        "y" : -0.2800000011920929,
+        "z" : -0.38559511303901672
+      }
+    },
+    "model_origin_offset" : {
+      "x" : -0.040000021457672119,
+      "y" : 0.2800000011920929,
+      "z" : -0
+    },
+    "model_url" : "\/models\/starters\/turtle.glb",
     "size" : 1
   },
   "unicorn" : {

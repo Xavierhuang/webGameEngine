@@ -708,6 +708,481 @@ private func ghost(body: Int, eyes: Int) -> [StarterPart] {
   ]
 }
 
+// MARK: - Object and creature archetypes
+//
+// The first 39 starters were built from ten silhouettes, and fifteen of them
+// were the same humanoid in different colours. Growing that set by recolouring
+// would have added rows to the picker without adding variety, so everything
+// below is a genuinely new shape: vehicles, small creatures with their own body
+// plans, and props a game needs. Each is positioned so its feet/base sit near
+// y = -0.5 and it stands roughly one unit tall, matching the existing roster.
+
+/// Four wheels, a body and a cabin — the silhouette reads as "car" at thumbnail
+/// size, which is the only size that matters in the picker.
+private func car(body: Int, dark: Int, glass: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Body", center: SIMD3(0, -0.05, 0), radius: SIMD3(0.62, 0.20, 0.32),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 18, material: body))
+  parts.append(StarterPart(name: "Cabin", center: SIMD3(-0.05, 0.20, 0), radius: SIMD3(0.32, 0.18, 0.27),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 16, material: body))
+  parts.append(StarterPart(name: "Windshield", center: SIMD3(0.17, 0.20, 0), radius: SIMD3(0.10, 0.13, 0.24),
+                           rotation: SIMD3(0, 0, -0.35), rings: 8, segments: 14, material: glass))
+  for (name, x, z) in [("WheelFrontLeft", Float(0.36), Float(0.30)), ("WheelFrontRight", 0.36, -0.30),
+                       ("WheelBackLeft", -0.36, 0.30), ("WheelBackRight", -0.36, -0.30)] {
+    parts.append(StarterPart(name: name, center: SIMD3(x, -0.28, z), radius: SIMD3(0.17, 0.17, 0.09),
+                             rotation: SIMD3(1.5708, 0, 0), rings: 8, segments: 16, material: dark,
+                             primitive: .cylinder))
+  }
+  return parts
+}
+
+/// Nose cone, tube body, three fins and an exhaust flare.
+private func rocket(body: Int, accent: Int, flame: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Body", center: SIMD3(0, 0.02, 0), radius: SIMD3(0.20, 0.42, 0.20),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 18, material: body,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "NoseCone", center: SIMD3(0, 0.62, 0), radius: SIMD3(0.20, 0.26, 0.20),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 18, material: accent,
+                           primitive: .cone))
+  parts.append(StarterPart(name: "Window", center: SIMD3(0, 0.20, 0.19), radius: SIMD3(0.09, 0.09, 0.06),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: accent))
+  for i in 0..<3 {
+    let a = Float(i) * 2.0944
+    parts.append(StarterPart(name: "Fin\(i)", center: SIMD3(cos(a) * 0.22, -0.34, sin(a) * 0.22),
+                             radius: SIMD3(0.10, 0.18, 0.05), rotation: SIMD3(0, -a, 0),
+                             rings: 6, segments: 10, material: accent, primitive: .cone))
+  }
+  parts.append(StarterPart(name: "Exhaust", center: SIMD3(0, -0.52, 0), radius: SIMD3(0.13, 0.14, 0.13),
+                           rotation: SIMD3(3.1416, 0, 0), rings: 6, segments: 14, material: flame,
+                           primitive: .cone))
+  return parts
+}
+
+/// Hull, mast and a triangular sail.
+private func boat(hull: Int, sail: Int, mast: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Hull", center: SIMD3(0, -0.34, 0), radius: SIMD3(0.58, 0.18, 0.26),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 18, material: hull))
+  parts.append(StarterPart(name: "Deck", center: SIMD3(0, -0.19, 0), radius: SIMD3(0.50, 0.05, 0.22),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 16, material: hull))
+  parts.append(StarterPart(name: "Mast", center: SIMD3(-0.02, 0.18, 0), radius: SIMD3(0.035, 0.42, 0.035),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: mast,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Sail", center: SIMD3(0.16, 0.16, 0), radius: SIMD3(0.26, 0.34, 0.03),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: sail,
+                           primitive: .cone))
+  return parts
+}
+
+/// Fuselage, straight wings, tail fin and a nose propeller.
+private func airplane(body: Int, wing: Int, dark: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Fuselage", center: SIMD3(0, 0, 0), radius: SIMD3(0.14, 0.52, 0.14),
+                           rotation: SIMD3(0, 0, 1.5708), rings: 8, segments: 16, material: body,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Nose", center: SIMD3(0.58, 0, 0), radius: SIMD3(0.14, 0.14, 0.14),
+                           rotation: SIMD3(0, 0, -1.5708), rings: 8, segments: 14, material: dark,
+                           primitive: .cone))
+  parts.append(StarterPart(name: "Wings", center: SIMD3(-0.02, -0.02, 0), radius: SIMD3(0.18, 0.035, 0.62),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 14, material: wing))
+  parts.append(StarterPart(name: "TailFin", center: SIMD3(-0.44, 0.18, 0), radius: SIMD3(0.10, 0.18, 0.03),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: wing))
+  parts.append(StarterPart(name: "TailWing", center: SIMD3(-0.44, 0, 0), radius: SIMD3(0.09, 0.03, 0.24),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: wing))
+  parts.append(StarterPart(name: "Cockpit", center: SIMD3(0.14, 0.14, 0), radius: SIMD3(0.14, 0.09, 0.11),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: dark))
+  return parts
+}
+
+/// Boiler, cab, funnel and wheels.
+private func train(body: Int, dark: Int, accent: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Boiler", center: SIMD3(0.14, -0.02, 0), radius: SIMD3(0.20, 0.42, 0.20),
+                           rotation: SIMD3(0, 0, 1.5708), rings: 8, segments: 16, material: body,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Cab", center: SIMD3(-0.38, 0.06, 0), radius: SIMD3(0.22, 0.26, 0.23),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: accent))
+  parts.append(StarterPart(name: "Funnel", center: SIMD3(0.46, 0.26, 0), radius: SIMD3(0.09, 0.16, 0.09),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 12, material: dark,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Front", center: SIMD3(0.58, -0.02, 0), radius: SIMD3(0.06, 0.20, 0.20),
+                           rotation: SIMD3(0, 0, 1.5708), rings: 6, segments: 14, material: dark,
+                           primitive: .cylinder))
+  for (name, x, z) in [("WheelFrontLeft", Float(0.30), Float(0.22)), ("WheelFrontRight", 0.30, -0.22),
+                       ("WheelBackLeft", -0.34, 0.22), ("WheelBackRight", -0.34, -0.22)] {
+    parts.append(StarterPart(name: name, center: SIMD3(x, -0.34, z), radius: SIMD3(0.15, 0.15, 0.07),
+                             rotation: SIMD3(1.5708, 0, 0), rings: 8, segments: 14, material: dark,
+                             primitive: .cylinder))
+  }
+  return parts
+}
+
+/// Round abdomen, smaller head, and eight legs splayed in pairs.
+private func spider(body: Int, dark: Int, eye: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Abdomen", center: SIMD3(-0.10, 0.02, 0), radius: SIMD3(0.30, 0.26, 0.28),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 16, material: body))
+  parts.append(StarterPart(name: "Head", center: SIMD3(0.24, -0.02, 0), radius: SIMD3(0.18, 0.16, 0.17),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: body))
+  parts.append(StarterPart(name: "EyeLeft", center: SIMD3(0.36, 0.05, 0.08), radius: SIMD3(0.05, 0.05, 0.05),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  parts.append(StarterPart(name: "EyeRight", center: SIMD3(0.36, 0.05, -0.08), radius: SIMD3(0.05, 0.05, 0.05),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  for i in 0..<4 {
+    let x = 0.16 - Float(i) * 0.14
+    let lift = Float(i % 2 == 0 ? 0.04 : 0.0)
+    parts.append(StarterPart(name: "LegLeft\(i)", center: SIMD3(x, -0.20 + lift, 0.30),
+                             radius: SIMD3(0.035, 0.30, 0.035), rotation: SIMD3(-0.9, 0, 0.25),
+                             rings: 5, segments: 8, material: dark, primitive: .cylinder))
+    parts.append(StarterPart(name: "LegRight\(i)", center: SIMD3(x, -0.20 + lift, -0.30),
+                             radius: SIMD3(0.035, 0.30, 0.035), rotation: SIMD3(0.9, 0, 0.25),
+                             rings: 5, segments: 8, material: dark, primitive: .cylinder))
+  }
+  return parts
+}
+
+/// Wide flat shell, two raised claws, stalk eyes and short legs.
+private func crab(shell: Int, dark: Int, eye: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Shell", center: SIMD3(0, -0.02, 0), radius: SIMD3(0.44, 0.20, 0.32),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 18, material: shell))
+  for (side, z) in [("Left", Float(0.34)), ("Right", -0.34)] {
+    parts.append(StarterPart(name: "Arm\(side)", center: SIMD3(0.26, 0.02, z * 0.9),
+                             radius: SIMD3(0.05, 0.16, 0.05), rotation: SIMD3(0, 0, -0.6),
+                             rings: 5, segments: 8, material: shell, primitive: .cylinder))
+    parts.append(StarterPart(name: "Claw\(side)", center: SIMD3(0.42, 0.16, z),
+                             radius: SIMD3(0.15, 0.13, 0.10), rotation: SIMD3(0, 0, 0.3),
+                             rings: 8, segments: 12, material: shell))
+    parts.append(StarterPart(name: "EyeStalk\(side)", center: SIMD3(0.12, 0.22, z * 0.35),
+                             radius: SIMD3(0.03, 0.12, 0.03), rotation: SIMD3(0, 0, 0),
+                             rings: 5, segments: 8, material: dark, primitive: .cylinder))
+    parts.append(StarterPart(name: "Eye\(side)", center: SIMD3(0.12, 0.34, z * 0.35),
+                             radius: SIMD3(0.06, 0.06, 0.06), rotation: SIMD3(0, 0, 0),
+                             rings: 6, segments: 10, material: eye))
+  }
+  for i in 0..<3 {
+    let x = -0.02 - Float(i) * 0.15
+    parts.append(StarterPart(name: "LegLeft\(i)", center: SIMD3(x, -0.24, 0.32),
+                             radius: SIMD3(0.03, 0.17, 0.03), rotation: SIMD3(-0.7, 0, 0),
+                             rings: 5, segments: 8, material: dark, primitive: .cylinder))
+    parts.append(StarterPart(name: "LegRight\(i)", center: SIMD3(x, -0.24, -0.32),
+                             radius: SIMD3(0.03, 0.17, 0.03), rotation: SIMD3(0.7, 0, 0),
+                             rings: 5, segments: 8, material: dark, primitive: .cylinder))
+  }
+  return parts
+}
+
+/// Slim body with four broad wings — the wings are the whole silhouette.
+private func butterfly(wing: Int, body: Int, accent: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Body", center: SIMD3(0, 0, 0), radius: SIMD3(0.06, 0.34, 0.06),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 12, material: body))
+  parts.append(StarterPart(name: "Head", center: SIMD3(0, 0.36, 0), radius: SIMD3(0.09, 0.09, 0.09),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 12, material: body))
+  for (side, z) in [("Left", Float(1)), ("Right", Float(-1))] {
+    parts.append(StarterPart(name: "UpperWing\(side)", center: SIMD3(0, 0.16, z * 0.30),
+                             radius: SIMD3(0.03, 0.24, 0.30), rotation: SIMD3(z * 0.25, 0, 0),
+                             rings: 8, segments: 14, material: wing))
+    parts.append(StarterPart(name: "LowerWing\(side)", center: SIMD3(0, -0.16, z * 0.24),
+                             radius: SIMD3(0.03, 0.18, 0.23), rotation: SIMD3(z * 0.25, 0, 0),
+                             rings: 8, segments: 14, material: accent))
+    parts.append(StarterPart(name: "Antenna\(side)", center: SIMD3(0, 0.50, z * 0.08),
+                             radius: SIMD3(0.015, 0.12, 0.015), rotation: SIMD3(z * 0.4, 0, 0),
+                             rings: 4, segments: 6, material: body, primitive: .cylinder))
+  }
+  return parts
+}
+
+/// Bee: fat striped abdomen, distinct head, and wings that stand off the body.
+/// The first attempt rendered as a pale blob — the stripes were wide cylinders
+/// that blended, and the wings lay flat along the back where they vanished.
+private func bee(body: Int, dark: Int, wing: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Abdomen", center: SIMD3(-0.12, 0, 0), radius: SIMD3(0.34, 0.24, 0.24),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 16, material: body))
+  // Narrow bands sitting proud of the abdomen so they read as stripes.
+  for i in 0..<3 {
+    let x = 0.04 - Float(i) * 0.16
+    parts.append(StarterPart(name: "Stripe\(i)", center: SIMD3(x, 0, 0),
+                             radius: SIMD3(0.045, 0.25, 0.25), rotation: SIMD3(0, 0, 1.5708),
+                             rings: 6, segments: 14, material: dark, primitive: .cylinder))
+  }
+  parts.append(StarterPart(name: "Head", center: SIMD3(0.32, 0.04, 0), radius: SIMD3(0.17, 0.17, 0.17),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: dark))
+  parts.append(StarterPart(name: "EyeLeft", center: SIMD3(0.44, 0.08, 0.09), radius: SIMD3(0.05, 0.05, 0.04),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: wing))
+  parts.append(StarterPart(name: "EyeRight", center: SIMD3(0.44, 0.08, -0.09), radius: SIMD3(0.05, 0.05, 0.04),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: wing))
+  parts.append(StarterPart(name: "Stinger", center: SIMD3(-0.50, 0, 0), radius: SIMD3(0.07, 0.13, 0.07),
+                           rotation: SIMD3(0, 0, 1.5708), rings: 5, segments: 8, material: dark,
+                           primitive: .cone))
+  for (side, z) in [("Left", Float(1)), ("Right", Float(-1))] {
+    parts.append(StarterPart(name: "Wing\(side)", center: SIMD3(-0.04, 0.30, z * 0.24),
+                             radius: SIMD3(0.20, 0.04, 0.26), rotation: SIMD3(z * 0.55, 0, 0),
+                             rings: 6, segments: 12, material: wing))
+  }
+  return parts
+}
+
+/// Snake: a long thin tube coiled on the ground.
+/// Attempts one and two read as a caterpillar because the segments alternated
+/// colour (banding turns a tube into beads). Attempt three fixed the colour but
+/// kept a big pale belly ellipsoid underneath, which read as a blob the animal
+/// was sitting on. This drops the belly entirely and doubles the length: a
+/// snake is mostly body, and it has to be long before it reads as one.
+private func snake(body: Int, belly: Int, eye: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  // 26 overlapping segments spiralling inward, thin relative to their length.
+  for i in 0..<26 {
+    let t = Float(i)
+    let r = 0.115 - t * 0.0026
+    let a = t * 0.40
+    let radius = 0.46 - t * 0.014
+    parts.append(StarterPart(name: "Segment\(i)",
+                             center: SIMD3(cos(a) * radius, -0.30 + t * 0.004, sin(a) * radius),
+                             radius: SIMD3(r, r * 0.9, r),
+                             rotation: SIMD3(0, 0, 0), rings: 8, segments: 12,
+                             material: i > 20 ? belly : body))
+  }
+  parts.append(StarterPart(name: "Head", center: SIMD3(0.52, -0.24, 0.06), radius: SIMD3(0.17, 0.12, 0.15),
+                           rotation: SIMD3(0, -0.9, 0), rings: 10, segments: 14, material: body))
+  parts.append(StarterPart(name: "Snout", center: SIMD3(0.60, -0.25, 0.20), radius: SIMD3(0.09, 0.08, 0.09),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 12, material: body))
+  parts.append(StarterPart(name: "EyeLeft", center: SIMD3(0.58, -0.15, 0.13), radius: SIMD3(0.04, 0.04, 0.04),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  parts.append(StarterPart(name: "EyeRight", center: SIMD3(0.48, -0.15, 0.01), radius: SIMD3(0.04, 0.04, 0.04),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  return parts
+}
+
+/// Squat body, eyes riding on top of the head, folded legs.
+private func frog(body: Int, belly: Int, eye: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Body", center: SIMD3(0, -0.10, 0), radius: SIMD3(0.34, 0.26, 0.32),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 16, material: body))
+  parts.append(StarterPart(name: "Belly", center: SIMD3(0.06, -0.18, 0), radius: SIMD3(0.24, 0.16, 0.24),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: belly))
+  for (side, z) in [("Left", Float(1)), ("Right", Float(-1))] {
+    parts.append(StarterPart(name: "EyeBump\(side)", center: SIMD3(0.10, 0.18, z * 0.15),
+                             radius: SIMD3(0.11, 0.11, 0.11), rotation: SIMD3(0, 0, 0),
+                             rings: 8, segments: 12, material: body))
+    parts.append(StarterPart(name: "Eye\(side)", center: SIMD3(0.16, 0.23, z * 0.15),
+                             radius: SIMD3(0.06, 0.06, 0.06), rotation: SIMD3(0, 0, 0),
+                             rings: 6, segments: 10, material: eye))
+    parts.append(StarterPart(name: "BackLeg\(side)", center: SIMD3(-0.22, -0.26, z * 0.30),
+                             radius: SIMD3(0.15, 0.10, 0.09), rotation: SIMD3(0, 0, 0.3),
+                             rings: 6, segments: 12, material: body))
+    parts.append(StarterPart(name: "FrontFoot\(side)", center: SIMD3(0.26, -0.32, z * 0.20),
+                             radius: SIMD3(0.11, 0.06, 0.08), rotation: SIMD3(0, 0, 0),
+                             rings: 6, segments: 10, material: body))
+  }
+  return parts
+}
+
+/// Domed shell over a flatter underside, with head and four stubby legs.
+private func turtle(shell: Int, skin: Int, eye: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Shell", center: SIMD3(0, 0, 0), radius: SIMD3(0.40, 0.26, 0.34),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 18, material: shell))
+  parts.append(StarterPart(name: "Underside", center: SIMD3(0, -0.14, 0), radius: SIMD3(0.36, 0.10, 0.30),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 16, material: skin))
+  parts.append(StarterPart(name: "Head", center: SIMD3(0.44, -0.02, 0), radius: SIMD3(0.16, 0.14, 0.14),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: skin))
+  parts.append(StarterPart(name: "EyeLeft", center: SIMD3(0.54, 0.04, 0.07), radius: SIMD3(0.035, 0.035, 0.035),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  parts.append(StarterPart(name: "EyeRight", center: SIMD3(0.54, 0.04, -0.07), radius: SIMD3(0.035, 0.035, 0.035),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  parts.append(StarterPart(name: "Tail", center: SIMD3(-0.42, -0.06, 0), radius: SIMD3(0.10, 0.06, 0.06),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: skin))
+  for (name, x, z) in [("LegFrontLeft", Float(0.22), Float(0.30)), ("LegFrontRight", 0.22, -0.30),
+                       ("LegBackLeft", -0.22, 0.30), ("LegBackRight", -0.22, -0.30)] {
+    parts.append(StarterPart(name: name, center: SIMD3(x, -0.20, z), radius: SIMD3(0.11, 0.08, 0.09),
+                             rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: skin))
+  }
+  return parts
+}
+
+/// Bell dome with trailing tentacles.
+private func jellyfish(bell: Int, tentacle: Int, eye: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Bell", center: SIMD3(0, 0.24, 0), radius: SIMD3(0.38, 0.30, 0.38),
+                           rotation: SIMD3(0, 0, 0), rings: 12, segments: 18, material: bell))
+  parts.append(StarterPart(name: "Rim", center: SIMD3(0, 0.04, 0), radius: SIMD3(0.34, 0.08, 0.34),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 16, material: tentacle))
+  parts.append(StarterPart(name: "EyeLeft", center: SIMD3(0.12, 0.24, 0.32), radius: SIMD3(0.05, 0.05, 0.04),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  parts.append(StarterPart(name: "EyeRight", center: SIMD3(-0.12, 0.24, 0.32), radius: SIMD3(0.05, 0.05, 0.04),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  for i in 0..<6 {
+    let a = Float(i) * 1.0472
+    parts.append(StarterPart(name: "Tentacle\(i)",
+                             center: SIMD3(cos(a) * 0.20, -0.26, sin(a) * 0.20),
+                             radius: SIMD3(0.035, 0.28, 0.035),
+                             rotation: SIMD3(sin(a) * 0.25, 0, cos(a) * -0.25),
+                             rings: 6, segments: 8, material: tentacle, primitive: .cylinder))
+  }
+  return parts
+}
+
+/// Spiral shell built from shrinking stacked ellipsoids, plus body and eye stalks.
+private func snail(shell: Int, bodyMat: Int, eye: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Foot", center: SIMD3(0.02, -0.34, 0), radius: SIMD3(0.44, 0.12, 0.20),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 16, material: bodyMat))
+  parts.append(StarterPart(name: "Head", center: SIMD3(0.40, -0.20, 0), radius: SIMD3(0.16, 0.14, 0.14),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 12, material: bodyMat))
+  for i in 0..<4 {
+    let t = Float(i)
+    let a = t * 1.6
+    let r = 0.30 - t * 0.06
+    parts.append(StarterPart(name: "Shell\(i)",
+                             center: SIMD3(-0.06 + cos(a) * (0.12 - t * 0.02), 0.06 + sin(a) * (0.12 - t * 0.02), 0),
+                             radius: SIMD3(r, r, r * 0.62),
+                             rotation: SIMD3(0, 0, 0), rings: 10, segments: 14, material: shell))
+  }
+  for (side, z) in [("Left", Float(1)), ("Right", Float(-1))] {
+    parts.append(StarterPart(name: "Stalk\(side)", center: SIMD3(0.46, -0.04, z * 0.07),
+                             radius: SIMD3(0.025, 0.14, 0.025), rotation: SIMD3(z * 0.2, 0, -0.2),
+                             rings: 5, segments: 8, material: bodyMat, primitive: .cylinder))
+    parts.append(StarterPart(name: "Eye\(side)", center: SIMD3(0.52, 0.10, z * 0.09),
+                             radius: SIMD3(0.05, 0.05, 0.05), rotation: SIMD3(0, 0, 0),
+                             rings: 6, segments: 10, material: eye))
+  }
+  return parts
+}
+
+/// Walls, pitched roof, door and chimney.
+private func house(walls: Int, roof: Int, trim: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Walls", center: SIMD3(0, -0.18, 0), radius: SIMD3(0.38, 0.28, 0.34),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 4, material: walls,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Roof", center: SIMD3(0, 0.28, 0), radius: SIMD3(0.50, 0.30, 0.46),
+                           rotation: SIMD3(0, 0.7854, 0), rings: 6, segments: 4, material: roof,
+                           primitive: .cone))
+  parts.append(StarterPart(name: "Door", center: SIMD3(0.30, -0.28, 0), radius: SIMD3(0.10, 0.16, 0.10),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 8, material: trim))
+  parts.append(StarterPart(name: "Chimney", center: SIMD3(-0.20, 0.40, 0.12), radius: SIMD3(0.07, 0.18, 0.07),
+                           rotation: SIMD3(0, 0, 0), rings: 5, segments: 8, material: trim,
+                           primitive: .cylinder))
+  return parts
+}
+
+/// Castle: a squat wide keep, not a spire.
+/// The first attempt was tall and narrow enough to read as a pencil or a
+/// rocket. Wider than it is tall now, with battlements that overhang.
+private func castle(stone: Int, roof: Int, trim: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Keep", center: SIMD3(0, -0.16, 0), radius: SIMD3(0.40, 0.32, 0.40),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 16, material: stone,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Battlement", center: SIMD3(0, 0.20, 0), radius: SIMD3(0.47, 0.08, 0.47),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 16, material: stone,
+                           primitive: .cylinder))
+  for i in 0..<8 {
+    let a = Float(i) * 0.7854
+    parts.append(StarterPart(name: "Merlon\(i)", center: SIMD3(cos(a) * 0.41, 0.33, sin(a) * 0.41),
+                             radius: SIMD3(0.075, 0.10, 0.075), rotation: SIMD3(0, 0, 0),
+                             rings: 4, segments: 6, material: stone, primitive: .cylinder))
+  }
+  parts.append(StarterPart(name: "Turret", center: SIMD3(0, 0.34, 0), radius: SIMD3(0.20, 0.16, 0.20),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 14, material: stone,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Roof", center: SIMD3(0, 0.62, 0), radius: SIMD3(0.26, 0.26, 0.26),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 14, material: roof,
+                           primitive: .cone))
+  parts.append(StarterPart(name: "Gate", center: SIMD3(0.38, -0.30, 0), radius: SIMD3(0.10, 0.17, 0.13),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: trim))
+  return parts
+}
+
+/// Stem and a spotted cap.
+private func mushroom(cap: Int, stem: Int, spot: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Stem", center: SIMD3(0, -0.22, 0), radius: SIMD3(0.16, 0.28, 0.16),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: stem,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Cap", center: SIMD3(0, 0.16, 0), radius: SIMD3(0.44, 0.32, 0.44),
+                           rotation: SIMD3(0, 0, 0), rings: 12, segments: 18, material: cap))
+  for i in 0..<4 {
+    let a = Float(i) * 1.5708 + 0.4
+    parts.append(StarterPart(name: "Spot\(i)",
+                             center: SIMD3(cos(a) * 0.24, 0.32, sin(a) * 0.24),
+                             radius: SIMD3(0.10, 0.06, 0.10), rotation: SIMD3(0, 0, 0),
+                             rings: 6, segments: 10, material: spot))
+  }
+  return parts
+}
+
+/// Stem, leaves, centre and radial petals.
+private func flower(petal: Int, centre: Int, stem: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Stem", center: SIMD3(0, -0.28, 0), radius: SIMD3(0.04, 0.30, 0.04),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: stem,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "LeafLeft", center: SIMD3(0.16, -0.24, 0), radius: SIMD3(0.16, 0.05, 0.08),
+                           rotation: SIMD3(0, 0, 0.4), rings: 6, segments: 10, material: stem))
+  parts.append(StarterPart(name: "LeafRight", center: SIMD3(-0.16, -0.34, 0), radius: SIMD3(0.14, 0.05, 0.07),
+                           rotation: SIMD3(0, 0, -0.4), rings: 6, segments: 10, material: stem))
+  parts.append(StarterPart(name: "Centre", center: SIMD3(0, 0.22, 0), radius: SIMD3(0.15, 0.14, 0.12),
+                           rotation: SIMD3(0, 0, 0), rings: 8, segments: 14, material: centre))
+  for i in 0..<6 {
+    let a = Float(i) * 1.0472
+    parts.append(StarterPart(name: "Petal\(i)",
+                             center: SIMD3(cos(a) * 0.28, 0.22, sin(a) * 0.28),
+                             radius: SIMD3(0.16, 0.07, 0.16), rotation: SIMD3(0, -a, 0),
+                             rings: 6, segments: 12, material: petal))
+  }
+  return parts
+}
+
+/// Five-pointed star: a small core with cones radiating in a ring.
+private func star(bodyMat: Int, glow: Int, eye: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  parts.append(StarterPart(name: "Core", center: SIMD3(0, 0, 0), radius: SIMD3(0.22, 0.22, 0.12),
+                           rotation: SIMD3(0, 0, 0), rings: 10, segments: 16, material: bodyMat))
+  for i in 0..<5 {
+    let a = Float(i) * 1.2566 + 1.5708
+    parts.append(StarterPart(name: "Point\(i)",
+                             center: SIMD3(cos(a) * 0.34, sin(a) * 0.34, 0),
+                             radius: SIMD3(0.13, 0.26, 0.10),
+                             rotation: SIMD3(0, 0, a - 1.5708),
+                             rings: 6, segments: 8, material: glow, primitive: .cone))
+  }
+  parts.append(StarterPart(name: "EyeLeft", center: SIMD3(0.08, 0.04, 0.11), radius: SIMD3(0.04, 0.04, 0.03),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  parts.append(StarterPart(name: "EyeRight", center: SIMD3(-0.08, 0.04, 0.11), radius: SIMD3(0.04, 0.04, 0.03),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: eye))
+  return parts
+}
+
+/// Treasure chest: boxy base with a clearly separated barrel lid.
+/// The first attempt merged the lid into the base and hid the banding inside
+/// the body, so it rendered as an anonymous brown lump.
+private func chest(wood: Int, metal: Int, gold: Int) -> [StarterPart] {
+  var parts: [StarterPart] = []
+  // 4-segment cylinders are boxes, which is what gives the chest hard corners.
+  parts.append(StarterPart(name: "Base", center: SIMD3(0, -0.28, 0), radius: SIMD3(0.46, 0.22, 0.32),
+                           rotation: SIMD3(0, 0.7854, 0), rings: 6, segments: 4, material: wood,
+                           primitive: .cylinder))
+  parts.append(StarterPart(name: "Rim", center: SIMD3(0, -0.05, 0), radius: SIMD3(0.48, 0.04, 0.34),
+                           rotation: SIMD3(0, 0.7854, 0), rings: 4, segments: 4, material: gold,
+                           primitive: .cylinder))
+  // Half-barrel lid, lifted clear of the rim so the join is visible.
+  parts.append(StarterPart(name: "Lid", center: SIMD3(0, 0.02, 0), radius: SIMD3(0.44, 0.30, 0.30),
+                           rotation: SIMD3(1.5708, 0, 0), rings: 8, segments: 12, material: wood,
+                           primitive: .cylinder))
+  for (side, x) in [("Left", Float(0.26)), ("Right", Float(-0.26))] {
+    parts.append(StarterPart(name: "Band\(side)", center: SIMD3(x, -0.02, 0),
+                             radius: SIMD3(0.045, 0.34, 0.345), rotation: SIMD3(1.5708, 0, 0),
+                             rings: 6, segments: 12, material: metal, primitive: .cylinder))
+  }
+  parts.append(StarterPart(name: "Lock", center: SIMD3(0, -0.08, 0.34), radius: SIMD3(0.09, 0.10, 0.05),
+                           rotation: SIMD3(0, 0, 0), rings: 6, segments: 10, material: gold))
+  return parts
+}
+
 func starterCatalog() -> [StarterCharacter] {
   [
     // Quadrupeds — share the quadruped() template (body + neck + head + snout +
@@ -1118,6 +1593,208 @@ func starterCatalog() -> [StarterCharacter] {
         FACE_DARK,
       ],
       parts: fish(body: 0, face: 1, bodyScale: SIMD3(1.0, 1.15, 1.0))
+    ),
+    // Vehicles, small creatures and props — the twenty archetypes added to
+    // break the humanoid/quadruped monotony of the original roster.
+    StarterCharacter(
+      id: "car", displayName: "Car", description: "A little racing car.",
+      aliases: ["vehicle", "racer", "automobile"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Car Red", color: SIMD4(0.85, 0.18, 0.20, 1), metallic: 0.55, roughness: 0.35),
+        StarterMaterial(name: "Tyre Black", color: SIMD4(0.10, 0.10, 0.12, 1), metallic: 0.15, roughness: 0.75),
+        StarterMaterial(name: "Glass Blue", color: SIMD4(0.55, 0.78, 0.92, 1), metallic: 0.30, roughness: 0.20),
+      ],
+      parts: car(body: 0, dark: 1, glass: 2)
+    ),
+    StarterCharacter(
+      id: "rocket", displayName: "Rocket", description: "A spaceship ready for launch.",
+      aliases: ["spaceship", "spacecraft", "launch"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Rocket White", color: SIMD4(0.92, 0.93, 0.96, 1), metallic: 0.45, roughness: 0.35),
+        StarterMaterial(name: "Rocket Red", color: SIMD4(0.86, 0.22, 0.18, 1), metallic: 0.45, roughness: 0.35),
+        StarterMaterial(name: "Flame", color: SIMD4(0.98, 0.66, 0.15, 1), metallic: 0.20, roughness: 0.40),
+      ],
+      parts: rocket(body: 0, accent: 1, flame: 2)
+    ),
+    StarterCharacter(
+      id: "boat", displayName: "Boat", description: "A little sailing boat.",
+      aliases: ["ship", "sailboat", "yacht"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Hull Wood", color: SIMD4(0.55, 0.33, 0.18, 1), metallic: 0.20, roughness: 0.65),
+        StarterMaterial(name: "Sail White", color: SIMD4(0.95, 0.95, 0.92, 1), metallic: 0.10, roughness: 0.60),
+        StarterMaterial(name: "Mast Brown", color: SIMD4(0.36, 0.24, 0.14, 1), metallic: 0.20, roughness: 0.70),
+      ],
+      parts: boat(hull: 0, sail: 1, mast: 2)
+    ),
+    StarterCharacter(
+      id: "airplane", displayName: "Airplane", description: "A propeller plane.",
+      aliases: ["plane", "aeroplane", "jet", "flying"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Plane Blue", color: SIMD4(0.22, 0.48, 0.85, 1), metallic: 0.50, roughness: 0.35),
+        StarterMaterial(name: "Wing White", color: SIMD4(0.93, 0.94, 0.96, 1), metallic: 0.45, roughness: 0.35),
+        StarterMaterial(name: "Plane Dark", color: SIMD4(0.16, 0.18, 0.24, 1), metallic: 0.35, roughness: 0.45),
+      ],
+      parts: airplane(body: 0, wing: 1, dark: 2)
+    ),
+    StarterCharacter(
+      id: "train", displayName: "Train", description: "A steam engine.",
+      aliases: ["locomotive", "steam engine", "railway"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Engine Green", color: SIMD4(0.14, 0.45, 0.30, 1), metallic: 0.50, roughness: 0.40),
+        StarterMaterial(name: "Iron Dark", color: SIMD4(0.13, 0.13, 0.15, 1), metallic: 0.55, roughness: 0.45),
+        StarterMaterial(name: "Cab Red", color: SIMD4(0.72, 0.20, 0.18, 1), metallic: 0.40, roughness: 0.45),
+      ],
+      parts: train(body: 0, dark: 1, accent: 2)
+    ),
+    StarterCharacter(
+      id: "spider", displayName: "Spider", description: "An eight-legged spider.",
+      aliases: ["bug", "arachnid", "creepy"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Spider Body", color: SIMD4(0.24, 0.16, 0.32, 1), metallic: 0.30, roughness: 0.50),
+        StarterMaterial(name: "Leg Dark", color: SIMD4(0.12, 0.09, 0.16, 1), metallic: 0.25, roughness: 0.55),
+        StarterMaterial(name: "Spider Eye", color: SIMD4(0.95, 0.82, 0.25, 1), metallic: 0.20, roughness: 0.30),
+      ],
+      parts: spider(body: 0, dark: 1, eye: 2)
+    ),
+    StarterCharacter(
+      id: "crab", displayName: "Crab", description: "A snappy little crab.",
+      aliases: ["shellfish", "claw", "beach"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Crab Orange", color: SIMD4(0.88, 0.36, 0.16, 1), metallic: 0.35, roughness: 0.45),
+        StarterMaterial(name: "Crab Dark", color: SIMD4(0.52, 0.18, 0.08, 1), metallic: 0.30, roughness: 0.50),
+        FACE_DARK,
+      ],
+      parts: crab(shell: 0, dark: 1, eye: 2)
+    ),
+    StarterCharacter(
+      id: "butterfly", displayName: "Butterfly", description: "A bright butterfly.",
+      aliases: ["moth", "wings", "insect"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Wing Orange", color: SIMD4(0.95, 0.55, 0.15, 1), metallic: 0.25, roughness: 0.40),
+        StarterMaterial(name: "Butterfly Body", color: SIMD4(0.18, 0.14, 0.18, 1), metallic: 0.30, roughness: 0.50),
+        StarterMaterial(name: "Wing Pink", color: SIMD4(0.92, 0.40, 0.62, 1), metallic: 0.25, roughness: 0.40),
+      ],
+      parts: butterfly(wing: 0, body: 1, accent: 2)
+    ),
+    StarterCharacter(
+      id: "bee", displayName: "Bee", description: "A stripy buzzing bee.",
+      aliases: ["bumblebee", "wasp", "honey", "insect"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Bee Yellow", color: SIMD4(0.96, 0.78, 0.16, 1), metallic: 0.25, roughness: 0.45),
+        StarterMaterial(name: "Bee Black", color: SIMD4(0.12, 0.11, 0.12, 1), metallic: 0.25, roughness: 0.50),
+        StarterMaterial(name: "Bee Wing", color: SIMD4(0.85, 0.90, 0.95, 1), metallic: 0.20, roughness: 0.25),
+      ],
+      parts: bee(body: 0, dark: 1, wing: 2)
+    ),
+    StarterCharacter(
+      id: "snake", displayName: "Snake", description: "A slithering snake.",
+      aliases: ["serpent", "python", "cobra"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Snake Green", color: SIMD4(0.28, 0.62, 0.26, 1), metallic: 0.35, roughness: 0.40),
+        StarterMaterial(name: "Snake Belly", color: SIMD4(0.72, 0.82, 0.42, 1), metallic: 0.30, roughness: 0.45),
+        FACE_DARK,
+      ],
+      parts: snake(body: 0, belly: 1, eye: 2)
+    ),
+    StarterCharacter(
+      id: "frog", displayName: "Frog", description: "A hopping frog.",
+      aliases: ["toad", "amphibian", "pond"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Frog Green", color: SIMD4(0.34, 0.70, 0.28, 1), metallic: 0.30, roughness: 0.45),
+        StarterMaterial(name: "Frog Belly", color: SIMD4(0.85, 0.90, 0.60, 1), metallic: 0.25, roughness: 0.50),
+        FACE_DARK,
+      ],
+      parts: frog(body: 0, belly: 1, eye: 2)
+    ),
+    StarterCharacter(
+      id: "turtle", displayName: "Turtle", description: "A slow friendly turtle.",
+      aliases: ["tortoise", "shell", "sea turtle"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Shell Brown", color: SIMD4(0.42, 0.30, 0.16, 1), metallic: 0.35, roughness: 0.50),
+        StarterMaterial(name: "Turtle Green", color: SIMD4(0.36, 0.62, 0.34, 1), metallic: 0.30, roughness: 0.50),
+        FACE_DARK,
+      ],
+      parts: turtle(shell: 0, skin: 1, eye: 2)
+    ),
+    StarterCharacter(
+      id: "jellyfish", displayName: "Jellyfish", description: "A drifting jellyfish.",
+      aliases: ["jelly", "sea creature", "ocean"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Jelly Pink", color: SIMD4(0.94, 0.55, 0.78, 1), metallic: 0.20, roughness: 0.30),
+        StarterMaterial(name: "Tentacle", color: SIMD4(0.80, 0.38, 0.66, 1), metallic: 0.20, roughness: 0.35),
+        FACE_DARK,
+      ],
+      parts: jellyfish(bell: 0, tentacle: 1, eye: 2)
+    ),
+    StarterCharacter(
+      id: "snail", displayName: "Snail", description: "A slow snail with a spiral shell.",
+      aliases: ["slug", "shell", "garden"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Shell Amber", color: SIMD4(0.78, 0.52, 0.20, 1), metallic: 0.40, roughness: 0.40),
+        StarterMaterial(name: "Snail Body", color: SIMD4(0.80, 0.72, 0.58, 1), metallic: 0.20, roughness: 0.55),
+        FACE_DARK,
+      ],
+      parts: snail(shell: 0, bodyMat: 1, eye: 2)
+    ),
+    StarterCharacter(
+      id: "house", displayName: "House", description: "A little cottage.",
+      aliases: ["home", "cottage", "building"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Wall Cream", color: SIMD4(0.92, 0.87, 0.75, 1), metallic: 0.15, roughness: 0.65),
+        StarterMaterial(name: "Roof Red", color: SIMD4(0.72, 0.26, 0.20, 1), metallic: 0.25, roughness: 0.55),
+        StarterMaterial(name: "Door Brown", color: SIMD4(0.42, 0.28, 0.16, 1), metallic: 0.20, roughness: 0.60),
+      ],
+      parts: house(walls: 0, roof: 1, trim: 2)
+    ),
+    StarterCharacter(
+      id: "castle", displayName: "Castle", description: "A stone tower with battlements.",
+      aliases: ["tower", "fortress", "keep"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Stone Grey", color: SIMD4(0.62, 0.62, 0.60, 1), metallic: 0.25, roughness: 0.70),
+        StarterMaterial(name: "Roof Blue", color: SIMD4(0.24, 0.34, 0.62, 1), metallic: 0.35, roughness: 0.45),
+        StarterMaterial(name: "Gate Wood", color: SIMD4(0.36, 0.24, 0.14, 1), metallic: 0.20, roughness: 0.65),
+      ],
+      parts: castle(stone: 0, roof: 1, trim: 2)
+    ),
+    StarterCharacter(
+      id: "mushroom", displayName: "Mushroom", description: "A spotted toadstool.",
+      aliases: ["toadstool", "fungus", "forest"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Cap Red", color: SIMD4(0.82, 0.20, 0.20, 1), metallic: 0.25, roughness: 0.45),
+        StarterMaterial(name: "Stem Cream", color: SIMD4(0.94, 0.90, 0.82, 1), metallic: 0.15, roughness: 0.55),
+        StarterMaterial(name: "Spot White", color: SIMD4(0.98, 0.97, 0.94, 1), metallic: 0.15, roughness: 0.45),
+      ],
+      parts: mushroom(cap: 0, stem: 1, spot: 2)
+    ),
+    StarterCharacter(
+      id: "flower", displayName: "Flower", description: "A cheerful flower.",
+      aliases: ["daisy", "bloom", "plant", "garden"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Petal Pink", color: SIMD4(0.95, 0.48, 0.68, 1), metallic: 0.20, roughness: 0.45),
+        StarterMaterial(name: "Centre Yellow", color: SIMD4(0.97, 0.80, 0.20, 1), metallic: 0.25, roughness: 0.45),
+        StarterMaterial(name: "Stem Green", color: SIMD4(0.28, 0.58, 0.26, 1), metallic: 0.20, roughness: 0.55),
+      ],
+      parts: flower(petal: 0, centre: 1, stem: 2)
+    ),
+    StarterCharacter(
+      id: "star", displayName: "Star", description: "A twinkling star.",
+      aliases: ["sparkle", "shine", "space", "collectible"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Star Gold", color: SIMD4(0.98, 0.80, 0.22, 1), metallic: 0.75, roughness: 0.25),
+        StarterMaterial(name: "Star Glow", color: SIMD4(1.0, 0.90, 0.45, 1), metallic: 0.65, roughness: 0.20),
+        FACE_DARK,
+      ],
+      parts: star(bodyMat: 0, glow: 1, eye: 2)
+    ),
+    StarterCharacter(
+      id: "chest", displayName: "Treasure Chest", description: "A chest full of treasure.",
+      aliases: ["treasure", "loot", "box", "pirate chest"], defaultSize: 1.0,
+      materials: [
+        StarterMaterial(name: "Chest Wood", color: SIMD4(0.48, 0.30, 0.16, 1), metallic: 0.25, roughness: 0.60),
+        StarterMaterial(name: "Chest Iron", color: SIMD4(0.38, 0.38, 0.42, 1), metallic: 0.70, roughness: 0.35),
+        StarterMaterial(name: "Chest Gold", color: SIMD4(0.95, 0.78, 0.25, 1), metallic: 0.85, roughness: 0.20),
+      ],
+      parts: chest(wood: 0, metal: 1, gold: 2)
     ),
   ]
 }

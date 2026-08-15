@@ -47,7 +47,7 @@ done
 if [ "$MODE" = 'character' ]; then
   [ -z "$METADATA_FILE" ] || { usage; exit 1; }
   case "$CHARACTER" in
-    dinosaur|unicorn|robot|knight|wizard|princess|astronaut|ninja|puppy|superhero|hero|dog|cat|fish|bird|alien|monster|tree|rock|ghost|dragon|pirate|chef|doctor|explorer|queen|king|witch|diver|bear|rabbit|fox|panda|tiger|penguin|owl|parrot|shark|octopus) ;;
+    dinosaur|unicorn|robot|knight|wizard|princess|astronaut|ninja|puppy|superhero|hero|dog|cat|fish|bird|alien|monster|tree|rock|ghost|dragon|pirate|chef|doctor|explorer|queen|king|witch|diver|bear|rabbit|fox|panda|tiger|penguin|owl|parrot|shark|octopus|car|rocket|boat|airplane|train|spider|crab|butterfly|bee|snake|frog|turtle|jellyfish|snail|house|castle|mushroom|flower|star|chest) ;;
     *)
       printf 'Unknown starter character: %s\n' "$CHARACTER" >&2
       exit 1
@@ -79,7 +79,7 @@ if [ "$MODE" = 'all' ]; then
   # roster is written down — the Swift binary iterates the catalog itself,
   # but the shell needs the names up-front to reserve publication locks.
   for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
-            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus; do
+            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus car rocket boat airplane train spider crab butterfly bee snake frog turtle jellyfish snail house castle mushroom flower star chest; do
     GENERATED_FILE="$OUTPUT_DIR/$id.glb"
     GENERATED_CASE_FOLDED="$(printf '%s' "$GENERATED_FILE" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
     if [ "$METADATA_CASE_FOLDED" = "$GENERATED_CASE_FOLDED" ]; then
@@ -411,7 +411,7 @@ else
   # roster is written down — the Swift binary iterates the catalog itself,
   # but the shell needs the names up-front to reserve publication locks.
   for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
-            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus; do
+            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus car rocket boat airplane train spider crab butterfly bee snake frog turtle jellyfish snail house castle mushroom flower star chest; do
     [ -f "$STAGING_OUTPUT_DIR/$id.glb" ] || {
       printf 'Generator did not produce %s.glb\n' "$id" >&2
       exit 1
@@ -430,7 +430,7 @@ else
   # roster is written down — the Swift binary iterates the catalog itself,
   # but the shell needs the names up-front to reserve publication locks.
   for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
-            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus; do
+            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus car rocket boat airplane train spider crab butterfly bee snake frog turtle jellyfish snail house castle mushroom flower star chest; do
     cp -- "$STAGING_OUTPUT_DIR/$id.glb" "$OUTPUT_TRANSACTION_DIR/new/$id.glb"
     register_target \
       "$OUTPUT_DIR/$id.glb" \

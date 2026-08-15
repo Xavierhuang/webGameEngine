@@ -22,7 +22,7 @@ import CollectibleSelector from './CollectibleSelector';
 import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
-import { CHARACTER_TEMPLATES } from '../../lib/prefabs/characters';
+import { PICKER_CHARACTERS } from '../../lib/prefabs/characters';
 import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 import { SceneLights } from '@/components/three/SceneLights';
@@ -148,7 +148,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   useEffect(() => {
     const FIRST_SCREEN = 8;
     let warmed = 0;
-    for (const c of CHARACTER_TEMPLATES) {
+    for (const c of PICKER_CHARACTERS) {
       if (warmed >= FIRST_SCREEN) break;
       const url = c.model_url;
       if (!url) continue;

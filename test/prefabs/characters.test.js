@@ -4,6 +4,7 @@ const {
   buildCharacterVisualData,
   CHARACTER_TEMPLATES,
   BASIC_SHAPES,
+  PICKER_CHARACTERS,
 } = require('../.build/lib/prefabs/characters.js');
 
 let failures = 0;
@@ -107,7 +108,22 @@ if (typeof buildCharacterVisualData === 'function') {
   eq(uploadedModelVisualData.properties.size, 1, 'generic uploaded model properties retain the default size');
 }
 
-eq(CHARACTER_TEMPLATES.length, 40, 'templates count');
+eq(CHARACTER_TEMPLATES.length, 60, 'templates count');
+
+// The picker shows the same characters in a different order. Reordering the
+// matcher pool itself would change which prefab an ambiguous AI prompt wins,
+// because the matcher breaks ties by array position.
+eq(PICKER_CHARACTERS.length, CHARACTER_TEMPLATES.length, 'picker shows every character');
+eq(new Set(PICKER_CHARACTERS.map(c => c.id)).size, CHARACTER_TEMPLATES.length, 'no duplicates or drops in the picker order');
+eq(CHARACTER_TEMPLATES[0].id, 'hero', 'matcher pool order is unchanged');
+{
+  // The whole point of the reorder: the first screenful must not be one shape
+  // repeated. Twelve tiles is roughly what fits before a child has to scroll.
+  const firstScreen = PICKER_CHARACTERS.slice(0, 12).map(c => c.id);
+  const humanoids = ['hero','knight','wizard','princess','astronaut','ninja','superhero','pirate','chef','doctor','explorer','queen','king','witch','diver'];
+  const humanoidCount = firstScreen.filter(id => humanoids.includes(id)).length;
+  eq(humanoidCount <= 4, true, `first screen is ${humanoidCount}/12 humanoids — too repetitive`);
+}
 eq(BASIC_SHAPES.length, 7, 'basic shapes count');
 eq(CHARACTER_TEMPLATES.every(t => t.aliases && t.aliases.length > 0), true, 'every template has aliases');
 
