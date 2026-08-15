@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/mysql/server';
 import { hashPassword } from '@/lib/auth/password';
 import { consumeResetToken } from '@/lib/auth/passwordReset';
-import { rateLimit, clientKey } from '@/lib/safety/rateLimit';
+import { rateLimit, clientKey, retryMessage } from '@/lib/safety/rateLimit';
 
 /** Complete a password reset with a single-use token. */
 export async function POST(request: NextRequest) {
   const limit = rateLimit(clientKey(request, 'reset'), 10, 15 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: 'Too many attempts. Please wait a few minutes and try again.' },
+      { error: retryMessage(limit.retryAfter) },
       { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
     );
   }

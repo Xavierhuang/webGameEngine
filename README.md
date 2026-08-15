@@ -30,7 +30,11 @@ npm run lint        # must be zero; the build enforces it
 npm run smoke       # loads every page in real Chromium
 npm run a11y        # accessibility checks in real Chromium
 npm run test:visual # renders real starter models and measures their pixels
+npm run test:journey # signs up and builds a game in a real browser
 ```
+
+`test:journey` needs a local server and database and creates a real account, so
+it is local-only — do not point it at production.
 
 **Nor is a passing test suite proof anyone can see anything.** A child opened
 the Animation Editor and asked "why can't I see anything?" — the model had

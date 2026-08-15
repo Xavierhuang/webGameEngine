@@ -67,6 +67,21 @@ export function clientKey(request: Request, scope: string): string {
   return `${scope}:${ip}`;
 }
 
+/**
+ * A message that tells the truth about how long the wait is.
+ *
+ * The signup route said "please wait a few minutes" while enforcing a
+ * one-hour window, so a locked-out classroom would retry, fail, and conclude
+ * the site was broken.
+ */
+export function retryMessage(retryAfterSeconds: number): string {
+  const mins = Math.ceil(retryAfterSeconds / 60);
+  if (mins <= 1) return 'Too many attempts. Please wait a minute and try again.';
+  if (mins < 60) return `Too many attempts. Please try again in about ${mins} minutes.`;
+  const hours = Math.round(mins / 60);
+  return `Too many attempts. Please try again in about ${hours === 1 ? 'an hour' : `${hours} hours`}.`;
+}
+
 /** Testing helper — clears all buckets. */
 export function resetRateLimits() {
   buckets.clear();

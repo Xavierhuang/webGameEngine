@@ -399,6 +399,34 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     }
   };
 
+  /**
+   * Ids already in a scene, so an add can tell what it created.
+   * Diffing ids beats a name heuristic — two "Hero"s are indistinguishable.
+   */
+  const objectIdsIn = (sceneId?: string): Set<string> => {
+    const scene =
+      project?.scenes?.find((s: any) => s.id === sceneId) ?? project?.scenes?.[0];
+    return new Set<string>((scene?.game_objects ?? []).map((o: any) => o.id));
+  };
+
+  /**
+   * Select whatever the add just created, the way Scratch selects a newly
+   * added sprite.
+   *
+   * Nothing used to. Adding a character left the selection empty, so switching
+   * to the Logic tab said "No object selected" — and that tab shows neither the
+   * 3D scene nor an object list, so there was nothing there to click to fix it.
+   * A child had to know to go back to Scene, click the character, and return.
+   */
+  const selectNewObject = (before: Set<string>, updated: any, sceneId?: string) => {
+    const scene =
+      updated?.scenes?.find((s: any) => s.id === sceneId) ?? updated?.scenes?.[0];
+    if (scene) setCurrentScene(scene);
+    const created = (scene?.game_objects ?? []).find((o: any) => !before.has(o.id));
+    if (created) setSelectedObject(created);
+    return created;
+  };
+
   const handleSave = async () => {
     // Only the project's own columns are savable here; scenes, objects and
     // blocks have their own autosave paths. Sending the whole project object
@@ -628,7 +656,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 }
 
                 const defaults = getObjectDefaults(type);
-                
+                const addedTo = objectIdsIn(sceneId);
+
                 const response = await fetch('/api/ai/apply-update', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -691,6 +720,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                     })),
                   };
                   commitProject(merged);
+                  selectNewObject(addedTo, merged, sceneId);
                   // Log: add object (find newly added by name heuristic)
                   const scene = merged.scenes?.find((s: any) => s.id === (currentScene as any)?.id) || merged.scenes?.[0];
                   const added = scene?.game_objects?.slice().reverse().find((o: any) => o.name?.startsWith(type.charAt(0).toUpperCase() + type.slice(1)));
@@ -1152,6 +1182,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             }
             const visual = buildCharacterVisual(character);
 
+            const addedTo = objectIdsIn(sceneId);
+
             const response = await fetch('/api/ai/apply-update', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1178,6 +1210,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               if (projectResponse.ok) {
                 const { project: updatedProject } = await projectResponse.json();
                 commitProject(updatedProject);
+                selectNewObject(addedTo, updatedProject, sceneId);
               }
             }
           } catch (error) {
@@ -1196,6 +1229,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               alert('No scene found. Please create a scene first.');
               return;
             }
+            const addedTo = objectIdsIn(sceneId);
+
             const response = await fetch('/api/ai/apply-update', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1228,6 +1263,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               if (projectResponse.ok) {
                 const { project: updatedProject } = await projectResponse.json();
                 commitProject(updatedProject);
+                selectNewObject(addedTo, updatedProject, sceneId);
               }
             }
           } catch (e) {
@@ -1246,6 +1282,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               alert('No scene found. Please create a scene first.');
               return;
             }
+            const addedTo = objectIdsIn(sceneId);
+
             const response = await fetch('/api/ai/apply-update', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1278,6 +1316,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               if (projectResponse.ok) {
                 const { project: updatedProject } = await projectResponse.json();
                 commitProject(updatedProject);
+                selectNewObject(addedTo, updatedProject, sceneId);
               }
             }
           } catch (e) {
@@ -1296,6 +1335,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               alert('No scene found. Please create a scene first.');
               return;
             }
+            const addedTo = objectIdsIn(sceneId);
+
             const response = await fetch('/api/ai/apply-update', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createResetRequest, passwordResetEmail } from '@/lib/auth/passwordReset';
 import { sendEmail } from '@/lib/email/send';
-import { rateLimit, clientKey } from '@/lib/safety/rateLimit';
+import { rateLimit, clientKey, retryMessage } from '@/lib/safety/rateLimit';
 
 /**
  * Request a password-reset link.
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   const limit = rateLimit(clientKey(request, 'forgot'), 5, 15 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: 'Too many attempts. Please wait a few minutes and try again.' },
+      { error: retryMessage(limit.retryAfter) },
       { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
     );
   }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { rateLimit, clientKey } from '@/lib/safety/rateLimit';
+import { rateLimit, clientKey, retryMessage } from '@/lib/safety/rateLimit';
 import { query, queryOne } from '@/lib/mysql/client';
 import { hashPassword } from '@/lib/auth/password';
 import { generateToken } from '@/lib/auth/jwt';
@@ -17,10 +17,16 @@ import { sendEmail, parentalConsentEmail } from '@/lib/email/send';
 export async function POST(request: NextRequest) {
   // Credential stuffing / account-spam guard — there was no rate limiting
   // anywhere on the auth endpoints.
-  const limit = rateLimit(clientKey(request, 'signup'), 5, 60 * 60 * 1000);
+  //
+  // The cap is sized for a classroom, not an individual. This app is aimed at
+  // schools, where a whole class shares one NAT address: at the previous 5 per
+  // hour, the sixth child to sign up was locked out for an hour and so was
+  // everyone after them. 40 still bounds bulk account creation from a single
+  // address while letting a class of thirty start together.
+  const limit = rateLimit(clientKey(request, 'signup'), 40, 60 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: 'Too many attempts. Please wait a few minutes and try again.' },
+      { error: retryMessage(limit.retryAfter) },
       { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
     );
   }

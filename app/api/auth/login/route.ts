@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { rateLimit, clientKey } from '@/lib/safety/rateLimit';
+import { rateLimit, clientKey, retryMessage } from '@/lib/safety/rateLimit';
 import { queryOne } from '@/lib/mysql/client';
 import { verifyPassword } from '@/lib/auth/password';
 import { generateToken } from '@/lib/auth/jwt';
@@ -7,10 +7,11 @@ import { generateToken } from '@/lib/auth/jwt';
 export async function POST(request: NextRequest) {
   // Credential stuffing / account-spam guard — there was no rate limiting
   // anywhere on the auth endpoints.
-  const limit = rateLimit(clientKey(request, 'login'), 10, 15 * 60 * 1000);
+  // A shared school IP means one class logging in must not lock out the next.
+  const limit = rateLimit(clientKey(request, 'login'), 50, 15 * 60 * 1000);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: 'Too many attempts. Please wait a few minutes and try again.' },
+      { error: retryMessage(limit.retryAfter) },
       { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } }
     );
   }
