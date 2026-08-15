@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Search } from 'lucide-react';
 import { PALETTE } from '../common/design';
 
 /**
@@ -20,6 +20,7 @@ export function SelectorModal({
   tabs,
   activeTab,
   onTabChange,
+  search,
   children,
 }: {
   isOpen: boolean;
@@ -33,6 +34,22 @@ export function SelectorModal({
   tabs?: { id: string; label: string }[];
   activeTab?: string;
   onTabChange?: (id: string) => void;
+  /**
+   * Optional search box. Filtering is the caller's job — this only owns the
+   * field, so every picker gets the same one.
+   *
+   * The character picker shipped with no way to search at all. That was
+   * survivable at 39 starters because a child could scan them; it stops being
+   * survivable somewhere around a hundred, which is exactly the direction the
+   * library is growing.
+   */
+  search?: {
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    /** Shown beside the field so an empty grid is explained, not mysterious. */
+    resultCount?: number;
+  };
   children: React.ReactNode;
 }) {
   // Escape key closes the modal — table-stakes accessibility.
@@ -107,6 +124,33 @@ export function SelectorModal({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Search */}
+        {search && (
+          <div className="px-6 pt-4">
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+              <input
+                type="search"
+                value={search.value}
+                onChange={(e) => search.onChange(e.target.value)}
+                placeholder={search.placeholder ?? 'Search'}
+                aria-label={search.placeholder ?? 'Search'}
+                className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm outline-none transition focus:border-slate-400"
+              />
+            </div>
+            {search.value.trim() !== '' && (
+              <p className="mt-2 px-1 text-xs text-slate-500">
+                {search.resultCount === 0
+                  ? `Nothing matches “${search.value.trim()}”. Try a different word.`
+                  : `${search.resultCount} match${search.resultCount === 1 ? '' : 'es'}`}
+              </p>
+            )}
           </div>
         )}
 

@@ -166,6 +166,17 @@ await step('add a character', async () => {
 
   // Pick an actual starter tile. The category chips ("Starters", "Basic
   // shapes", "AI", "Import") are buttons too, so match the tile by its name.
+  // Search first — this is the path a child takes once the library is big
+  // enough that scanning the grid stops working.
+  const box = page.locator('input[type="search"]').first();
+  if ((await box.count()) === 0) throw new Error('the character picker has no search field');
+  await box.fill('good guy');
+  await page.waitForTimeout(1200);
+  const narrowed = await page.locator('button', { hasText: /^Hero/ }).count();
+  if (narrowed === 0) throw new Error('searching a character\'s alias found nothing');
+  await box.fill('');
+  await page.waitForTimeout(800);
+
   const tile = page.locator('button', { hasText: /^HeroStanding hero/ }).first();
   if ((await tile.count()) === 0) {
     const offered = await page.locator('[role="dialog"] button, .fixed button').allTextContents();

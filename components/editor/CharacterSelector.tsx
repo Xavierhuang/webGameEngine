@@ -5,6 +5,7 @@ import { useGLTF } from '@react-three/drei';
 import { User, Sparkles, Upload, Wand2, Boxes, Link as LinkIcon } from 'lucide-react';
 import ModelBuilder from './ModelBuilder';
 import ShapePreview from './ShapePreview';
+import { filterStarters } from '@/lib/editor/starterSearch';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
 import { CHARACTER_TEMPLATES, BASIC_SHAPES } from '../../lib/prefabs/characters';
@@ -27,6 +28,7 @@ export default function CharacterSelector({
   projectId,
 }: CharacterSelectorProps) {
   const [tab, setTab] = useState<'starters' | 'shapes' | 'ai' | 'import'>('starters');
+  const [query, setQuery] = useState('');
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingAI, setGeneratingAI] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
@@ -118,6 +120,10 @@ export default function CharacterSelector({
     }
   };
 
+  // Filtered on every keystroke; the list is small enough that debouncing
+  // would only add lag between typing and seeing the result.
+  const visibleStarters = filterStarters(CHARACTER_TEMPLATES, query);
+
   return (
     <>
       <SelectorModal
@@ -135,6 +141,16 @@ export default function CharacterSelector({
         ]}
         activeTab={tab}
         onTabChange={(id) => setTab(id as typeof tab)}
+        search={
+          tab === 'starters'
+            ? {
+                value: query,
+                onChange: setQuery,
+                placeholder: 'Search characters — try “dragon” or “good guy”',
+                resultCount: visibleStarters.length,
+              }
+            : undefined
+        }
       >
         {tab === 'starters' && (
           <SelectorSection
@@ -143,7 +159,7 @@ export default function CharacterSelector({
             accent={PALETTE.motion}
           >
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {CHARACTER_TEMPLATES.map((c) => (
+              {visibleStarters.map((c) => (
                 <SelectorTile
                   key={c.id}
                   title={c.name}
