@@ -5,6 +5,7 @@ import { X, Shapes, Plus, Trash2, Move3D, RotateCw, Maximize2 } from 'lucide-rea
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Box as DreiBox, Sphere as DreiSphere, TransformControls } from '@react-three/drei';
 import { PALETTE } from '../common/design';
+import { SceneLights } from '@/components/three/SceneLights';
 
 interface ModelBuilderProps {
   isOpen: boolean;
@@ -354,8 +355,7 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
                 Click a part to select · <span className="font-semibold">1</span> Move · <span className="font-semibold">2</span> Rotate · <span className="font-semibold">3</span> Scale · <span className="font-semibold">Esc</span> Clear
               </div>
               <Canvas camera={{ position: [0, 3, 6], fov: 55 }}>
-                <ambientLight intensity={0.6} />
-                <directionalLight position={[5, 10, 5]} intensity={0.8} />
+                <SceneLights />
                 <Grid args={[20, 20]} cellSize={1} cellColor="#CBD5E1" sectionColor="#94A3B8" />
                 <group position={[0, 0, 0]} onClick={() => setSelectedId(null)}>
                   {parts.map((p) => (

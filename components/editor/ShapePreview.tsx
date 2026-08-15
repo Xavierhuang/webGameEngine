@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import AnimatedModel from './AnimatedModel';
 import { PreviewCanvasLeaseController, selectorPreviewCanvasBudget, type PreviewCanvasKind } from './previewCanvasBudget';
+import { SceneLights } from '../three/SceneLights';
 
 interface ModelBoundsLike {
   min: { x: number; y: number; z: number };
@@ -341,9 +342,7 @@ export default function ShapePreview({ shape, color, modelUrl, previewScale, pre
           fallback={<ShapeMesh shape="capsule" color={color} />}
         >
           <>
-            <ambientLight intensity={0.8} />
-            <directionalLight position={[5, 5, 5]} intensity={0.6} />
-            <pointLight position={[-5, 5, -5]} intensity={0.4} />
+            <SceneLights />
             <Suspense fallback={<LoadingPreview />}>
               <PreviewModel
                 modelUrl={effectiveModelUrl}
@@ -372,9 +371,7 @@ export default function ShapePreview({ shape, color, modelUrl, previewScale, pre
 function ShapeMesh({ shape, color }: { shape: string; color: string }) {
   return (
     <>
-      <ambientLight intensity={0.8} />
-      <directionalLight position={[5, 5, 5]} intensity={0.6} />
-      <pointLight position={[-5, 5, -5]} intensity={0.4} />
+      <SceneLights />
       {shape === 'box' && (
         <mesh>
           <boxGeometry args={[1, 1, 1]} />

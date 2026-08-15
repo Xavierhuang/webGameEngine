@@ -25,6 +25,7 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { CHARACTER_TEMPLATES } from '../../lib/prefabs/characters';
 import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
+import { SceneLights } from '@/components/three/SceneLights';
 
 // Blockly needs the DOM — load the block editor client-side only.
 const BlockEditor = dynamic(() => import('./BlockEditor'), {
@@ -733,11 +734,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             >
               <div className="w-full h-full editor-grid">
                 <Canvas camera={{ position: [0, 5, 10] }}>
-                <ambientLight intensity={1.2} />
-                <pointLight position={[10, 10, 10]} intensity={2.0} />
-                <directionalLight position={[-10, 10, -5]} intensity={1.0} />
-                <directionalLight position={[10, 5, 5]} intensity={0.8} />
-                <hemisphereLight intensity={0.5} />
+                <SceneLights />
                 <OrbitControls ref={orbitRef} />
                 <Grid
                   args={[20, 20]}

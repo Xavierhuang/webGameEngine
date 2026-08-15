@@ -34,6 +34,7 @@ import { ErrorBoundary } from '../common/ErrorBoundary';
 import { ObjectRuntime, RuntimeWorld, type RuntimeContext } from '../../lib/runtime/interpreter';
 import AudioManager from '../../lib/audio/AudioManager';
 import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
+import { SceneLights } from '@/components/three/SceneLights';
 
 // -----------------------------------------------------------------------------
 // Per-extension mesh components. Each one always calls exactly one loader hook,
@@ -394,11 +395,7 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             scene.background = new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR);
           }}
         >
-          <ambientLight intensity={LIGHTING.AMBIENT_INTENSITY} />
-          <pointLight position={LIGHTING.POINT_LIGHT_POSITION} intensity={LIGHTING.POINT_LIGHT_INTENSITY} />
-          <directionalLight position={LIGHTING.DIRECTIONAL_LIGHT_1_POSITION} intensity={LIGHTING.DIRECTIONAL_LIGHT_1_INTENSITY} />
-          <directionalLight position={LIGHTING.DIRECTIONAL_LIGHT_2_POSITION} intensity={LIGHTING.DIRECTIONAL_LIGHT_2_INTENSITY} />
-          <hemisphereLight intensity={LIGHTING.HEMISPHERE_LIGHT_INTENSITY} />
+          <SceneLights />
           <Grid
             args={[SCENE.GRID_SIZE, SCENE.GRID_SIZE]}
             cellSize={SCENE.GRID_CELL_SIZE}

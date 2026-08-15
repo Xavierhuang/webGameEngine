@@ -10,6 +10,7 @@ import { useGLTF } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { PALETTE } from '../common/design';
 import { sampleAnimation } from '../../lib/models/customAnimation';
+import { SceneLights } from '@/components/three/SceneLights';
 
 interface AnimationEditorProps {
   isOpen: boolean;
@@ -606,10 +607,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                 surfaces reflect light rather than emitting it — under-lit, they
                 have nothing to reflect and go dark. */}
             <Canvas camera={{ position: [0, 1.5, 3], fov: 50 }}>
-              <ambientLight intensity={1.2} />
-              <pointLight position={[10, 10, 10]} intensity={2.0} />
-              <directionalLight position={[-10, 10, -5]} intensity={1.0} />
-              <directionalLight position={[10, 5, 5]} intensity={0.8} />
+              <SceneLights />
               <Grid args={[10, 10]} cellSize={0.5} cellColor="#334155" sectionColor="#475569" />
               <AnimatedModelView />
               {selectedBone && <BoneController boneName={selectedBone} />}
