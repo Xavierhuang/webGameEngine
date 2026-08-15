@@ -206,6 +206,133 @@ export const TUTORIALS: Tutorial[] = [
     ],
   },
   {
+    id: 'draw-your-own',
+    title: 'Draw your own character',
+    summary: 'Paint a character instead of picking one.',
+    level: 'easy',
+    minutes: 8,
+    emoji: '🎨',
+    concept: 'Your character\'s look is just a picture wrapped around it — so you can draw your own.',
+    steps: [
+      {
+        title: 'Pick anyone to start',
+        body: 'Add a character. It doesn\'t matter which — you\'re about to paint over it.',
+        hint: 'Toolbar',
+      },
+      {
+        title: 'Open the paint editor',
+        body: 'With the character selected, find "Draw your own" in the panel on the right.',
+        hint: 'Properties panel',
+      },
+      {
+        title: 'Draw something',
+        body: 'Try the brush first, then the fill bucket for big areas. The checkerboard means see-through.',
+      },
+      {
+        title: 'Use it',
+        body: 'Hit "Use this drawing". Your picture is now wrapped around your character in the 3D world.',
+      },
+      {
+        title: 'Change your mind',
+        body: 'Click "Edit drawing" to go back in. Nothing is ever stuck — you can redraw as often as you like.',
+      },
+    ],
+  },
+  {
+    id: 'record-a-sound',
+    title: 'Record your own sound',
+    summary: 'Use a microphone to put a real sound in your game.',
+    level: 'easy',
+    minutes: 6,
+    emoji: '🎤',
+    concept: 'A game can play any sound you can make — you are not limited to the ones we included.',
+    steps: [
+      {
+        title: 'Open the sound picker',
+        body: 'Click Sound in the toolbar, then choose the Record tab.',
+        hint: 'Toolbar',
+      },
+      {
+        title: 'Record something',
+        body: 'Press the microphone and make a noise — a roar, a boing, a word. Press stop when done. Your browser will ask permission first.',
+      },
+      {
+        title: 'Listen and name it',
+        body: 'Press Listen to hear it back. If you don\'t like it, Discard and try again. Give it a name you\'ll recognise.',
+      },
+      {
+        title: 'Play it from a block',
+        body: 'In the Logic tab, use `play sound` and pick your recording from the list.',
+        blocks: ['play_sound'],
+      },
+    ],
+  },
+  {
+    id: 'animate-it',
+    title: 'Make your character move',
+    summary: 'Build your own animation, pose by pose.',
+    level: 'medium',
+    minutes: 12,
+    emoji: '🤸',
+    concept: 'An animation is just a few poses and the times they happen — the computer fills in between them.',
+    steps: [
+      {
+        title: 'Open the animation editor',
+        body: 'Select a character, then find the animation editor in the properties panel.',
+        hint: 'Properties panel',
+      },
+      {
+        title: 'Pose the first frame',
+        body: 'At time 0, pick a body part and rotate it. Add a keyframe. That is your starting pose.',
+      },
+      {
+        title: 'Pose a later frame',
+        body: 'Move the time forward, move the same part somewhere else, add another keyframe. Two poses is enough for movement.',
+      },
+      {
+        title: 'Watch it',
+        body: 'Press Play. The computer works out every position between your poses — that is what "in-between" means.',
+      },
+      {
+        title: 'Save and use it',
+        body: 'Save the animation, then play it with `switch animation to` and its name.',
+        blocks: ['switch_animation_to'],
+      },
+    ],
+  },
+  {
+    id: 'speak-any-language',
+    title: 'A game that speaks any language',
+    summary: 'Translate what your character says, and read it aloud.',
+    level: 'medium',
+    minutes: 10,
+    emoji: '🌏',
+    concept: 'A game can change itself for whoever is playing — including the language they speak.',
+    steps: [
+      {
+        title: 'Ask for a name',
+        body: 'Use `ask What is your name? and wait`, then `say` the `answer` back.',
+        blocks: ['ask_and_wait', 'say', 'expr_answer'],
+      },
+      {
+        title: 'Translate a greeting',
+        body: 'Use `translate Hello! to Spanish store in greeting`, then `say` that variable.',
+        blocks: ['translate_to', 'say'],
+        hint: 'AI category',
+      },
+      {
+        title: 'Say it out loud',
+        body: 'Add `speak` with the same variable. Your character now talks in Spanish.',
+        blocks: ['speak'],
+      },
+      {
+        title: 'Match the player',
+        body: 'Try the `language` block instead of picking one — now the greeting matches whoever is playing.',
+        blocks: ['expr_language'],
+      },
+    ],
+  },
+  {
     id: 'share-it',
     title: 'Share your game',
     summary: 'Publish your game so other people can play and remix it.',
