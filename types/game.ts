@@ -135,6 +135,8 @@ export type LogicBlockType =
   // Text-to-speech
   | 'speak'
   | 'speak_until_done'
+  // Translate extension
+  | 'translate_to'
   // Pen extension
   | 'pen_down'
   | 'pen_up'

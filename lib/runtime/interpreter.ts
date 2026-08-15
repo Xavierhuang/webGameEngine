@@ -226,6 +226,8 @@ export interface EvalEnv {
   getVolume?(): number;
   /** Pointer state in stage coordinates; provided by the player. */
   pointer?: { x: number; y: number; down: boolean };
+  /** The player's language code, for the `language` reporter. */
+  language?: string;
 }
 
 /**
@@ -282,6 +284,9 @@ export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Valu
       return env.pointer?.y ?? 0;
     case 'mouse_down':
       return env.pointer?.down ?? false;
+    case 'language':
+      // The player's language, so a game can greet them appropriately.
+      return env.language ?? 'en';
     case 'touching': {
       if (!env.world) return false;
       const target = expr.value !== undefined ? String(expr.value) : expr.args?.[0] !== undefined ? String(evalExpr(expr.args[0], env)) : '';
@@ -452,6 +457,9 @@ export class RuntimeWorld {
    * and object components, same as the scene-switch handlers above.
    */
   pointer = { x: 0, y: 0, down: false };
+
+  /** The player's language code, set by the player from the page locale. */
+  language = 'en';
 
   /**
    * Scratch's timer is world-global and resettable. `expr_timer` reads
@@ -707,6 +715,9 @@ export interface RuntimeContext {
    */
   speak?(text: string, untilDone: boolean): Promise<void> | void;
 
+  /** Translate text; resolves with the translation, or '' on failure. */
+  translate?(text: string, language: string): Promise<string>;
+
   // --- Graphic effects ---
   /** Apply a named effect ('ghost' | 'brightness' | 'color') at an already-clamped value. */
   setEffect?(effect: string, value: number): void;
@@ -849,7 +860,7 @@ export class ObjectRuntime {
   }
 
   private env(time: number): EvalEnv {
-    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack, ctx: this.ctx, getVolume: () => this.volume, pointer: this.world?.pointer };
+    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack, ctx: this.ctx, getVolume: () => this.volume, pointer: this.world?.pointer, language: this.world?.language };
   }
 
   step(delta: number, time: number) {
@@ -1410,6 +1421,25 @@ export class ObjectRuntime {
         case 'change_tempo_by':
           this.ctx.changeTempoBy?.(toNumber(getInput(block, 'delta', env, 20)));
           return;
+
+        // --- Translate extension ---
+        // Blocks until the translation returns, like ask_ai, so the next block
+        // sees the finished value.
+        case 'translate_to': {
+          const text = String(getInput(block, 'text', env, ''));
+          const language = String(getInput(block, 'language', env, 'en'));
+          const intoVar = String(getInput(block, 'into_var', env, 'translation'));
+          if (!this.ctx.translate || !text) return;
+          let settled = false;
+          let result = '';
+          Promise.resolve(this.ctx.translate(text, language)).then(
+            (value) => { result = String(value ?? ''); settled = true; },
+            () => { result = ''; settled = true; }
+          );
+          while (!settled) yield { type: 'frame' };
+          this.vars.set(this.objectId, intoVar, result, 'global');
+          return;
+        }
 
         // --- Text-to-speech ---
         case 'speak':

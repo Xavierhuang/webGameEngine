@@ -8,7 +8,7 @@ import { TouchControls } from './TouchControls';
 import { parseAnimations, findAnimation, sampleAnimation } from '../../lib/models/customAnimation';
 import { beatsToSeconds } from '../../lib/audio/music';
 import { applyTexture } from '../../lib/models/textureMaterial';
-import { useTranslator } from '../common/LocaleProvider';
+import { useTranslator, useLocale } from '../common/LocaleProvider';
 import * as THREE from 'three';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
@@ -114,6 +114,7 @@ export default function GamePlayer({ project }: GamePlayerProps) {
     AudioManager.get();
   }, []);
   const t = useTranslator();
+  const locale = useLocale();
   const [keys, setKeys] = useState<KeyState>({});
   // Scene switching: scenes arrive ordered by order_index; blocks change the
   // active index. Variables/broadcast state persist across switches (Scratch
@@ -153,6 +154,8 @@ export default function GamePlayer({ project }: GamePlayerProps) {
     world.onNextScene = () => {
       if (scenes.length > 0) setSceneIndex((cur) => (cur + 1) % scenes.length);
     };
+    // Feed the page locale to the `language` reporter.
+    world.language = locale;
     world.onAsk = (prompt: string) =>
       new Promise<string>((resolve) => {
         setAskDraft('');
@@ -164,7 +167,7 @@ export default function GamePlayer({ project }: GamePlayerProps) {
       world.onAsk = undefined;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, project.scenes]);
+  }, [world, project.scenes, locale]);
 
   // Pointer tracking for the mouse x / mouse y / mouse down? reporters, in
   // stage coordinates centred on the middle of the stage (Scratch convention).
@@ -1143,6 +1146,23 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       setInstrument: (id) => { try { AudioManager.get().setInstrument(id); } catch { /* noop */ } },
       setTempo: (bpm) => { try { AudioManager.get().setTempo(bpm); } catch { /* noop */ } },
       changeTempoBy: (delta) => { try { AudioManager.get().changeTempoBy(delta); } catch { /* noop */ } },
+
+      // --- Translate extension ---
+      translate: async (text, language) => {
+        try {
+          const response = await fetch('/api/ai/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, language }),
+          });
+          const data = await response.json().catch(() => ({}));
+          return String(data?.text ?? '');
+        } catch {
+          // A failed translation leaves the game running with an empty result
+          // rather than stopping the script.
+          return '';
+        }
+      },
 
       // --- Text-to-speech via the browser's SpeechSynthesis. ---
       speak: (text, untilDone) => {

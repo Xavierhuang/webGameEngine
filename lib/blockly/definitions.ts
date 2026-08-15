@@ -18,6 +18,7 @@
 // keeps this module node-requirable for the serializer tests.
 import { soundDropdownOptions } from '../audio/soundCatalog';
 import { drumOptions, instrumentOptions } from '../audio/music';
+import { languageOptions } from '../i18n/languages';
 
 export interface BlockSpec {
   fields: string[];
@@ -416,6 +417,16 @@ const statementDefs: object[] = [
     previousStatement: null, nextStatement: null, colour: COLOUR.pen,
   },
 
+  // --- Translate extension ---
+  // A statement rather than a reporter: translation is a network round trip and
+  // expression evaluation here is synchronous, so it stores into a variable the
+  // same way ask_ai does.
+  {
+    type: 'translate_to', message0: 'translate %1 to %2 store in %3',
+    args0: [value('text'), dropdown('language', languageOptions()), nameField('into_var', 'variable', 'translation')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.ai,
+  },
+
   // Phase 5c: AI blocks
   {
     type: 'ask_ai', message0: 'ask AI %1 store in %2', args0: [value('prompt'), text('into_var', 'answer')],
@@ -512,6 +523,8 @@ const exprDefs: object[] = [
   { type: 'expr_mouse_x', message0: 'mouse x', output: null, colour: COLOUR.sensing },
   { type: 'expr_mouse_y', message0: 'mouse y', output: null, colour: COLOUR.sensing },
   { type: 'expr_mouse_down', message0: 'mouse down?', output: null, colour: COLOUR.sensing },
+  // Scratch's "language" reporter — the language the player is using.
+  { type: 'expr_language', message0: 'language', output: null, colour: COLOUR.sensing },
   // Phase 5b: looks reporters
   { type: 'expr_size', message0: 'size', output: null, colour: COLOUR.looks },
   { type: 'expr_volume', message0: 'volume', output: null, colour: COLOUR.sound },
@@ -685,6 +698,7 @@ export const TOOLBOX = {
         blk('expr_mouse_x'),
         blk('expr_mouse_y'),
         blk('expr_mouse_down'),
+        blk('expr_language'),
         blk('expr_timer'),
         blk('reset_timer'),
         blk('expr_position_x'),
