@@ -132,16 +132,31 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   }, []);
   const orbitRef = useRef<any>(null);
 
-  // Eager starter-GLB preload — starts downloading every starter model the
-  // moment the editor mounts so that by the time a kid opens the character/
-  // obstacle/collectible picker, the ~20 GLBs are already in drei's cache.
-  // Idempotent (useGLTF.preload dedupes internally), so re-runs are free.
+  /**
+   * Warm the cache for the starters a child sees first — not all of them.
+   *
+   * This used to preload every starter GLB on mount. The comment said "~20";
+   * it was 39 by the time anyone checked, which is 2.6 MB pulled down before
+   * the child has clicked anything, on every single editor open. On school
+   * wifi or a tablet that is the difference between an editor that opens and
+   * one that hangs. It also scales exactly the wrong way: the library is the
+   * thing we want to grow, and at 300 starters this would be ~20 MB.
+   *
+   * The picker loads the rest on demand, which is what it already did for
+   * anything past the first screen anyway.
+   */
   useEffect(() => {
+    const FIRST_SCREEN = 8;
+    let warmed = 0;
     for (const c of CHARACTER_TEMPLATES) {
+      if (warmed >= FIRST_SCREEN) break;
       const url = c.model_url;
       if (!url) continue;
       const ext = url.split('.').pop()?.toLowerCase();
-      if (ext === 'glb' || ext === 'gltf') useGLTF.preload(url);
+      if (ext === 'glb' || ext === 'gltf') {
+        useGLTF.preload(url);
+        warmed++;
+      }
     }
   }, []);
 
