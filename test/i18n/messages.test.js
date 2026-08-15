@@ -39,6 +39,12 @@ for (const locale of LOCALES) {
 const SAME_AS_ENGLISH = new Set([
   'fr:toolbar.obstacle',   // "Obstacle" is the same word in French
   'pt:project.remixes',    // "remixes" is used as-is in Portuguese
+  'es:editor.color',       // "Color" is spelled the same in Spanish
+  'fr:editor.type',        // "Type" is the same word in French
+  'fr:editor.position',    // "Position (X, Y, Z)" is identical in French
+  'fr:editor.costumes',    // "Costumes" is the same word in French
+  'de:editor.name',        // "Name" is the same word in German
+  'de:editor.position',    // "Position (X, Y, Z)" is identical in German
 ]);
 
 // No locale may simply echo the English string — that is what a half-finished

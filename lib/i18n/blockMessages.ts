@@ -364,6 +364,111 @@ export function blockLabel(type: string, english: string, locale: Locale | strin
   return BLOCK_MESSAGES[locale]?.[type] ?? english;
 }
 
+
+/**
+ * Dropdown option labels.
+ *
+ * Keyed by the English label. Only the label is translated — the value beside
+ * it is what gets serialised into a saved project, so touching it would make
+ * projects saved in one language unreadable in another. A test asserts the
+ * values are byte-identical after translation.
+ *
+ * Single letters (w, a, s, d) are keyboard keys, not words, and stay as they
+ * are in every language.
+ */
+export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
+  zh: {
+    'up arrow': '上箭头', 'down arrow': '下箭头', 'left arrow': '左箭头', 'right arrow': '右箭头', space: '空格',
+    forward: '前', backward: '后', left: '左', right: '右',
+    'for all objects': '适用于所有角色', 'for this object only': '仅适用于当前角色',
+    'this script': '这个脚本', 'other scripts in object': '角色的其他脚本', 'all scripts': '全部脚本',
+    ghost: '虚像', brightness: '亮度', color: '颜色', front: '最前面', back: '最后面',
+    bass: '低音鼓', snare: '小鼓', 'side stick': '敲边', crash: '碎音钹', 'open hat': '开音踩镲',
+    'closed hat': '闭音踩镲', tambourine: '铃鼓', bongo: '邦戈鼓', 'wood block': '木鱼',
+    piano: '钢琴', organ: '风琴', guitar: '吉他', marimba: '马林巴琴', synth: '合成器',
+    English: '英语', Chinese: '中文', Spanish: '西班牙语', French: '法语', Portuguese: '葡萄牙语',
+    German: '德语', Japanese: '日语', Korean: '韩语', Italian: '意大利语', Dutch: '荷兰语',
+    Polish: '波兰语', Russian: '俄语', Arabic: '阿拉伯语', Hindi: '印地语', Turkish: '土耳其语', Swedish: '瑞典语',
+  },
+  es: {
+    'up arrow': 'flecha arriba', 'down arrow': 'flecha abajo', 'left arrow': 'flecha izquierda',
+    'right arrow': 'flecha derecha', space: 'espacio',
+    forward: 'adelante', backward: 'atrás', left: 'izquierda', right: 'derecha',
+    'for all objects': 'para todos los objetos', 'for this object only': 'solo para este objeto',
+    'this script': 'este programa', 'other scripts in object': 'otros programas del objeto', 'all scripts': 'todos los programas',
+    ghost: 'fantasma', brightness: 'brillo', color: 'color', front: 'frente', back: 'fondo',
+    bass: 'bombo', snare: 'caja', 'side stick': 'baqueta lateral', crash: 'platillo crash', 'open hat': 'charles abierto',
+    'closed hat': 'charles cerrado', tambourine: 'pandereta', bongo: 'bongó', 'wood block': 'caja china',
+    piano: 'piano', organ: 'órgano', guitar: 'guitarra', marimba: 'marimba', synth: 'sintetizador',
+    English: 'inglés', Chinese: 'chino', Spanish: 'español', French: 'francés', Portuguese: 'portugués',
+    German: 'alemán', Japanese: 'japonés', Korean: 'coreano', Italian: 'italiano', Dutch: 'neerlandés',
+    Polish: 'polaco', Russian: 'ruso', Arabic: 'árabe', Hindi: 'hindi', Turkish: 'turco', Swedish: 'sueco',
+  },
+  fr: {
+    'up arrow': 'flèche haut', 'down arrow': 'flèche bas', 'left arrow': 'flèche gauche',
+    'right arrow': 'flèche droite', space: 'espace',
+    forward: 'avant', backward: 'arrière', left: 'gauche', right: 'droite',
+    'for all objects': 'pour tous les objets', 'for this object only': 'pour cet objet uniquement',
+    'this script': 'ce script', 'other scripts in object': 'les autres scripts de l’objet', 'all scripts': 'tous les scripts',
+    ghost: 'fantôme', brightness: 'luminosité', color: 'couleur', front: 'premier plan', back: 'arrière-plan',
+    bass: 'grosse caisse', snare: 'caisse claire', 'side stick': 'baguette sur cercle', crash: 'cymbale crash',
+    'open hat': 'charleston ouvert', 'closed hat': 'charleston fermé', tambourine: 'tambourin', bongo: 'bongo',
+    'wood block': 'bloc de bois',
+    piano: 'piano', organ: 'orgue', guitar: 'guitare', marimba: 'marimba', synth: 'synthé',
+    English: 'anglais', Chinese: 'chinois', Spanish: 'espagnol', French: 'français', Portuguese: 'portugais',
+    German: 'allemand', Japanese: 'japonais', Korean: 'coréen', Italian: 'italien', Dutch: 'néerlandais',
+    Polish: 'polonais', Russian: 'russe', Arabic: 'arabe', Hindi: 'hindi', Turkish: 'turc', Swedish: 'suédois',
+  },
+  pt: {
+    'up arrow': 'seta para cima', 'down arrow': 'seta para baixo', 'left arrow': 'seta para a esquerda',
+    'right arrow': 'seta para a direita', space: 'espaço',
+    forward: 'frente', backward: 'trás', left: 'esquerda', right: 'direita',
+    'for all objects': 'para todos os objetos', 'for this object only': 'apenas para este objeto',
+    'this script': 'este script', 'other scripts in object': 'outros scripts do objeto', 'all scripts': 'todos os scripts',
+    ghost: 'fantasma', brightness: 'brilho', color: 'cor', front: 'frente', back: 'fundo',
+    bass: 'bumbo', snare: 'caixa', 'side stick': 'aro', crash: 'prato crash', 'open hat': 'chimbal aberto',
+    'closed hat': 'chimbal fechado', tambourine: 'pandeiro', bongo: 'bongô', 'wood block': 'bloco de madeira',
+    piano: 'piano', organ: 'órgão', guitar: 'guitarra', marimba: 'marimba', synth: 'sintetizador',
+    English: 'inglês', Chinese: 'chinês', Spanish: 'espanhol', French: 'francês', Portuguese: 'português',
+    German: 'alemão', Japanese: 'japonês', Korean: 'coreano', Italian: 'italiano', Dutch: 'holandês',
+    Polish: 'polonês', Russian: 'russo', Arabic: 'árabe', Hindi: 'híndi', Turkish: 'turco', Swedish: 'sueco',
+  },
+  de: {
+    'up arrow': 'Pfeil hoch', 'down arrow': 'Pfeil runter', 'left arrow': 'Pfeil links',
+    'right arrow': 'Pfeil rechts', space: 'Leertaste',
+    forward: 'vorwärts', backward: 'rückwärts', left: 'links', right: 'rechts',
+    'for all objects': 'für alle Objekte', 'for this object only': 'nur für dieses Objekt',
+    'this script': 'dieses Skript', 'other scripts in object': 'andere Skripte des Objekts', 'all scripts': 'alle Skripte',
+    ghost: 'Durchsichtig', brightness: 'Helligkeit', color: 'Farbe', front: 'vorderste', back: 'hinterste',
+    bass: 'Bassdrum', snare: 'Snare', 'side stick': 'Sidestick', crash: 'Crashbecken', 'open hat': 'offene Hi-Hat',
+    'closed hat': 'geschlossene Hi-Hat', tambourine: 'Tamburin', bongo: 'Bongo', 'wood block': 'Holzblock',
+    piano: 'Klavier', organ: 'Orgel', guitar: 'Gitarre', marimba: 'Marimba', synth: 'Synthesizer',
+    English: 'Englisch', Chinese: 'Chinesisch', Spanish: 'Spanisch', French: 'Französisch', Portuguese: 'Portugiesisch',
+    German: 'Deutsch', Japanese: 'Japanisch', Korean: 'Koreanisch', Italian: 'Italienisch', Dutch: 'Niederländisch',
+    Polish: 'Polnisch', Russian: 'Russisch', Arabic: 'Arabisch', Hindi: 'Hindi', Turkish: 'Türkisch', Swedish: 'Schwedisch',
+  },
+  ja: {
+    'up arrow': '上向き矢印', 'down arrow': '下向き矢印', 'left arrow': '左向き矢印', 'right arrow': '右向き矢印',
+    space: 'スペース',
+    forward: '前', backward: '後ろ', left: '左', right: '右',
+    'for all objects': 'すべてのオブジェクト用', 'for this object only': 'このオブジェクトのみ',
+    'this script': 'このスクリプト', 'other scripts in object': 'オブジェクトの他のスクリプト', 'all scripts': 'すべてのスクリプト',
+    ghost: '幽霊', brightness: '明るさ', color: '色', front: '最前面', back: '最背面',
+    bass: 'バスドラム', snare: 'スネアドラム', 'side stick': 'サイドスティック', crash: 'クラッシュシンバル',
+    'open hat': 'オープンハイハット', 'closed hat': 'クローズハイハット', tambourine: 'タンバリン', bongo: 'ボンゴ',
+    'wood block': 'ウッドブロック',
+    piano: 'ピアノ', organ: 'オルガン', guitar: 'ギター', marimba: 'マリンバ', synth: 'シンセサイザー',
+    English: '英語', Chinese: '中国語', Spanish: 'スペイン語', French: 'フランス語', Portuguese: 'ポルトガル語',
+    German: 'ドイツ語', Japanese: '日本語', Korean: '韓国語', Italian: 'イタリア語', Dutch: 'オランダ語',
+    Polish: 'ポーランド語', Russian: 'ロシア語', Arabic: 'アラビア語', Hindi: 'ヒンディー語', Turkish: 'トルコ語', Swedish: 'スウェーデン語',
+  },
+};
+
+/** The translated dropdown label, falling back to the English original. */
+export function dropdownLabel(english: string, locale: Locale | string): string {
+  return DROPDOWN_MESSAGES[locale]?.[english] ?? english;
+}
+
 /** The translated toolbox category name, falling back to English. */
 export function categoryLabel(name: string, locale: Locale | string): string {
   return CATEGORY_MESSAGES[locale]?.[name] ?? name;

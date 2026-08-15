@@ -1,4 +1,5 @@
 'use client';
+import { useTranslator } from '../common/LocaleProvider';
 
 import { useState } from 'react';
 import { Trash2, Bone, Brush } from 'lucide-react';
@@ -21,6 +22,7 @@ export default function PropertiesPanel({
   objectHistory = [],
   onClearHistoryForObject,
 }: PropertiesPanelProps) {
+  const t = useTranslator();
   const [showAnimationEditor, setShowAnimationEditor] = useState(false);
   const [showPaintEditor, setShowPaintEditor] = useState(false);
 
@@ -39,9 +41,9 @@ export default function PropertiesPanel({
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-100 mb-3">
           <span className="text-2xl">🎯</span>
         </div>
-        <p className="font-semibold text-slate-900">Nothing selected</p>
+        <p className="font-semibold text-slate-900">{t('editor.nothingSelected')}</p>
         <p className="mt-1 text-sm text-slate-500 max-w-[200px]">
-          Click an object in the scene to see its properties here.
+          {t('editor.nothingSelectedHint')}
         </p>
       </div>
     );
@@ -227,7 +229,7 @@ export default function PropertiesPanel({
             return (
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-gray-500">Width</label>
+              <label className="text-xs text-gray-500">{t('editor.width')}</label>
               <input
                 type="number"
                     value={widthValue}
@@ -257,7 +259,7 @@ export default function PropertiesPanel({
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Height</label>
+                  <label className="text-xs text-gray-500">{t('editor.height')}</label>
                   <input
                     type="number"
                     value={heightValue}
@@ -393,14 +395,14 @@ export default function PropertiesPanel({
             className="w-full h-10 rounded-lg cursor-pointer"
           />
 
-          {/* Draw your own — the 3D analogue of a Scratch costume, applied as
+          {/* {t('editor.drawYourOwn')} — the 3D analogue of a Scratch costume, applied as
               the object's surface texture. */}
           <button
             onClick={() => setShowPaintEditor(true)}
             className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
           >
             <Brush className="h-3.5 w-3.5" />
-            {texturePropUrl ? 'Edit drawing' : 'Draw your own'}
+            {texturePropUrl ? t('editor.editDrawing') : t('editor.drawYourOwn')}
           </button>
           {texturePropUrl && (
             <button

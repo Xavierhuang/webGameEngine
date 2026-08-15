@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as Blockly from 'blockly';
 import 'blockly/blocks'; // built-in procedures_defnoreturn / procedures_callnoreturn
 import { localizedBlockDefinitions, localizedToolbox } from '../../lib/blockly/definitions';
-import { useLocale } from '../common/LocaleProvider';
+import { useLocale, useTranslator } from '../common/LocaleProvider';
 import { registerNameField, setKnownObjectNames, setKnownSounds } from '../../lib/blockly/nameField';
 import { SOUND_CATALOG } from '../../lib/audio/soundCatalog';
 import { blocklyToLogic, logicToBlockly, normalizeDbBlocks } from '../../lib/blockly/serializer';
@@ -104,6 +104,7 @@ function createPreviewContext(): RuntimeContext {
 
 export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames, recordedSounds }: BlockEditorProps) {
   const locale = useLocale();
+  const t = useTranslator();
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -333,7 +334,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
         <span className="text-white text-sm font-medium">
-          Blocks for <span className="text-blue-300">{objectName}</span>
+          {t('editor.blocksFor')} <span className="text-blue-300">{objectName}</span>
         </span>
         <span className="text-xs text-gray-400">
           {status === 'saving' ? 'Saving…' : status === 'error' ? 'Save failed' : 'Saved'}

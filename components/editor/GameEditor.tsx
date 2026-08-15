@@ -23,6 +23,7 @@ import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { PICKER_CHARACTERS } from '../../lib/prefabs/characters';
+import { useTranslator } from '../common/LocaleProvider';
 import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 import { SceneLights } from '@/components/three/SceneLights';
@@ -86,6 +87,7 @@ const getObjectDefaults = (type: string) => {
 const FIRST_RUN_KEY = 'lingplay-tutorials-introduced';
 
 export default function GameEditor({ projectId, initialData }: GameEditorProps) {
+  const t = useTranslator();
   const [project, setProject] = useState<any>(initialData);
   const [currentScene, setCurrentScene] = useState<any>(null);
   const [selectedObject, setSelectedObject] = useState<any>(null);
@@ -629,7 +631,13 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             title={saveState === 'error' ? 'Save failed — see console for details' : 'Save project details'}
           >
             <Save className="w-3.5 h-3.5" />
-            {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Save failed' : 'Save'}
+            {saveState === 'saving'
+              ? t('editor.saving')
+              : saveState === 'saved'
+                ? t('editor.saved')
+                : saveState === 'error'
+                  ? t('editor.saveFailed')
+                  : t('editor.save')}
           </button>
           <button
             type="button"
@@ -642,7 +650,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             title="Step-by-step tutorials"
           >
             <GraduationCap className="w-3.5 h-3.5" />
-            Learn
+            {t('editor.learn')}
           </button>
           <button
             type="button"
@@ -655,7 +663,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             title="Share this game so others can play and remix it"
           >
             <Share2 className="w-3.5 h-3.5" />
-            {project?.visibility === 'public' ? 'Shared' : 'Share'}
+            {project?.visibility === 'public' ? t('editor.shared') : t('editor.share')}
           </button>
           <button
             type="button"
@@ -664,7 +672,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             title="Play game in new window"
           >
             <Play className="w-3.5 h-3.5" />
-            Play
+            {t('editor.play')}
           </button>
         </div>
       </div>

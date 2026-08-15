@@ -72,7 +72,10 @@ mkdir -p "$output_dir"
 if [ "$mode" = 'character' ]; then
   printf 'generated:%s\\n' "$character" > "$output_dir/$character.glb"
 else
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus car rocket boat airplane train spider crab butterfly bee snake frog turtle jellyfish snail house castle mushroom flower star chest; do
+  # Reads the same catalogue the real generator does, so this stub cannot drift
+  # from it — which it did, silently, until the roster was collapsed to one
+  # source.
+  for id in $(grep -oE 'id: "[a-z0-9_]+"' '${path.resolve('tools/metal-starters/StarterCatalog.swift')}' | sed 's/id: "//; s/"//'); do
     printf 'generated:%s\\n' "$id" > "$output_dir/$id.glb"
     if [ "\${METAL_STARTERS_FORCE_FAILURE:-0}" = '1' ] && [ "$id" = 'robot' ]; then
       printf 'forced generator failure\\n' >&2
@@ -876,6 +879,12 @@ fi
     }
     assert.equal(fs.existsSync(buildLog), false, 'metadata aliases must fail before compilation');
     assert.deepEqual(await generatedNames(['--character', 'robot']), ['robot.glb']);
+    // This list stays written out by hand ON PURPOSE. The script and its stub
+    // both read the roster from StarterCatalog.swift now, so deriving this
+    // expectation from the catalogue as well would compare the generator
+    // against itself and assert nothing. Updating it when a character is added
+    // is the point: it is the independent check that --all emitted what the
+    // catalogue promised.
     assert.deepEqual(await generatedNames(['--all']), [
       'airplane.glb', 'alien.glb', 'astronaut.glb', 'bear.glb', 'bee.glb',
       'bird.glb', 'boat.glb', 'butterfly.glb', 'car.glb', 'castle.glb',

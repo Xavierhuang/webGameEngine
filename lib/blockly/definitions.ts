@@ -19,7 +19,7 @@
 import { soundDropdownOptions } from '../audio/soundCatalog';
 import { drumOptions, instrumentOptions } from '../audio/music';
 import { languageOptions } from '../i18n/languages';
-import { blockLabel, categoryLabel } from '../i18n/blockMessages';
+import { blockLabel, categoryLabel, dropdownLabel } from '../i18n/blockMessages';
 
 export interface BlockSpec {
   fields: string[];
@@ -757,11 +757,36 @@ export const TOOLBOX = {
  */
 export function localizedBlockDefinitions(locale: string): object[] {
   if (locale === 'en') return BLOCK_DEFINITIONS;
-  return BLOCK_DEFINITIONS.map((def: any) =>
-    typeof def?.message0 === 'string' && typeof def?.type === 'string'
-      ? { ...def, message0: blockLabel(def.type, def.message0, locale) }
-      : def
-  );
+
+  /**
+   * Dropdown options are [label, value]. Only the label is translated: the
+   * value is what the serializer writes into a saved project, so translating
+   * it would make a project saved in one language unreadable in another.
+   */
+  const localizeArgs = (args: any[] | undefined) =>
+    Array.isArray(args)
+      ? args.map((arg: any) =>
+          arg?.type === 'field_dropdown' && Array.isArray(arg.options)
+            ? {
+                ...arg,
+                options: arg.options.map(([label, value]: [string, string]) => [
+                  dropdownLabel(label, locale),
+                  value,
+                ]),
+              }
+            : arg
+        )
+      : args;
+
+  return BLOCK_DEFINITIONS.map((def: any) => {
+    if (typeof def?.type !== 'string') return def;
+    const next: any = { ...def };
+    if (typeof def.message0 === 'string') {
+      next.message0 = blockLabel(def.type, def.message0, locale);
+    }
+    if (Array.isArray(def.args0)) next.args0 = localizeArgs(def.args0);
+    return next;
+  });
 }
 
 /** The toolbox with its category names translated. */

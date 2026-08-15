@@ -13,8 +13,10 @@ const assert = require('assert');
 const {
   BLOCK_MESSAGES,
   CATEGORY_MESSAGES,
+  DROPDOWN_MESSAGES,
   blockLabel,
   categoryLabel,
+  dropdownLabel,
 } = require('../.build/lib/i18n/blockMessages');
 const { BLOCK_DEFINITIONS, TOOLBOX, localizedBlockDefinitions, localizedToolbox } =
   require('../.build/lib/blockly/definitions');
@@ -115,6 +117,52 @@ test('the only untranslated blocks are the language-neutral ones', () => {
   }
 });
 
+test('translating a dropdown never changes its stored value', () => {
+  // The value is what the serializer writes into a saved project. If a
+  // translation reached it, a game saved in Spanish would not open in English.
+  for (const locale of [...LOCALES, 'xx']) {
+    const defs = localizedBlockDefinitions(locale);
+    for (let i = 0; i < defs.length; i++) {
+      const before = (BLOCK_DEFINITIONS[i].args0 || []).filter((a) => a.type === 'field_dropdown');
+      const after = (defs[i].args0 || []).filter((a) => a.type === 'field_dropdown');
+      assert.strictEqual(after.length, before.length, `${locale} added or dropped a dropdown`);
+      for (let j = 0; j < before.length; j++) {
+        assert.deepStrictEqual(
+          after[j].options.map(([, v]) => v),
+          before[j].options.map(([, v]) => v),
+          `${locale} changed the stored values of ${defs[i].type}.${before[j].name}`
+        );
+        assert.strictEqual(
+          after[j].options.length,
+          before[j].options.length,
+          `${locale} changed the number of choices in ${defs[i].type}`
+        );
+      }
+    }
+  }
+});
+
+test('every dropdown label a child reads is translated', () => {
+  // Single letters (w, a, s, d) are keys, not words, and stay as they are.
+  const LETTERS = new Set(['w', 'a', 's', 'd']);
+  const labels = new Set();
+  for (const d of BLOCK_DEFINITIONS) {
+    for (const arg of d.args0 || []) {
+      if (arg.type === 'field_dropdown') for (const [label] of arg.options || []) labels.add(label);
+    }
+  }
+  assert.ok(labels.size > 40, `only ${labels.size} dropdown labels found`);
+  for (const locale of LOCALES) {
+    const missing = [...labels].filter((l) => !LETTERS.has(l) && !DROPDOWN_MESSAGES[locale][l]);
+    assert.deepStrictEqual(missing, [], `${locale} leaves these dropdown choices in English:\n  ${missing.join('\n  ')}`);
+  }
+});
+
+test('an unknown locale leaves dropdown labels alone', () => {
+  assert.strictEqual(dropdownLabel('up arrow', 'xx'), 'up arrow');
+  assert.strictEqual(dropdownLabel('up arrow', 'es'), 'flecha arriba');
+});
+
 test('every toolbox category is translated in every language', () => {
   const names = [];
   const walk = (n) => {
@@ -153,7 +201,11 @@ test('translating preserves block structure, not just text', () => {
       const a = BLOCK_DEFINITIONS[i];
       const b = defs[i];
       assert.strictEqual(b.type, a.type, `${locale} reordered blocks`);
-      assert.deepStrictEqual(b.args0, a.args0, `${locale} changed inputs of ${a.type}`);
+      // args0 legitimately differs now — dropdown labels are translated — so
+      // compare the parts that must never move: input names, types and order.
+      const shape = (args) =>
+        (args || []).map((x) => `${x.type}:${x.name}:${(x.options || []).length}`);
+      assert.deepStrictEqual(shape(b.args0), shape(a.args0), `${locale} changed inputs of ${a.type}`);
     }
   }
 });

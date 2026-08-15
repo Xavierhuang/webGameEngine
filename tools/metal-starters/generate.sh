@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Defined before anything else: starter_ids() below reads the catalogue, and
+# argument validation calls it.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+
+# The roster, read from StarterCatalog.swift — the one place a character is
+# actually defined.
+#
+# It used to be written out by hand in four places in this script plus a fifth
+# inside its own test. Adding twenty characters meant editing all five, and
+# missing one produced a confusing partial failure each time: an "unknown
+# character" for ids the catalogue knew, then metadata for 59 models beside
+# only 39 files. test:starter-generator caught each one, which is what it is
+# for, but the drift should not have been possible.
+starter_ids() {
+  grep -oE 'id: "[a-z0-9_]+"' "$SCRIPT_DIR/StarterCatalog.swift" | sed 's/id: "//; s/"//'
+}
+
 usage() {
   printf '%s\n' \
     'Usage: generate.sh --character <id> --output-dir <dir>' \
@@ -46,13 +64,10 @@ done
 [ -n "$MODE" ] && [ -n "$OUTPUT_DIR" ] || { usage; exit 1; }
 if [ "$MODE" = 'character' ]; then
   [ -z "$METADATA_FILE" ] || { usage; exit 1; }
-  case "$CHARACTER" in
-    dinosaur|unicorn|robot|knight|wizard|princess|astronaut|ninja|puppy|superhero|hero|dog|cat|fish|bird|alien|monster|tree|rock|ghost|dragon|pirate|chef|doctor|explorer|queen|king|witch|diver|bear|rabbit|fox|panda|tiger|penguin|owl|parrot|shark|octopus|car|rocket|boat|airplane|train|spider|crab|butterfly|bee|snake|frog|turtle|jellyfish|snail|house|castle|mushroom|flower|star|chest) ;;
-    *)
-      printf 'Unknown starter character: %s\n' "$CHARACTER" >&2
-      exit 1
-      ;;
-  esac
+  if ! starter_ids | grep -qx "$CHARACTER"; then
+    printf 'Unknown starter character: %s\n' "$CHARACTER" >&2
+    exit 1
+  fi
 else
   [ -n "$METADATA_FILE" ] || { usage; exit 1; }
 fi
@@ -78,8 +93,7 @@ if [ "$MODE" = 'all' ]; then
   # Must list every id in starterCatalog(). This is the second place the
   # roster is written down — the Swift binary iterates the catalog itself,
   # but the shell needs the names up-front to reserve publication locks.
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
-            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus car rocket boat airplane train spider crab butterfly bee snake frog turtle jellyfish snail house castle mushroom flower star chest; do
+  for id in $(starter_ids); do
     GENERATED_FILE="$OUTPUT_DIR/$id.glb"
     GENERATED_CASE_FOLDED="$(printf '%s' "$GENERATED_FILE" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
     if [ "$METADATA_CASE_FOLDED" = "$GENERATED_CASE_FOLDED" ]; then
@@ -99,7 +113,6 @@ if [ "$MODE" = 'all' ]; then
   done
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR=''
 OUTPUT_TRANSACTION_DIR=''
 METADATA_TRANSACTION_DIR=''
@@ -410,8 +423,7 @@ else
   # Must list every id in starterCatalog(). This is the second place the
   # roster is written down — the Swift binary iterates the catalog itself,
   # but the shell needs the names up-front to reserve publication locks.
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
-            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus car rocket boat airplane train spider crab butterfly bee snake frog turtle jellyfish snail house castle mushroom flower star chest; do
+  for id in $(starter_ids); do
     [ -f "$STAGING_OUTPUT_DIR/$id.glb" ] || {
       printf 'Generator did not produce %s.glb\n' "$id" >&2
       exit 1
@@ -429,8 +441,7 @@ else
   # Must list every id in starterCatalog(). This is the second place the
   # roster is written down — the Swift binary iterates the catalog itself,
   # but the shell needs the names up-front to reserve publication locks.
-  for id in dinosaur unicorn robot knight wizard princess astronaut ninja puppy superhero hero dog cat fish bird alien monster tree rock ghost dragon \
-            pirate chef doctor explorer queen king witch diver bear rabbit fox panda tiger penguin owl parrot shark octopus car rocket boat airplane train spider crab butterfly bee snake frog turtle jellyfish snail house castle mushroom flower star chest; do
+  for id in $(starter_ids); do
     cp -- "$STAGING_OUTPUT_DIR/$id.glb" "$OUTPUT_TRANSACTION_DIR/new/$id.glb"
     register_target \
       "$OUTPUT_DIR/$id.glb" \
