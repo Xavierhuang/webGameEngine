@@ -47,6 +47,310 @@ interface Keyframe {
   };
 }
 
+
+/**
+ * These three render inside the <Canvas> and are declared at module scope on
+ * purpose.
+ *
+ * They used to be defined inside AnimationEditor. A component declared inside
+ * another gets a fresh function identity on every parent render, so React
+ * treats it as a different component type and remounts it — throwing away its
+ * refs and re-running its effects. AnimatedModelView holds the loaded GLB in a
+ * ref, so every parent state change (selecting a bone, dragging the time
+ * slider) silently dropped the model and re-downloaded it. During playback it
+ * was worse: useFrame calls setCurrentTime every frame, so the parent
+ * re-rendered every frame and the model never stayed mounted long enough to
+ * appear at all.
+ *
+ * Everything they need is passed as props.
+ */
+
+interface AnimatedModelViewProps {
+  modelUrl: string;
+  ext: string;
+  isPlaying: boolean;
+  animationName: string;
+  animationDuration: number;
+  keyframes: Keyframe[];
+  playbackStartRef: React.MutableRefObject<number>;
+  selectedBone: string | null;
+  modelLoaded: boolean;
+  setBones: React.Dispatch<React.SetStateAction<BoneInfo[]>>;
+  setModelLoaded: (v: boolean) => void;
+  setModelFraming: (v: { center: [number, number, number]; distance: number }) => void;
+  setCurrentTime: (v: number) => void;
+}
+
+interface BoneControllerProps {
+  boneName: string;
+  bones: BoneInfo[];
+  selectedBone: string | null;
+  transformMode: 'translate' | 'rotate' | 'scale';
+  orbitRef: React.MutableRefObject<any>;
+  setBones: React.Dispatch<React.SetStateAction<BoneInfo[]>>;
+}
+
+/** Positions the camera to frame the model once its bounds are known. */
+function FrameCamera({ framing }: { framing: { center: [number, number, number]; distance: number } }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    const [cx, cy, cz] = framing.center;
+    // Slightly above and in front, which reads better than dead-on.
+    camera.position.set(cx, cy + framing.distance * 0.35, cz + framing.distance);
+    camera.lookAt(cx, cy, cz);
+    camera.updateProjectionMatrix();
+  }, [framing, camera]);
+  return null;
+}
+
+// Model renderer component
+function AnimatedModelView({
+  modelUrl,
+  ext,
+  isPlaying,
+  animationName,
+  animationDuration,
+  keyframes,
+  playbackStartRef,
+  selectedBone,
+  modelLoaded,
+  setBones,
+  setModelLoaded,
+  setModelFraming,
+  setCurrentTime,
+}: AnimatedModelViewProps) {
+  const groupRef = useRef<THREE.Group>(null);
+  const modelRef = useRef<THREE.Object3D | null>(null);
+  const bonesMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
+
+  useEffect(() => {
+    const loadModel = async () => {
+      try {
+        let loadedModel: any;
+        let skeleton: THREE.Skeleton | null = null;
+
+        if (ext === 'glb' || ext === 'gltf') {
+          const loader = new GLTFLoader();
+          const gltf = await new Promise<any>((resolve, reject) => {
+            loader.load(
+              modelUrl,
+              (gltf: any) => resolve(gltf),
+              undefined,
+              (error: any) => reject(error)
+            );
+          });
+          loadedModel = gltf.scene;
+          // Find skeleton
+          loadedModel.traverse((child: any) => {
+            if (child.isSkinnedMesh && child.skeleton) {
+              skeleton = child.skeleton;
+            }
+          });
+        } else if (ext === 'fbx') {
+          const loader = new FBXLoader();
+          loadedModel = await new Promise<any>((resolve, reject) => {
+            loader.load(
+              modelUrl,
+              (object: any) => resolve(object),
+              undefined,
+              (error: any) => reject(error)
+            );
+          });
+          // FBX models have bones directly
+          loadedModel.traverse((child: any) => {
+            if (child.isSkinnedMesh && child.skeleton) {
+              skeleton = child.skeleton;
+            }
+          });
+        }
+
+        modelRef.current = loadedModel;
+
+        // Frame the model. The camera was fixed at [0, 1.5, 3] regardless of
+        // what loaded, so a small model — every metal-generated starter is
+        // roughly a unit tall — appeared as a speck near the gizmo. Measure
+        // the bounds and pull the camera back to fit, the way the character
+        // picker already does.
+        try {
+          const box = new THREE.Box3().setFromObject(loadedModel);
+          const size = box.getSize(new THREE.Vector3());
+          const center = box.getCenter(new THREE.Vector3());
+          const extent = Math.max(size.x, size.y, size.z);
+          if (Number.isFinite(extent) && extent > 0) {
+            setModelFraming({
+              center: [center.x, center.y, center.z],
+              // 2.2x the largest extent leaves comfortable margin at fov 50.
+              distance: Math.max(1.2, extent * 2.2),
+            });
+          }
+        } catch {
+          /* an unmeasurable model just keeps the default camera */
+        }
+
+        // Extract animatable-node hierarchy. Prefer a real skeleton (skinned
+        // models like Minion); fall back to loose Bones in the scene; finally
+        // fall back to top-level Mesh children (our multi-part metal starters
+        // — no skeleton, but each part has its own Object3D transform we can
+        // rotate/translate/scale independently).
+        const bonesList: BoneInfo[] = [];
+        const bonesMap = new Map<string, THREE.Object3D>();
+
+        const pushNode = (node: THREE.Object3D) => {
+          if (bonesMap.has(node.name)) return;
+          bonesMap.set(node.name, node);
+          bonesList.push({
+            name: node.name,
+            bone: node,
+            parent: node.parent?.name || null,
+            position: [node.position.x, node.position.y, node.position.z],
+            rotation: [
+              node.rotation.x * (180 / Math.PI),
+              node.rotation.y * (180 / Math.PI),
+              node.rotation.z * (180 / Math.PI),
+            ],
+            scale: [node.scale.x, node.scale.y, node.scale.z],
+          });
+        };
+
+        if (skeleton) {
+          (skeleton as THREE.Skeleton).bones.forEach((bone: THREE.Bone) => pushNode(bone));
+        } else {
+          // Look for loose bones first.
+          loadedModel.traverse((child: any) => {
+            if (child.type === 'Bone' || child.isBone) pushNode(child as THREE.Bone);
+          });
+          // If still nothing, treat every named Mesh child as an animatable
+          // node — matches how the metal-starters pipeline emits parts.
+          if (bonesList.length === 0) {
+            loadedModel.traverse((child: any) => {
+              if (child.isMesh && child.name) pushNode(child as THREE.Mesh);
+            });
+          }
+        }
+
+        bonesMapRef.current = bonesMap;
+        setBones(bonesList);
+        setModelLoaded(true);
+      } catch (error) {
+        console.error('Failed to load model:', error);
+      }
+    };
+
+    loadModel();
+  }, [modelUrl, ext]);
+
+  // Drive the bones from the sampled animation while previewing. This is the
+  // playback that the Play button used to only pretend to do.
+  useFrame(() => {
+    const bones = bonesMapRef.current;
+    if (!isPlaying || bones.size === 0) return;
+
+    const elapsed = performance.now() / 1000 - playbackStartRef.current;
+    const sample = sampleAnimation(
+      { name: animationName, duration: animationDuration, keyframes },
+      elapsed
+    );
+
+    for (const [name, transform] of Object.entries(sample)) {
+      const bone = bones.get(name);
+      if (!bone) continue;
+      bone.position.set(...transform.position);
+      bone.rotation.set(...transform.rotation);
+      bone.scale.set(...transform.scale);
+    }
+
+    setCurrentTime(elapsed % (animationDuration > 0 ? animationDuration : 1));
+  });
+
+  // Render bone helpers
+  const renderBoneHelpers = () => {
+    if (!selectedBone || !bonesMapRef.current.has(selectedBone)) return null;
+    
+    const bone = bonesMapRef.current.get(selectedBone)!;
+    return (
+      <group position={bone.position} rotation={bone.rotation} scale={bone.scale}>
+        <axesHelper args={[0.1]} />
+      </group>
+    );
+  };
+
+  return (
+    <>
+      {modelLoaded && modelRef.current && (
+        <primitive object={modelRef.current} />
+      )}
+      {renderBoneHelpers()}
+    </>
+  );
+}
+
+// Bone manipulation component
+function BoneController({
+  boneName,
+  bones,
+  selectedBone,
+  transformMode,
+  orbitRef,
+  setBones,
+}: BoneControllerProps) {
+  const boneRef = useRef<THREE.Group>(null);
+  const bone = bones.find((b) => b.name === boneName)?.bone;
+
+  if (!bone || !selectedBone || selectedBone !== boneName) return null;
+
+  const handleTransform = () => {
+    if (!boneRef.current || !bone) return;
+    
+    // Update bone transform
+    bone.position.copy(boneRef.current.position);
+    bone.quaternion.copy(boneRef.current.quaternion);
+    bone.scale.copy(boneRef.current.scale);
+
+    // Update bones state
+    const euler = new THREE.Euler().setFromQuaternion(bone.quaternion);
+    setBones((prev) =>
+      prev.map((b) =>
+        b.name === boneName
+          ? {
+              ...b,
+              position: [bone.position.x, bone.position.y, bone.position.z],
+              rotation: [
+                euler.x * (180 / Math.PI),
+                euler.y * (180 / Math.PI),
+                euler.z * (180 / Math.PI),
+              ],
+              scale: [bone.scale.x, bone.scale.y, bone.scale.z],
+            }
+          : b
+      )
+    );
+  };
+
+  return (
+    <TransformControls
+      object={boneRef as any}
+      mode={transformMode}
+      showX
+      showY
+      showZ
+      onObjectChange={handleTransform}
+      onMouseDown={() => {
+        if (orbitRef.current) orbitRef.current.enabled = false;
+      }}
+      onMouseUp={() => {
+        if (orbitRef.current) orbitRef.current.enabled = true;
+      }}
+    >
+      <group
+        ref={boneRef}
+        position={bone.position}
+        quaternion={bone.quaternion}
+        scale={bone.scale}
+      />
+    </TransformControls>
+  );
+}
+
 export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }: AnimationEditorProps) {
   const [selectedBone, setSelectedBone] = useState<string | null>(null);
   const [bones, setBones] = useState<BoneInfo[]>([]);
@@ -73,245 +377,6 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
 
   const ext = (modelUrl.split('.').pop() || '').toLowerCase();
 
-  /** Positions the camera to frame the model once its bounds are known. */
-  function FrameCamera({ framing }: { framing: { center: [number, number, number]; distance: number } }) {
-    const { camera } = useThree();
-    useEffect(() => {
-      const [cx, cy, cz] = framing.center;
-      // Slightly above and in front, which reads better than dead-on.
-      camera.position.set(cx, cy + framing.distance * 0.35, cz + framing.distance);
-      camera.lookAt(cx, cy, cz);
-      camera.updateProjectionMatrix();
-    }, [framing, camera]);
-    return null;
-  }
-
-  // Model renderer component
-  function AnimatedModelView() {
-    const groupRef = useRef<THREE.Group>(null);
-    const modelRef = useRef<THREE.Object3D | null>(null);
-    const bonesMapRef = useRef<Map<string, THREE.Object3D>>(new Map());
-
-    useEffect(() => {
-      const loadModel = async () => {
-        try {
-          let loadedModel: any;
-          let skeleton: THREE.Skeleton | null = null;
-
-          if (ext === 'glb' || ext === 'gltf') {
-            const loader = new GLTFLoader();
-            const gltf = await new Promise<any>((resolve, reject) => {
-              loader.load(
-                modelUrl,
-                (gltf: any) => resolve(gltf),
-                undefined,
-                (error: any) => reject(error)
-              );
-            });
-            loadedModel = gltf.scene;
-            // Find skeleton
-            loadedModel.traverse((child: any) => {
-              if (child.isSkinnedMesh && child.skeleton) {
-                skeleton = child.skeleton;
-              }
-            });
-          } else if (ext === 'fbx') {
-            const loader = new FBXLoader();
-            loadedModel = await new Promise<any>((resolve, reject) => {
-              loader.load(
-                modelUrl,
-                (object: any) => resolve(object),
-                undefined,
-                (error: any) => reject(error)
-              );
-            });
-            // FBX models have bones directly
-            loadedModel.traverse((child: any) => {
-              if (child.isSkinnedMesh && child.skeleton) {
-                skeleton = child.skeleton;
-              }
-            });
-          }
-
-          modelRef.current = loadedModel;
-
-          // Frame the model. The camera was fixed at [0, 1.5, 3] regardless of
-          // what loaded, so a small model — every metal-generated starter is
-          // roughly a unit tall — appeared as a speck near the gizmo. Measure
-          // the bounds and pull the camera back to fit, the way the character
-          // picker already does.
-          try {
-            const box = new THREE.Box3().setFromObject(loadedModel);
-            const size = box.getSize(new THREE.Vector3());
-            const center = box.getCenter(new THREE.Vector3());
-            const extent = Math.max(size.x, size.y, size.z);
-            if (Number.isFinite(extent) && extent > 0) {
-              setModelFraming({
-                center: [center.x, center.y, center.z],
-                // 2.2x the largest extent leaves comfortable margin at fov 50.
-                distance: Math.max(1.2, extent * 2.2),
-              });
-            }
-          } catch {
-            /* an unmeasurable model just keeps the default camera */
-          }
-
-          // Extract animatable-node hierarchy. Prefer a real skeleton (skinned
-          // models like Minion); fall back to loose Bones in the scene; finally
-          // fall back to top-level Mesh children (our multi-part metal starters
-          // — no skeleton, but each part has its own Object3D transform we can
-          // rotate/translate/scale independently).
-          const bonesList: BoneInfo[] = [];
-          const bonesMap = new Map<string, THREE.Object3D>();
-
-          const pushNode = (node: THREE.Object3D) => {
-            if (bonesMap.has(node.name)) return;
-            bonesMap.set(node.name, node);
-            bonesList.push({
-              name: node.name,
-              bone: node,
-              parent: node.parent?.name || null,
-              position: [node.position.x, node.position.y, node.position.z],
-              rotation: [
-                node.rotation.x * (180 / Math.PI),
-                node.rotation.y * (180 / Math.PI),
-                node.rotation.z * (180 / Math.PI),
-              ],
-              scale: [node.scale.x, node.scale.y, node.scale.z],
-            });
-          };
-
-          if (skeleton) {
-            (skeleton as THREE.Skeleton).bones.forEach((bone: THREE.Bone) => pushNode(bone));
-          } else {
-            // Look for loose bones first.
-            loadedModel.traverse((child: any) => {
-              if (child.type === 'Bone' || child.isBone) pushNode(child as THREE.Bone);
-            });
-            // If still nothing, treat every named Mesh child as an animatable
-            // node — matches how the metal-starters pipeline emits parts.
-            if (bonesList.length === 0) {
-              loadedModel.traverse((child: any) => {
-                if (child.isMesh && child.name) pushNode(child as THREE.Mesh);
-              });
-            }
-          }
-
-          bonesMapRef.current = bonesMap;
-          setBones(bonesList);
-          setModelLoaded(true);
-        } catch (error) {
-          console.error('Failed to load model:', error);
-        }
-      };
-
-      loadModel();
-    }, [modelUrl, ext]);
-
-    // Drive the bones from the sampled animation while previewing. This is the
-    // playback that the Play button used to only pretend to do.
-    useFrame(() => {
-      const bones = bonesMapRef.current;
-      if (!isPlaying || bones.size === 0) return;
-
-      const elapsed = performance.now() / 1000 - playbackStartRef.current;
-      const sample = sampleAnimation(
-        { name: animationName, duration: animationDuration, keyframes },
-        elapsed
-      );
-
-      for (const [name, transform] of Object.entries(sample)) {
-        const bone = bones.get(name);
-        if (!bone) continue;
-        bone.position.set(...transform.position);
-        bone.rotation.set(...transform.rotation);
-        bone.scale.set(...transform.scale);
-      }
-
-      setCurrentTime(elapsed % (animationDuration > 0 ? animationDuration : 1));
-    });
-
-    // Render bone helpers
-    const renderBoneHelpers = () => {
-      if (!selectedBone || !bonesMapRef.current.has(selectedBone)) return null;
-      
-      const bone = bonesMapRef.current.get(selectedBone)!;
-      return (
-        <group position={bone.position} rotation={bone.rotation} scale={bone.scale}>
-          <axesHelper args={[0.1]} />
-        </group>
-      );
-    };
-
-    return (
-      <>
-        {modelLoaded && modelRef.current && (
-          <primitive object={modelRef.current} />
-        )}
-        {renderBoneHelpers()}
-      </>
-    );
-  }
-
-  // Bone manipulation component
-  function BoneController({ boneName }: { boneName: string }) {
-    const boneRef = useRef<THREE.Group>(null);
-    const bone = bones.find((b) => b.name === boneName)?.bone;
-
-    if (!bone || !selectedBone || selectedBone !== boneName) return null;
-
-    const handleTransform = () => {
-      if (!boneRef.current || !bone) return;
-      
-      // Update bone transform
-      bone.position.copy(boneRef.current.position);
-      bone.quaternion.copy(boneRef.current.quaternion);
-      bone.scale.copy(boneRef.current.scale);
-
-      // Update bones state
-      const euler = new THREE.Euler().setFromQuaternion(bone.quaternion);
-      setBones((prev) =>
-        prev.map((b) =>
-          b.name === boneName
-            ? {
-                ...b,
-                position: [bone.position.x, bone.position.y, bone.position.z],
-                rotation: [
-                  euler.x * (180 / Math.PI),
-                  euler.y * (180 / Math.PI),
-                  euler.z * (180 / Math.PI),
-                ],
-                scale: [bone.scale.x, bone.scale.y, bone.scale.z],
-              }
-            : b
-        )
-      );
-    };
-
-    return (
-      <TransformControls
-        object={boneRef as any}
-        mode={transformMode}
-        showX
-        showY
-        showZ
-        onObjectChange={handleTransform}
-        onMouseDown={() => {
-          if (orbitRef.current) orbitRef.current.enabled = false;
-        }}
-        onMouseUp={() => {
-          if (orbitRef.current) orbitRef.current.enabled = true;
-        }}
-      >
-        <group
-          ref={boneRef}
-          position={bone.position}
-          quaternion={bone.quaternion}
-          scale={bone.scale}
-        />
-      </TransformControls>
-    );
-  }
 
   // Add keyframe at current time
   const addKeyframe = () => {
@@ -609,8 +674,31 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
             <Canvas camera={{ position: [0, 1.5, 3], fov: 50 }}>
               <SceneLights />
               <Grid args={[10, 10]} cellSize={0.5} cellColor="#334155" sectionColor="#475569" />
-              <AnimatedModelView />
-              {selectedBone && <BoneController boneName={selectedBone} />}
+              <AnimatedModelView
+                modelUrl={modelUrl}
+                ext={ext}
+                isPlaying={isPlaying}
+                animationName={animationName}
+                animationDuration={animationDuration}
+                keyframes={keyframes}
+                playbackStartRef={playbackStartRef}
+                selectedBone={selectedBone}
+                modelLoaded={modelLoaded}
+                setBones={setBones}
+                setModelLoaded={setModelLoaded}
+                setModelFraming={setModelFraming}
+                setCurrentTime={setCurrentTime}
+              />
+              {selectedBone && (
+                <BoneController
+                  boneName={selectedBone}
+                  bones={bones}
+                  selectedBone={selectedBone}
+                  transformMode={transformMode}
+                  orbitRef={orbitRef}
+                  setBones={setBones}
+                />
+              )}
               <OrbitControls ref={orbitRef} target={modelFraming?.center ?? [0, 0, 0]} />
               {modelFraming && <FrameCamera framing={modelFraming} />}
             </Canvas>

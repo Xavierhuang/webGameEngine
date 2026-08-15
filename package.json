@@ -19,6 +19,7 @@
     "test:prefabs": "tsc lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/prefabs/characters.test.js && node test/prefabs/minion-assets.test.mjs",
     "test:minion-materials": "tsc lib/models/minionMaterials.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/prefabs/minion-materials.test.mjs",
     "test:model-lifecycle": "tsc lib/utils/modelCache.ts lib/utils/asyncResourceLifecycle.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/utils/model-resource-lifecycle.test.mjs",
+    "test:visual": "node test/visual/lighting-probe.mjs",
     "test:lighting": "node test/editor/lighting.test.mjs",
     "test:preview": "tsc components/editor/ShapePreview.tsx --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --jsx react-jsx --esModuleInterop --skipLibCheck && node test/editor/shape-preview.test.mjs",
     "test:camera-focus": "tsc lib/editor/cameraFocus.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/editor/camera-focus.test.mjs",

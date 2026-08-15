@@ -29,7 +29,17 @@ npm run type-check  # must be zero; the build enforces it
 npm run lint        # must be zero; the build enforces it
 npm run smoke       # loads every page in real Chromium
 npm run a11y        # accessibility checks in real Chromium
+npm run test:visual # renders real starter models and measures their pixels
 ```
+
+**Nor is a passing test suite proof anyone can see anything.** A child opened
+the Animation Editor and asked "why can't I see anything?" — the model had
+loaded, all 16 bones were listed, nothing threw, and every assertion was
+green. The viewport was empty because the component that renders the model was
+defined *inside* its parent, so React remounted it on every parent render and
+discarded the loaded GLB. `react/no-unstable-nested-components` is now an
+error, and `npm run test:visual` is the only check in the repo that looks at
+rendered pixels.
 
 **A status code is not proof a page works.** A deploy once white-screened the
 whole site with a client-side exception while every page returned HTTP 200.

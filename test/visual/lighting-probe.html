@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>lighting probe</title>
+<style>
+  html,body { margin:0; background:#0f172a; }
+  canvas { display:block; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/node_modules/three/build/three.module.js",
+    "three/addons/": "/node_modules/three/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// The rig is supplied by the runner, which parses it out of
+// lib/constants/game.ts. It is deliberately NOT duplicated here: a hardcoded
+// copy is what caused the bug this whole probe exists to catch.
+
+// slate-900, the Animation Editor's viewport background — the colour the model
+// became indistinguishable from.
+const BG = 0x0f172a;
+
+window.probe = async (modelUrl, RIG, scale = 1) => {
+  const W = 320, H = 320;
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setSize(W, H);
+  // Match @react-three/fiber 8's <Canvas> defaults, or the measurement
+  // describes a renderer the app does not use. ACES compresses highlights and
+  // darkens midtones considerably.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.replaceChildren(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(BG);
+
+  scene.add(new THREE.AmbientLight(0xffffff, RIG.ambient * scale));
+  const p = new THREE.PointLight(0xffffff, RIG.point[1] * scale);
+  p.position.set(...RIG.point[0]); scene.add(p);
+  const d1 = new THREE.DirectionalLight(0xffffff, RIG.dir1[1] * scale);
+  d1.position.set(...RIG.dir1[0]); scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0xffffff, RIG.dir2[1] * scale);
+  d2.position.set(...RIG.dir2[0]); scene.add(d2);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, RIG.hemi * scale));
+
+  const gltf = await new GLTFLoader().loadAsync(modelUrl);
+  const model = gltf.scene;
+  scene.add(model);
+
+  // Frame it the way the editor now does.
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const extent = Math.max(size.x, size.y, size.z) || 1;
+  const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 1000);
+  camera.position.set(center.x, center.y + extent * 0.35, center.z + extent * 2.0);
+  camera.lookAt(center);
+
+  renderer.render(scene, camera);
+
+  const gl = renderer.getContext();
+  const px = new Uint8Array(W * H * 4);
+  gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+
+  const bgR = (BG >> 16) & 255, bgG = (BG >> 8) & 255, bgB = BG & 255;
+  const lum = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const bgLum = lum(bgR, bgG, bgB);
+
+  let modelPixels = 0, sum = 0, distinguishable = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i], g = px[i + 1], b = px[i + 2];
+    // A pixel belongs to the model if it differs from the flat background.
+    if (Math.abs(r - bgR) + Math.abs(g - bgG) + Math.abs(b - bgB) > 6) {
+      modelPixels++;
+      const l = lum(r, g, b);
+      sum += l;
+      // "Distinguishable" = a person can tell it apart from the backdrop.
+      if (Math.abs(l - bgLum) > 12) distinguishable++;
+    }
+  }
+
+  renderer.dispose();
+  return {
+    coverage: +(modelPixels / (W * H)).toFixed(4),
+    meanLuminance: modelPixels ? +(sum / modelPixels).toFixed(1) : 0,
+    bgLuminance: +bgLum.toFixed(1),
+    visibleFraction: modelPixels ? +(distinguishable / modelPixels).toFixed(3) : 0,
+  };
+};
+window.__ready = true;
+</script>
