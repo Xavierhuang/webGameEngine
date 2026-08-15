@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Blockly from 'blockly';
 import 'blockly/blocks'; // built-in procedures_defnoreturn / procedures_callnoreturn
-import { BLOCK_DEFINITIONS, TOOLBOX } from '../../lib/blockly/definitions';
+import { localizedBlockDefinitions, localizedToolbox } from '../../lib/blockly/definitions';
+import { useLocale } from '../common/LocaleProvider';
 import { registerNameField, setKnownObjectNames, setKnownSounds } from '../../lib/blockly/nameField';
 import { SOUND_CATALOG } from '../../lib/audio/soundCatalog';
 import { blocklyToLogic, logicToBlockly, normalizeDbBlocks } from '../../lib/blockly/serializer';
@@ -11,7 +12,12 @@ import { HAT_TYPES, ObjectRuntime, RuntimeWorld, VariableStore, type RuntimeCont
 import AudioManager from '../../lib/audio/AudioManager';
 import { logger } from '../../lib/utils/logger';
 
-let blocksRegistered = false;
+/**
+ * Which locale the global Blockly block table currently holds.
+ * Null until the first registration. Module-scope because Blockly's registry
+ * is global — every workspace on the page shares it.
+ */
+let blocksRegisteredFor: string | null = null;
 
 interface BlockEditorProps {
   objectId: string;
@@ -97,6 +103,7 @@ function createPreviewContext(): RuntimeContext {
 }
 
 export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames, recordedSounds }: BlockEditorProps) {
+  const locale = useLocale();
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isPreviewing, setIsPreviewing] = useState(false);
@@ -111,12 +118,16 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
 
   useEffect(() => {
     if (!hostRef.current) return;
-    if (!blocksRegistered) {
+    // Blockly registers block definitions in a global table keyed by type, so
+    // re-defining them replaces the labels for every workspace. Tracking the
+    // locale they were registered under means a child who switches language
+    // gets translated blocks without a full reload.
+    if (blocksRegisteredFor !== locale) {
       // Must precede defineBlocksWithJsonArray — the definitions reference the
       // `field_lingplay_name` field type.
       registerNameField();
-      Blockly.defineBlocksWithJsonArray(BLOCK_DEFINITIONS as any[]);
-      blocksRegistered = true;
+      Blockly.defineBlocksWithJsonArray(localizedBlockDefinitions(locale) as any[]);
+      blocksRegisteredFor = locale;
     }
 
     // Object-name pickers list the sprites in the current scene, which the
@@ -136,7 +147,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
     // Blank the host defensively so every inject starts from an empty div.
     hostRef.current.innerHTML = '';
     const workspace = Blockly.inject(hostRef.current, {
-      toolbox: TOOLBOX as any,
+      toolbox: localizedToolbox(locale) as any,
       renderer: 'zelos', // Scratch-style notches
       trashcan: true,
       zoom: { controls: true, wheel: true, startScale: 0.8 },
@@ -316,7 +327,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
       workspace.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectId]);
+  }, [objectId, locale]);
 
   return (
     <div className="flex flex-col h-full">

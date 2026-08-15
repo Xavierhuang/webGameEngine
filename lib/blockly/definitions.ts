@@ -19,6 +19,7 @@
 import { soundDropdownOptions } from '../audio/soundCatalog';
 import { drumOptions, instrumentOptions } from '../audio/music';
 import { languageOptions } from '../i18n/languages';
+import { blockLabel, categoryLabel } from '../i18n/blockMessages';
 
 export interface BlockSpec {
   fields: string[];
@@ -741,3 +742,40 @@ export const TOOLBOX = {
     { kind: 'category', name: 'My Blocks', colour: '290', custom: 'PROCEDURE' },
   ],
 };
+
+
+/**
+ * The same blocks with their labels translated.
+ *
+ * BLOCK_DEFINITIONS stays English and is what the serializer and every node
+ * test read: those care about `args0` names and block structure, never about
+ * the label text, and keeping them on a fixed language means a translation can
+ * never change how a project is saved.
+ *
+ * Only `message0` is swapped. A locale that has not translated a given block
+ * falls back to English rather than showing a key.
+ */
+export function localizedBlockDefinitions(locale: string): object[] {
+  if (locale === 'en') return BLOCK_DEFINITIONS;
+  return BLOCK_DEFINITIONS.map((def: any) =>
+    typeof def?.message0 === 'string' && typeof def?.type === 'string'
+      ? { ...def, message0: blockLabel(def.type, def.message0, locale) }
+      : def
+  );
+}
+
+/** The toolbox with its category names translated. */
+export function localizedToolbox(locale: string): typeof TOOLBOX {
+  if (locale === 'en') return TOOLBOX;
+  const translate = (node: any): any => {
+    if (Array.isArray(node)) return node.map(translate);
+    if (!node || typeof node !== 'object') return node;
+    const out: any = { ...node };
+    if (out.kind === 'category' && typeof out.name === 'string') {
+      out.name = categoryLabel(out.name, locale);
+    }
+    if (Array.isArray(out.contents)) out.contents = out.contents.map(translate);
+    return out;
+  };
+  return translate(TOOLBOX);
+}

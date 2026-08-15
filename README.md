@@ -156,8 +156,14 @@ Honest, not exhaustive:
 - **Video Sensing and micro:bit** extensions are absent — no camera or hardware
   to verify against.
 - **Sounds are synthesized**, not recorded. Kids can record their own instead.
-- **7 languages**, and the privacy policy and tutorial prose are intentionally
-  English-only — machine-translating a legal document is worse than not.
+- **7 languages.** Block labels and toolbox categories are translated in all of
+  them (121 blocks; the maths operators — `%1 + %2`, `sin`, `ln` — are
+  deliberately left as symbols, as Scratch leaves them). Still English: the
+  **dropdown option values** inside blocks (`up arrow`, `ghost`, `message1`),
+  some editor chrome, and — intentionally — the privacy policy and tutorial
+  prose, because machine-translating a legal document is worse than not doing
+  it. Scratch ships 70+ languages via a volunteer translation community; that
+  is a contributor problem, not an engineering one.
 - **No error monitoring.** Failures surface in `journalctl -u lingplay`.
 - **The React Compiler rules are off in thirteen files.** Every one of the 67
   violations was reviewed; one was a real defect and is fixed, and the rest are
