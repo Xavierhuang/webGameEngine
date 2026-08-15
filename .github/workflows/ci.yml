@@ -92,3 +92,9 @@ jobs:
             sleep 2
           done
           node scripts/smoke.js http://localhost:3000
+
+      # Aimed at classrooms, where accessibility is often a procurement
+      # requirement. These are the mechanical checks a machine can make
+      # honestly — not a substitute for testing with a screen-reader user.
+      - name: Accessibility checks
+        run: node scripts/a11y.js http://localhost:3000

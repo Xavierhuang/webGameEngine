@@ -45,7 +45,8 @@
     "test:backdrops": "tsc lib/models/backdrops.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/models/backdrops.test.js",
     "test:music": "tsc lib/audio/music.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/audio/music.test.js",
     "test:tutorials": "tsc lib/tutorials/catalog.ts lib/blockly/definitions.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/tutorials/catalog.test.js",
-    "test:paint": "tsc lib/paint/tools.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/paint/tools.test.js"
+    "test:paint": "tsc lib/paint/tools.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/paint/tools.test.js",
+    "a11y": "node scripts/a11y.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",

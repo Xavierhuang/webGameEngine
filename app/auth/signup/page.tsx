@@ -174,6 +174,7 @@ export default function SignUpPage() {
         <Field label="Date of birth" hint="We use this to keep younger kids safe.">
           <input
             type="date"
+            aria-label="Date of birth"
             value={dateOfBirth}
             onChange={(e) => setDateOfBirth(e.target.value)}
             required

@@ -51,6 +51,7 @@ export function ImportButton() {
         ref={inputRef}
         type="file"
         accept=".lingplay,application/json"
+        aria-label="Choose a .lingplay project file to import"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
