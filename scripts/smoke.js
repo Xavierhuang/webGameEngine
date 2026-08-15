@@ -42,11 +42,40 @@ function ignorable(text) {
   return IGNORE.some((re) => re.test(text));
 }
 
+/**
+ * Conditions on *this* machine's network rather than faults in the site:
+ * a dropped wifi association, a VPN flipping, DNS blinking.
+ *
+ * A real breakage reproduces, so anything matching these is retried once
+ * instead of failing the deploy. The retry is only taken when *every* problem
+ * on the page is transient — one genuine error alongside them still fails
+ * immediately, so this cannot paper over a real fault. A flaky race condition
+ * is a real bug and is deliberately still reported.
+ *
+ * This exists because ERR_NETWORK_CHANGED blocked a deploy of a working build.
+ */
+const TRANSIENT = [
+  /ERR_NETWORK_CHANGED/,
+  /ERR_INTERNET_DISCONNECTED/,
+  /ERR_NAME_NOT_RESOLVED/,
+  /ERR_NAME_RESOLUTION_FAILED/,
+  /ERR_CONNECTION_RESET/,
+  /ERR_CONNECTION_CLOSED/,
+  /ERR_ADDRESS_UNREACHABLE/,
+  /ERR_NETWORK_IO_SUSPENDED/,
+  /ERR_TIMED_OUT/,
+];
+
+function transient(text) {
+  return TRANSIENT.some((re) => re.test(text));
+}
+
 (async () => {
   const browser = await chromium.launch();
   let failures = 0;
 
-  for (const { path, expect } of PAGES) {
+  /** Load one page and return everything wrong with it. */
+  async function checkPage(path, expect) {
     const page = await browser.newPage();
     const problems = [];
 
@@ -61,7 +90,8 @@ function ignorable(text) {
       const url = r.url();
       const aborted = (r.failure()?.errorText || '').includes('ERR_ABORTED');
       if (url.includes('_rsc=') || aborted || ignorable(url)) return;
-      problems.push(`asset failed: ${url.split('/').slice(-1)[0]}`);
+      const why = r.failure()?.errorText || 'unknown';
+      problems.push(`asset failed: ${url.split('/').slice(-1)[0]} (${why})`);
     });
     page.on('response', (r) => {
       // A missing JS chunk is the exact failure mode this script guards against.
@@ -83,15 +113,26 @@ function ignorable(text) {
       problems.push(`navigation failed: ${e.message.split('\n')[0]}`);
     }
 
-    if (problems.length) {
-      failures++;
-      console.log(`FAIL ${path}`);
-      for (const p of problems.slice(0, 4)) console.log(`       ${p}`);
-    } else {
-      console.log(`ok   ${path}`);
+    await page.close();
+    return problems;
+  }
+
+  for (const { path, expect } of PAGES) {
+    let problems = await checkPage(path, expect);
+    let retried = false;
+
+    if (problems.length && problems.every(transient)) {
+      retried = true;
+      problems = await checkPage(path, expect);
     }
 
-    await page.close();
+    if (problems.length) {
+      failures++;
+      console.log(`FAIL ${path}${retried ? ' (failed twice)' : ''}`);
+      for (const p of problems.slice(0, 4)) console.log(`       ${p}`);
+    } else {
+      console.log(`ok   ${path}${retried ? ' (after a transient network retry)' : ''}`);
+    }
   }
 
   await browser.close();
