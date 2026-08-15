@@ -115,6 +115,9 @@ ssh "$USER@$HOST" "set -e
 
 echo "==> verifying"
 ssh "$USER@$HOST" 'curl -sS -o /dev/null -w "  local :3010 -> HTTP %{http_code}\n" http://127.0.0.1:3010/'
+# `/` renders even when the database is unreachable, so it proves very little.
+# /api/health actually touches the DB and 503s when it cannot.
+ssh "$USER@$HOST" 'curl -sS -w "  health -> HTTP %{http_code} " http://127.0.0.1:3010/api/health; echo' 
 curl -sS -o /dev/null -w "  https://play.lingcode.dev -> HTTP %{http_code}\n" https://play.lingcode.dev/ 2>/dev/null || echo "  (public URL not reachable yet — check DNS/TLS)"
 
 # A 200 is NOT proof the app works: a deploy once white-screened every page with
