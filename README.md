@@ -1,0 +1,139 @@
+# lingplay
+
+Scratch-style game building in 3D, for kids. Blockly palette, a coroutine
+interpreter, React Three Fiber + cannon-es, MySQL, deployed to a single droplet.
+
+Live at [play.lingcode.dev](https://play.lingcode.dev).
+
+## Getting started
+
+```bash
+npm install
+npm run db:migrate      # applies every migration in migrations/, in order
+npm run dev             # http://localhost:3000
+```
+
+You need a local MySQL. Defaults are `root` @ `localhost` with no password and
+a database named `gameengine` — override with `MYSQL_*` (see `.env.example`).
+
+`JWT_SECRET` is required in production and the app **refuses to sign tokens
+without it**. In development it falls back to a random per-process value and
+warns. That is deliberate: the previous silent fallback meant every restart
+invalidated all sessions with no error anywhere.
+
+## Verifying
+
+```bash
+npm run test:all    # ~1300 assertions, pure logic, no browser
+npm run type-check  # must be zero; the build enforces it
+npm run lint        # must be zero; the build enforces it
+npm run smoke       # loads every page in real Chromium
+npm run a11y        # accessibility checks in real Chromium
+```
+
+**A status code is not proof a page works.** A deploy once white-screened the
+whole site with a client-side exception while every page returned HTTP 200.
+`npm run smoke` exists because of that, and it is verified to fail when a JS
+chunk goes missing. Same for `a11y` — its detectors are checked against crafted
+DOMs, because a check that cannot fail is decoration.
+
+## Architecture
+
+| Area | Where | Notes |
+|---|---|---|
+| Blocks | `lib/blockly/definitions.ts` | Pure data. Adding a block needs **no serializer change** — `BLOCK_SPECS` is derived reflectively |
+| Runtime | `lib/runtime/interpreter.ts` | Generator-coroutine interpreter. No React, no THREE |
+| Player | `components/player/GamePlayer.tsx` | Implements `RuntimeContext`; every method is optional so old contexts keep compiling |
+| Editor | `components/editor/` | Blockly workspace keyed per object, so each sprite owns its scripts |
+| Access control | `lib/auth/projectAccess.ts` | Pure `decideAccess()`; `lib/auth/access.ts` wires it to a request |
+
+### Adding a block
+
+1. `lib/blockly/definitions.ts` — one JSON object, plus a toolbox entry
+2. `types/game.ts` — add to the `LogicBlockType` union
+3. `lib/runtime/interpreter.ts` — one `case` in `runBlock`
+4. If it touches the world, add an optional method to `RuntimeContext` and
+   implement it in `GamePlayer`
+
+Operators are cheaper still: one line in `BINARY_OPS`/`UNARY_OPS` generates the
+block *and* its toolbox entry.
+
+### Pure modules
+
+Several modules are deliberately import-free so node tests can require them
+directly: `projectAccess`, `coppa`, `keyword-scan`, `soundCatalog`,
+`proceduralAnimation`, `customAnimation`, `paint/tools`, `i18n/messages`,
+`tutorials/catalog`, `blockly/definitions`.
+
+**Use relative imports in these** — the test scripts run bare `tsc`, which does
+not resolve the `@/` alias.
+
+## Generated content
+
+```bash
+npm run generate:backdrops   # 32 SVG backdrops
+npm run generate:starters    # 39 character GLBs (macOS + Metal only)
+```
+
+Both are deterministic. The starter roster is written down **twice** — in
+`StarterCatalog.swift` and in `generate.sh`, which needs the names up front to
+reserve publication locks. `test:starter-generator` asserts they match; it
+caught `--all` silently emitting 21 of 39 characters.
+
+## Deploying
+
+```bash
+./deploy.sh
+```
+
+rsync → migrations → build → restart → browser smoke test. It will **fail the
+deploy** if the smoke test does.
+
+Three things it does deliberately:
+
+- **Stops the service before wiping `.next`.** The old process used to keep
+  serving during the rebuild, handing browsers HTML that referenced chunk files
+  the build had just deleted. A brief 502 retries cleanly; a corrupted app does
+  not.
+- **Keeps the previous build** as `.next.prev` and restores it if the compile
+  fails.
+- **Excludes `public/uploads`.** That holds user drawings, recordings and
+  uploaded models. It is gitignored, so it does not exist locally, and
+  `rsync --delete` erased it on every deploy until this was added.
+
+Migrations are tracked in a `schema_migrations` table and skipped once applied —
+`001` creates a trigger that cannot be re-run without `SUPER`.
+
+## Backups
+
+`scripts/backup-db.sh` runs nightly from cron on the droplet, keeping 14 days.
+It verifies the archive is intact and contains tables, and **deletes the file
+rather than keeping a dump that restores nothing** — a backup that looks fine
+and is empty is worse than a loud failure.
+
+## Safety
+
+This is a product for children, and the safety paths are load-bearing:
+
+- **COPPA** — date of birth at signup, age band, and single-use hashed parental
+  consent tokens. Publishing is blocked server-side for under-13s until a parent
+  consents.
+- **Moderation** — text is screened on create, update, publish, AI input *and
+  AI output*. Reports feed an admin queue; a take-down hides the project from
+  the gallery.
+- **Access** — editing is owner-only and `visibility === 'public'` never grants
+  write. Guests are identified by cookie, which is what made those checks
+  possible at all.
+
+## Known gaps
+
+Honest, not exhaustive:
+
+- **Video Sensing and micro:bit** extensions are absent — no camera or hardware
+  to verify against.
+- **Sounds are synthesized**, not recorded. Kids can record their own instead.
+- **7 languages**, and the privacy policy and tutorial prose are intentionally
+  English-only — machine-translating a legal document is worse than not.
+- **No error monitoring.** Failures surface in `journalctl -u lingplay`.
+- **None of this has been tested with an actual child.** Everything is verified
+  against the author's assumptions about what a child will do.
