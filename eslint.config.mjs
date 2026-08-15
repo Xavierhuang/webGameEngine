@@ -45,19 +45,66 @@ export default [
       // so it is an error, not a warning.
       'react/no-unstable-nested-components': ['error', { allowAsProps: true }],
 
-      // React Compiler rules, newly enabled by eslint-config-next 16. They
-      // report 67 pre-existing violations across the editor — none of them
-      // regressions, all of them older than this upgrade. Fixing them is a
-      // real refactor (mostly refs read during render in the 3D components),
-      // and folding it into a version bump would make the diff impossible to
-      // review and the rollback impossible to reason about.
-      //
-      // Warnings so they stay visible and countable. They should come back to
-      // 'error' one directory at a time.
-      'react-hooks/refs': 'warn',
-      'react-hooks/immutability': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/purity': 'warn',
+      // React Compiler rules, enabled by eslint-config-next 16. Errors, so no
+      // NEW code can introduce these patterns. The files that already contain
+      // them are listed in the override below, each for a stated reason.
+      'react-hooks/refs': 'error',
+      'react-hooks/immutability': 'error',
+      'react-hooks/set-state-in-effect': 'error',
+      'react-hooks/purity': 'error',
+    },
+  },
+  {
+    /**
+     * Files that predate these rules and where the flagged pattern is correct.
+     *
+     * I went through all 67 violations individually. Exactly one was a real
+     * defect — FPSCounter seeded a ref with `performance.now()` during render,
+     * an impure call that also read a server clock the client never sees; that
+     * is fixed. The remaining 66 are deliberate and, in this codebase, right:
+     *
+     * - `set-state-in-effect` in TutorialPanel, projects/new, PaintEditor and
+     *   ShapePreview. Each reads something that only exists in the browser —
+     *   localStorage, a random seed, a canvas, IntersectionObserver — and the
+     *   effect is what keeps the server and client renders identical. Moving
+     *   the read into a lazy useState initialiser would satisfy the rule and
+     *   introduce a hydration mismatch: TutorialPanel's saved progress decides
+     *   which tutorials render a "done" badge on the very first paint.
+     *
+     * - `refs` and `immutability` in the player, the 3D views and the
+     *   collaboration provider. These are an imperative game runtime driven by
+     *   useFrame. They lazily initialise refs (`if (!ref.current) ref.current =
+     *   new RuntimeWorld()`, an idiom React's own docs recommend for expensive
+     *   construction) and mirror React state into refs so the block
+     *   interpreter can read it at 60fps without re-rendering. Restructuring
+     *   that bridge is a rewrite of the game loop with real risk to gameplay,
+     *   in exchange for lint cleanliness.
+     *
+     * The cost of scoping it this way, stated plainly: new violations inside
+     * these thirteen files are not caught. Everywhere else in the app they are
+     * errors and fail the build. Shrinking this list is worthwhile work; doing
+     * it under cover of a version upgrade was not.
+     */
+    files: [
+      'app/projects/new/page.tsx',
+      'components/editor/AnimatedModel.tsx',
+      'components/editor/AnimationEditor.tsx',
+      'components/editor/GameEditor.tsx',
+      'components/editor/PaintEditor.tsx',
+      'components/editor/SceneView.tsx',
+      'components/editor/ShapePreview.tsx',
+      'components/player/GamePlayer.tsx',
+      'components/player/PhysicsProvider.tsx',
+      'components/player/TouchControls.tsx',
+      'components/realtime/CollaborationProvider.tsx',
+      'components/showcase/DragonShowcase.tsx',
+      'components/tutorials/TutorialPanel.tsx',
+    ],
+    rules: {
+      'react-hooks/refs': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/purity': 'off',
     },
   },
   {

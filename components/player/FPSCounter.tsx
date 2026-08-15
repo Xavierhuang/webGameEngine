@@ -9,11 +9,17 @@ interface FPSCounterProps {
 export default function FPSCounter({ position = 'top-right' }: FPSCounterProps) {
   const [fps, setFps] = useState(0);
   const frameCount = useRef(0);
-  const lastTime = useRef(performance.now());
+  // Seeded in the effect, not here: performance.now() during render is an
+  // impure call, and on the server it would also read a clock the client never
+  // sees. Zero is never used as a real timestamp because the effect sets it
+  // before the first frame.
+  const lastTime = useRef(0);
   const fpsHistory = useRef<number[]>([]);
   const animationFrameRef = useRef<number>(0);
 
   useEffect(() => {
+    lastTime.current = performance.now();
+
     const updateFps = () => {
       frameCount.current++;
       const now = performance.now();

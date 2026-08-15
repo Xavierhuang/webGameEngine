@@ -134,6 +134,29 @@ await step('the viewport draws something (not a blank canvas)', async () => {
   if (seen.size < 4) throw new Error(`only ${seen.size} distinct colours — viewport is blank`);
 });
 
+await step('a first-time user is shown the tutorials unprompted', async () => {
+  // Fresh browser context each run, so this is genuinely a first visit.
+  const panel = page.locator('text=/Make your first game/').first();
+  await panel.waitFor({ timeout: 15000 });
+});
+
+await step('the tutorial panel can be dismissed and does not block the editor', async () => {
+  const close = page.locator('button[aria-label="Close tutorials"], button:has-text("Close")').first();
+  if ((await close.count()) > 0) await close.click({ timeout: 5000 }).catch(() => {});
+  else await page.locator('button', { hasText: /^Learn$/ }).first().click();
+  await page.waitForTimeout(1000);
+  const stillOpen = await page.locator('text=/Make your first game/').count();
+  if (stillOpen > 0) throw new Error('the tutorial panel would not close');
+});
+
+await step('the nudge does not come back on reload', async () => {
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('canvas', { timeout: 25000 });
+  await page.waitForTimeout(2500);
+  const reappeared = await page.locator('text=/Make your first game/').count();
+  if (reappeared > 0) throw new Error('the tutorials reopened — the nudge is a nag');
+});
+
 await step('add a character', async () => {
   // "Add" is ambiguous — one adds a scene, one opens the object menu — so go
   // straight for the Character entry.

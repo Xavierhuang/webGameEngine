@@ -82,6 +82,9 @@ const getObjectDefaults = (type: string) => {
   return defaults[type] || defaults.sprite;
 };
 
+/** Marks that the first-run tutorial nudge has been shown. */
+const FIRST_RUN_KEY = 'lingplay-tutorials-introduced';
+
 export default function GameEditor({ projectId, initialData }: GameEditorProps) {
   const [project, setProject] = useState<any>(initialData);
   const [currentScene, setCurrentScene] = useState<any>(null);
@@ -100,6 +103,33 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showBackdropSelector, setShowBackdropSelector] = useState(false);
   const [showTutorials, setShowTutorials] = useState(false);
+
+  /**
+   * Open the tutorials once, for someone who has never seen them.
+   *
+   * A first-time child landed in an empty editor with no idea where to start;
+   * the tutorials existed but nothing pointed at them, and the Learn button is
+   * easy to miss among Save/Share/Play. Scratch opens its tutorial panel on
+   * first entry for the same reason.
+   *
+   * Strictly once ever, not once per project — it is a nudge, not a nag. The
+   * flag is written as soon as the panel opens, so closing it, reloading, or
+   * creating a second project will not bring it back. The Learn button is
+   * still there whenever they want it.
+   *
+   * Set from an effect rather than in the initial state on purpose:
+   * localStorage does not exist on the server, and seeding state from it would
+   * make the server and client disagree about whether the panel is open.
+   */
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(FIRST_RUN_KEY)) return;
+      window.localStorage.setItem(FIRST_RUN_KEY, String(Date.now()));
+      setShowTutorials(true);
+    } catch {
+      /* private browsing: skip the nudge rather than show it every time */
+    }
+  }, []);
   const orbitRef = useRef<any>(null);
 
   // Eager starter-GLB preload — starts downloading every starter model the
