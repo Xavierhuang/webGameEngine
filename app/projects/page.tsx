@@ -162,7 +162,7 @@ function ProjectCard({ project }: { project: any }) {
       </div>
 
       <div className="p-4">
-        <h3 className="font-bold text-slate-900 truncate">{project.title}</h3>
+        <h2 className="font-bold text-slate-900 truncate">{project.title}</h2>
         <p className="mt-1 text-sm text-slate-500 line-clamp-2 min-h-[2.5rem]">
           {project.description || 'No description yet.'}
         </p>

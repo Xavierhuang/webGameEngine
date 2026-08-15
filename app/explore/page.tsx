@@ -153,7 +153,7 @@ function ExploreCard({ project }: { project: any }) {
 
       <div className="p-4">
         <Link href={`/projects/${project.id}`}>
-          <h3 className="truncate font-bold text-slate-900 hover:underline">{project.title}</h3>
+          <h2 className="truncate font-bold text-slate-900 hover:underline">{project.title}</h2>
         </Link>
         <p className="mt-0.5 truncate text-xs text-slate-500">
           by {project.author_name || 'Someone'}
