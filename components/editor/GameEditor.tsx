@@ -460,6 +460,27 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   };
 
   /**
+   * "Platform 2" rather than "Platform 1786905746918".
+   *
+   * Objects added from the toolbar were named with a raw millisecond
+   * timestamp, which is what a child then sees in the scene list, the
+   * properties panel, and the block editor header — "Blocks for Platform
+   * 1786905746918". Counts what is already in the scene and takes the next
+   * number, the way Scratch names Sprite1, Sprite2.
+   */
+  const nextObjectName = (type: string): string => {
+    const label = type.charAt(0).toUpperCase() + type.slice(1);
+    const scene =
+      project?.scenes?.find((s: any) => s.id === (currentScene as any)?.id) ?? project?.scenes?.[0];
+    const taken = new Set<string>((scene?.game_objects ?? []).map((o: any) => o.name));
+    for (let n = 1; n < 500; n++) {
+      const candidate = n === 1 ? label : `${label} ${n}`;
+      if (!taken.has(candidate)) return candidate;
+    }
+    return label;
+  };
+
+  /**
    * Ids already in a scene, so an add can tell what it created.
    * Diffing ids beats a name heuristic — two "Hero"s are indistinguishable.
    */
@@ -734,7 +755,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                       scene_id: sceneId,
                       game_object: {
                         type,
-                        name: `${type.charAt(0).toUpperCase() + type.slice(1)} ${Date.now()}`,
+                        name: nextObjectName(type),
                         position: { x: 500, y: type === 'platform' ? 300 : 300, z: 0 },
                         sprite_data: defaults,
                         properties: {
