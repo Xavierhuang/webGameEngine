@@ -29,6 +29,11 @@ import type { Locale } from './messages';
 export type BlockMessages = Record<string, string>;
 
 const zh: BlockMessages = {
+  when_video_motion: '当视频动作 > %1',
+  set_video: '%1 摄像头',
+  set_video_transparency: '将视频透明度设为 %1',
+  expr_video_motion: '视频动作',
+  expr_video_direction: '视频方向',
   on_start: '当游戏开始', on_key_press: '当按下 %1 键', when_clicked: '当此角色被点击',
   when_touches: '当碰到 %1', when_receive: '当接收到 %1', when_clone_start: '当作为克隆体启动',
   when_scene_starts: '当场景开始', switch_to_scene: '切换到场景 %1', next_scene: '下一个场景',
@@ -82,6 +87,11 @@ const zh: BlockMessages = {
 };
 
 const es: BlockMessages = {
+  when_video_motion: 'cuando el movimiento de vídeo > %1',
+  set_video: '%1 el vídeo',
+  set_video_transparency: 'fijar transparencia de vídeo a %1',
+  expr_video_motion: 'movimiento de vídeo',
+  expr_video_direction: 'dirección de vídeo',
   on_start: 'al empezar el juego', on_key_press: 'al mantener la tecla %1', when_clicked: 'al hacer clic en este objeto',
   when_touches: 'al tocar %1', when_receive: 'al recibir %1', when_clone_start: 'al empezar como clon',
   when_scene_starts: 'al empezar la escena', switch_to_scene: 'cambiar a la escena %1', next_scene: 'siguiente escena',
@@ -135,6 +145,11 @@ const es: BlockMessages = {
 };
 
 const fr: BlockMessages = {
+  when_video_motion: 'quand le mouvement vidéo > %1',
+  set_video: '%1 la vidéo',
+  set_video_transparency: 'mettre la transparence vidéo à %1',
+  expr_video_motion: 'mouvement vidéo',
+  expr_video_direction: 'direction vidéo',
   on_start: 'quand le jeu démarre', on_key_press: 'quand la touche %1 est maintenue', when_clicked: 'quand cet objet est cliqué',
   when_touches: 'quand touche %1', when_receive: 'quand je reçois %1', when_clone_start: 'quand je démarre comme clone',
   when_scene_starts: 'quand la scène démarre', switch_to_scene: 'basculer sur la scène %1', next_scene: 'scène suivante',
@@ -188,6 +203,11 @@ const fr: BlockMessages = {
 };
 
 const pt: BlockMessages = {
+  when_video_motion: 'quando o movimento de vídeo > %1',
+  set_video: '%1 o vídeo',
+  set_video_transparency: 'definir transparência do vídeo como %1',
+  expr_video_motion: 'movimento de vídeo',
+  expr_video_direction: 'direção do vídeo',
   on_start: 'quando o jogo começar', on_key_press: 'quando a tecla %1 estiver pressionada', when_clicked: 'quando este objeto for clicado',
   when_touches: 'quando tocar em %1', when_receive: 'quando eu receber %1', when_clone_start: 'quando eu começar como clone',
   when_scene_starts: 'quando a cena começar', switch_to_scene: 'mudar para a cena %1', next_scene: 'próxima cena',
@@ -241,6 +261,11 @@ const pt: BlockMessages = {
 };
 
 const de: BlockMessages = {
+  when_video_motion: 'wenn Videobewegung > %1',
+  set_video: 'Video %1',
+  set_video_transparency: 'setze Videotransparenz auf %1',
+  expr_video_motion: 'Videobewegung',
+  expr_video_direction: 'Videorichtung',
   on_start: 'wenn das Spiel startet', on_key_press: 'wenn Taste %1 gedrückt gehalten wird', when_clicked: 'wenn dieses Objekt angeklickt wird',
   when_touches: 'wenn %1 berührt wird', when_receive: 'wenn ich %1 empfange', when_clone_start: 'wenn ich als Klon entstehe',
   when_scene_starts: 'wenn die Szene startet', switch_to_scene: 'wechsle zu Szene %1', next_scene: 'nächste Szene',
@@ -294,6 +319,11 @@ const de: BlockMessages = {
 };
 
 const ja: BlockMessages = {
+  when_video_motion: 'ビデオの動きが %1 より大きいとき',
+  set_video: 'ビデオを %1',
+  set_video_transparency: 'ビデオの透明度を %1 にする',
+  expr_video_motion: 'ビデオの動き',
+  expr_video_direction: 'ビデオの向き',
   on_start: 'ゲームが始まったとき', on_key_press: '%1 キーが押されているとき', when_clicked: 'このオブジェクトがクリックされたとき',
   when_touches: '%1 に触れたとき', when_receive: '%1 を受け取ったとき', when_clone_start: 'クローンされたとき',
   when_scene_starts: 'シーンが始まったとき', switch_to_scene: 'シーンを %1 にする', next_scene: '次のシーン',
@@ -378,6 +408,9 @@ export function blockLabel(type: string, english: string, locale: Locale | strin
  */
 export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
   zh: {
+    'on': '打开',
+    'off': '关闭',
+    'on flipped': '打开并左右翻转',
     'up arrow': '上箭头', 'down arrow': '下箭头', 'left arrow': '左箭头', 'right arrow': '右箭头', space: '空格',
     forward: '前', backward: '后', left: '左', right: '右',
     'for all objects': '适用于所有角色', 'for this object only': '仅适用于当前角色',
@@ -391,6 +424,9 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: '波兰语', Russian: '俄语', Arabic: '阿拉伯语', Hindi: '印地语', Turkish: '土耳其语', Swedish: '瑞典语',
   },
   es: {
+    'on': 'encender',
+    'off': 'apagar',
+    'on flipped': 'encender reflejado',
     'up arrow': 'flecha arriba', 'down arrow': 'flecha abajo', 'left arrow': 'flecha izquierda',
     'right arrow': 'flecha derecha', space: 'espacio',
     forward: 'adelante', backward: 'atrás', left: 'izquierda', right: 'derecha',
@@ -405,6 +441,9 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: 'polaco', Russian: 'ruso', Arabic: 'árabe', Hindi: 'hindi', Turkish: 'turco', Swedish: 'sueco',
   },
   fr: {
+    'on': 'activer',
+    'off': 'désactiver',
+    'on flipped': 'activer en miroir',
     'up arrow': 'flèche haut', 'down arrow': 'flèche bas', 'left arrow': 'flèche gauche',
     'right arrow': 'flèche droite', space: 'espace',
     forward: 'avant', backward: 'arrière', left: 'gauche', right: 'droite',
@@ -420,6 +459,9 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: 'polonais', Russian: 'russe', Arabic: 'arabe', Hindi: 'hindi', Turkish: 'turc', Swedish: 'suédois',
   },
   pt: {
+    'on': 'ligar',
+    'off': 'desligar',
+    'on flipped': 'ligar espelhado',
     'up arrow': 'seta para cima', 'down arrow': 'seta para baixo', 'left arrow': 'seta para a esquerda',
     'right arrow': 'seta para a direita', space: 'espaço',
     forward: 'frente', backward: 'trás', left: 'esquerda', right: 'direita',
@@ -434,6 +476,9 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: 'polonês', Russian: 'russo', Arabic: 'árabe', Hindi: 'híndi', Turkish: 'turco', Swedish: 'sueco',
   },
   de: {
+    'on': 'an',
+    'off': 'aus',
+    'on flipped': 'an gespiegelt',
     'up arrow': 'Pfeil hoch', 'down arrow': 'Pfeil runter', 'left arrow': 'Pfeil links',
     'right arrow': 'Pfeil rechts', space: 'Leertaste',
     forward: 'vorwärts', backward: 'rückwärts', left: 'links', right: 'rechts',
@@ -448,6 +493,9 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: 'Polnisch', Russian: 'Russisch', Arabic: 'Arabisch', Hindi: 'Hindi', Turkish: 'Türkisch', Swedish: 'Schwedisch',
   },
   ja: {
+    'on': 'オンにする',
+    'off': 'オフにする',
+    'on flipped': '左右反転してオンにする',
     'up arrow': '上向き矢印', 'down arrow': '下向き矢印', 'left arrow': '左向き矢印', 'right arrow': '右向き矢印',
     space: 'スペース',
     forward: '前', backward: '後ろ', left: '左', right: '右',

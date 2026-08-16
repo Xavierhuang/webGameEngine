@@ -106,6 +106,12 @@ const statementDefs: object[] = [
     nextStatement: null, colour: COLOUR.event,
   },
   { type: 'when_clone_start', message0: 'when I start as a clone', nextStatement: null, colour: COLOUR.clone },
+  // Video sensing. The camera is off until a script turns it on — a game a
+  // child shares must not open a stranger's webcam on load.
+  {
+    type: 'when_video_motion', message0: 'when video motion > %1',
+    args0: [num('threshold', 10)], nextStatement: null, colour: COLOUR.sensing,
+  },
   { type: 'when_scene_starts', message0: 'when scene starts', nextStatement: null, colour: COLOUR.event },
 
   // Scene switching (Scratch backdrop-switch analog)
@@ -364,6 +370,15 @@ const statementDefs: object[] = [
     previousStatement: null, nextStatement: null, colour: COLOUR.sensing,
   },
   { type: 'reset_timer', message0: 'reset timer', previousStatement: null, nextStatement: null, colour: COLOUR.sensing },
+  {
+    type: 'set_video', message0: 'turn video %1',
+    args0: [dropdown('state', [['on', 'on'], ['off', 'off'], ['on flipped', 'flipped']])],
+    previousStatement: null, nextStatement: null, colour: COLOUR.sensing,
+  },
+  {
+    type: 'set_video_transparency', message0: 'set video transparency to %1',
+    args0: [value('value')], previousStatement: null, nextStatement: null, colour: COLOUR.sensing,
+  },
 
   // --- Music extension (Scratch parity) ---
   {
@@ -490,6 +505,8 @@ const exprDefs: object[] = [
   { type: 'expr_touching', message0: 'touching %1 ?', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
   { type: 'expr_distance_to', message0: 'distance to %1', args0: [nameField('value', 'object', '')], output: null, colour: COLOUR.sensing },
   { type: 'expr_key_pressed', message0: 'key %1 pressed ?', args0: [dropdown('value', KEY_OPTIONS)], output: null, colour: COLOUR.sensing },
+  { type: 'expr_video_motion', message0: 'video motion', output: null, colour: COLOUR.sensing },
+  { type: 'expr_video_direction', message0: 'video direction', output: null, colour: COLOUR.sensing },
   { type: 'expr_timer', message0: 'timer', output: null, colour: COLOUR.sensing },
   // List reporters
   {
@@ -622,6 +639,7 @@ export const TOOLBOX = {
       kind: 'category', name: 'Events', colour: String(COLOUR.event),
       contents: [
         ...['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'when_scene_starts'].map((t) => blk(t)),
+        blk('when_video_motion', { threshold: numShadow(10) }),
         blk('broadcast'),
         blk('broadcast_and_wait'),
       ],
@@ -702,6 +720,10 @@ export const TOOLBOX = {
         blk('expr_language'),
         blk('expr_timer'),
         blk('reset_timer'),
+        blk('set_video'),
+        blk('set_video_transparency', { value: numShadow(50) }),
+        blk('expr_video_motion'),
+        blk('expr_video_direction'),
         blk('expr_position_x'),
         blk('expr_position_y'),
         blk('expr_position_z'),

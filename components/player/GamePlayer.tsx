@@ -35,6 +35,7 @@ import { ObjectRuntime, RuntimeWorld, type RuntimeContext } from '../../lib/runt
 import AudioManager from '../../lib/audio/AudioManager';
 import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
 import { SceneLights } from '@/components/three/SceneLights';
+import { VideoSensing, type VideoSensingHandle } from './VideoSensing';
 
 // -----------------------------------------------------------------------------
 // Per-extension mesh components. Each one always calls exactly one loader hook,
@@ -124,6 +125,12 @@ export default function GamePlayer({ project }: GamePlayerProps) {
   const [sceneIndex, setSceneIndex] = useState(0);
   const scene = scenes[Math.min(sceneIndex, Math.max(scenes.length - 1, 0))];
   // Shared runtime world: variables, broadcasts, and touch/click sensing.
+  /**
+   * Handle onto the camera, populated by <VideoSensing/> once it mounts.
+   * Declared up here because the player renders it well before the interpreter
+   * context is built further down.
+   */
+  const videoHandleRef = useRef<VideoSensingHandle | null>(null);
   const worldRef = useRef<RuntimeWorld | null>(null);
   if (!worldRef.current) {
     worldRef.current = new RuntimeWorld();
@@ -318,6 +325,13 @@ export default function GamePlayer({ project }: GamePlayerProps) {
         >
           <FPSCounter position="top-right" />
           <VariableWatchers vars={vars} />
+          {/* Renders nothing; captures frames only after a script turns video on. */}
+          <VideoSensing
+            handleRef={videoHandleRef}
+            onReady={(controller) => worldRef.current?.registerVideoController(controller)}
+            onMotion={(amount, direction) => worldRef.current?.setVideoMotion(amount, direction)}
+            onError={(message) => logger.warn('[GamePlayer] camera:', message)}
+          />
           {!showStartSplash && <TouchControls onKeyChange={handleTouchKey} />}
 
           {/* ask-and-wait prompt. Sits above the canvas and blocks until answered. */}

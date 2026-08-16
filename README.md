@@ -161,8 +161,22 @@ purpose.
 
 Honest, not exhaustive:
 
-- **Video Sensing and micro:bit** extensions are absent — no camera or hardware
-  to verify against.
+- **micro:bit and other hardware extensions** are absent — no board to verify
+  against, and shipping unverified hardware code to children is worse than not
+  shipping it.
+
+**Video Sensing** ships. `turn video on/off`, `video motion`, `video
+direction`, `when video motion > n`, and `set video transparency`. The camera
+stays off until a script turns it on, nothing leaves the browser, and the
+stream is stopped the moment video is turned off. Motion detection is a pure
+function in `lib/video/motion.ts` tested against frames built by hand — a
+camera can tell you *something* moved, only a constructed frame can tell you
+whether "moved right" reports right. `npm run test:video-camera` drives the
+whole pipeline through Chromium's synthetic capture device.
+
+What that still cannot answer is calibration: whether the noise floor and
+sensitivity feel right for a hand waving in a real room. That needs a person
+with a real camera.
 - **Sounds are synthesized**, not recorded. Kids can record their own instead.
 - **7 languages.** Block labels and toolbox categories are translated in all of
   them (121 blocks; the maths operators — `%1 + %2`, `sin`, `ln` — are

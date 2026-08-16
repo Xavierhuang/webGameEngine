@@ -272,6 +272,10 @@ export function evalExpr(expr: Expr | ExprValue | undefined, env: EvalEnv): Valu
     }
     case 'key_pressed':
       return isKeyDown(env.keys, String(expr.value ?? ''));
+    case 'video_motion':
+      return env.world ? env.world.videoMotion() : 0;
+    case 'video_direction':
+      return env.world ? env.world.videoDirection() : 0;
     case 'timer':
       // Relative to the last reset_timer, matching Scratch. Falls back to the
       // raw world clock when there's no world (headless expression tests).
@@ -431,6 +435,15 @@ export class RuntimeWorld {
   private clickCounts = new Map<string, number>();
   /** Live clone ids (synchronously tracked so bursts can't overshoot the cap). */
   private activeClones = new Set<string>();
+  /**
+   * Latest camera reading, pushed in by the player each frame.
+   *
+   * Held here rather than read on demand because motion is a comparison
+   * between two frames: the blocks ask "how much moved", and only whatever is
+   * sampling the camera knows. Zero when the camera is off, so every video
+   * block answers 0 rather than throwing in a game that never turned it on.
+   */
+  private video = { amount: 0, direction: 0, on: false, transparency: 50 };
   private cloneSeq = 0;
   /**
    * Gate for the game loop. Player mounts this false, flips it true after the
@@ -474,6 +487,62 @@ export class RuntimeWorld {
   }
 
   /** Elapsed seconds since the last reset. */
+  /**
+   * Whatever is driving the camera, registered by the player.
+   *
+   * The video blocks reach the camera through the world rather than the
+   * interpreter context, because the context is built inside a per-object
+   * component that has no view of the player's camera. The world is the one
+   * object every script already shares.
+   */
+  private videoController: {
+    setState(state: 'on' | 'off' | 'flipped'): void;
+    setTransparency(value: number): void;
+  } | null = null;
+
+  registerVideoController(controller: RuntimeWorld['videoController']) {
+    this.videoController = controller;
+  }
+
+  /** Turn the camera on or off, and remember the state for the reporters. */
+  requestVideo(state: 'on' | 'off' | 'flipped') {
+    this.setVideoState(state !== 'off');
+    this.videoController?.setState(state);
+  }
+
+  requestVideoTransparency(value: number) {
+    this.setVideoState(this.video.on, value);
+    this.videoController?.setTransparency(value);
+  }
+
+  /** Called by the player once per frame while the camera is on. */
+  setVideoMotion(amount: number, direction: number) {
+    this.video.amount = amount;
+    this.video.direction = direction;
+  }
+
+  /** Camera on/off plus how faintly it is drawn behind the scene. */
+  setVideoState(on: boolean, transparency = this.video.transparency) {
+    this.video.on = on;
+    this.video.transparency = Math.max(0, Math.min(100, transparency));
+    if (!on) {
+      this.video.amount = 0;
+      this.video.direction = 0;
+    }
+  }
+
+  videoMotion(): number {
+    return this.video.on ? this.video.amount : 0;
+  }
+
+  videoDirection(): number {
+    return this.video.on ? this.video.direction : 0;
+  }
+
+  videoState(): { on: boolean; transparency: number } {
+    return { on: this.video.on, transparency: this.video.transparency };
+  }
+
   timerValue(now: number): number {
     this.lastKnownTime = now;
     return Math.max(0, now - this.timerEpoch);
@@ -748,7 +817,7 @@ interface ScriptState {
   pendingStart: boolean;
 }
 
-export const HAT_TYPES = new Set(['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'when_scene_starts', 'define_custom_block']);
+export const HAT_TYPES = new Set(['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'when_scene_starts', 'when_video_motion', 'define_custom_block']);
 
 /** Parse a define_custom_block hat into its name + parameter list. */
 function definitionSpec(hat: LogicBlock): { name: string; params: string[] } {
@@ -885,6 +954,13 @@ export class ObjectRuntime {
   private shouldStart(script: ScriptState): boolean {
     if (!script.hat) return true; // implicit always-on
     switch (script.hat.block_type) {
+      case 'when_video_motion': {
+        // Level-triggered, like `when touching`: it runs while the motion is
+        // above the threshold rather than once on the crossing. That matches
+        // how a child uses it — keep waving, keep going.
+        const threshold = toNumber((script.hat?.inputs?.threshold ?? 10) as any);
+        return this.world ? this.world.videoMotion() > threshold : false;
+      }
       case 'on_start':
       // when_scene_starts: the player remounts a scene's objects on activation,
       // creating fresh runtimes — so "fires once per runtime" = "fires on every
@@ -1368,7 +1444,17 @@ export class ObjectRuntime {
           this.world?.setAnswer(answer);
           return;
         }
-        case 'reset_timer':
+          case 'set_video': {
+          const state = String(block.inputs?.state ?? 'on');
+          this.world?.requestVideo(state === 'off' ? 'off' : state === 'flipped' ? 'flipped' : 'on');
+          return;
+        }
+        case 'set_video_transparency':
+          this.world?.requestVideoTransparency(
+            Math.max(0, Math.min(100, toNumber(getInput(block, 'value', env, 50))))
+          );
+          return;
+      case 'reset_timer':
           this.world?.resetTimer(time);
           return;
 
