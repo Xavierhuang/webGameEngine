@@ -59,6 +59,19 @@ const getObjectDefaults = (type: string) => {
       color: '#166534', // dark green
       size: { width: 2000, height: 2000 }, // taller (depth) ground by default (pixels)
     },
+    /*
+     * A placed effect. `shape: 'particles'` is what tells the editor and the
+     * player to render an emitter here instead of a mesh — there is no
+     * geometry, only the particle cloud.
+     */
+    particles: {
+      shape: 'particles',
+      color: '#F59E0B',
+      size: 100,
+      effect: 'sparkle',
+      particleSize: 100,
+      particleAmount: 100,
+    },
     collectible: {
       shape: 'sphere',
       color: '#FBBF24', // yellow

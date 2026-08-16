@@ -94,6 +94,61 @@ export default function PropertiesPanel({
             </div>
           </div>
         )}
+
+        {selectedObject.properties?.shape === 'particles' && (
+          <div className="rounded-2xl border border-slate-200 p-3 space-y-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Effect
+            </div>
+            {/*
+              Sliders rather than number boxes: the emitter is rendering live
+              in the scene behind this panel, so dragging shows the result
+              immediately. That feedback loop is the reason effects became a
+              placed object instead of only a block.
+            */}
+            <PPField label="Kind">
+              <select
+                value={selectedObject.properties?.effect ?? 'sparkle'}
+                onChange={(e) =>
+                  onUpdate({ properties: { ...(selectedObject.properties || {}), effect: e.target.value } })
+                }
+                className="w-full px-2 py-1 border border-slate-200 rounded-md text-sm text-slate-900"
+              >
+                {[['sparkle', 'Sparkles'], ['smoke', 'Smoke'], ['fire', 'Fire'], ['confetti', 'Confetti'],
+                  ['bubbles', 'Bubbles'], ['magic', 'Magic'], ['explosion', 'Explosion'], ['snow', 'Snow']]
+                  .map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+              </select>
+            </PPField>
+            <PPField label={`Size — ${selectedObject.properties?.particleSize ?? 100}%`}>
+              <input
+                type="range"
+                min={10}
+                max={500}
+                step={10}
+                value={selectedObject.properties?.particleSize ?? 100}
+                onChange={(e) =>
+                  onUpdate({ properties: { ...(selectedObject.properties || {}), particleSize: Number(e.target.value) } })
+                }
+                className="w-full accent-slate-900"
+              />
+            </PPField>
+            <PPField label={`Amount — ${selectedObject.properties?.particleAmount ?? 100}%`}>
+              <input
+                type="range"
+                min={10}
+                max={500}
+                step={10}
+                value={selectedObject.properties?.particleAmount ?? 100}
+                onChange={(e) =>
+                  onUpdate({ properties: { ...(selectedObject.properties || {}), particleAmount: Number(e.target.value) } })
+                }
+                className="w-full accent-slate-900"
+              />
+            </PPField>
+          </div>
+        )}
         {/* Sound Controls */}
         {selectedObject.type === 'sound' && (
           <div className="rounded-xl border border-slate-200 bg-white p-3">

@@ -37,6 +37,7 @@ import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../t
 import { SceneLights } from '@/components/three/SceneLights';
 import { VideoSensing, type VideoSensingHandle } from './VideoSensing';
 import { ParticleField, type ParticleController } from './ParticleField';
+import { ParticleEmitter } from '../three/ParticleEmitter';
 import { CameraDirector } from './CameraDirector';
 
 // -----------------------------------------------------------------------------
@@ -1738,6 +1739,22 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   });
 
   // Render platforms/planes - MUST lay flat on the ground
+  if (shape === 'particles') {
+    // Placed effects just run — no blocks required. Same component the editor
+    // renders, so what a child positions is what they get on Play.
+    return (
+      <group position={position}>
+        <ParticleEmitter
+          effect={String(properties.effect ?? 'sparkle')}
+          position={[0, 0, 0]}
+          sizePercent={Number(properties.particleSize ?? 100)}
+          amountPercent={Number(properties.particleAmount ?? 100)}
+          floorY={PHYSICS.GROUND_Y - (position?.[1] ?? 0)}
+        />
+      </group>
+    );
+  }
+
   if (isPlatform || shape === 'plane') {
     // For platforms, ensure they're at ground level (negative Y)
     // Ground level is Y=-2 in 3D coordinates

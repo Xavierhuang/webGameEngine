@@ -25,6 +25,7 @@ const GAME_OBJECTS: ToolbarItem[] = [
   { type: 'platform', name: 'Platform', icon: Box, description: 'Ground, walls, and terrain', accent: PALETTE.control },
   { type: 'collectible', name: 'Collectible', icon: Star, description: 'Coins, stars, keys', accent: PALETTE.events },
   { type: 'obstacle', name: 'Obstacle', icon: Circle, description: 'Hazards to avoid', accent: PALETTE.lists },
+  { type: 'particles', name: 'Effect', icon: Sparkles, description: 'Sparkles, fire, smoke', accent: PALETTE.looks },
   { type: 'sound', name: 'Sound', icon: Music, description: 'Music and sound effects', accent: PALETTE.sound },
 ];
 
@@ -37,6 +38,7 @@ const TOOLBAR_LABELS: Record<string, any> = {
   platform: 'toolbar.platform',
   collectible: 'toolbar.collectible',
   obstacle: 'toolbar.obstacle',
+  particles: 'toolbar.particles',
   sound: 'toolbar.sound',
 };
 

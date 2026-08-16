@@ -17,6 +17,7 @@ import AudioManager from '../../lib/audio/AudioManager';
 import { applyTexture } from '../../lib/models/textureMaterial';
 import AnimatedModel from './AnimatedModel';
 import { focusSceneCamera } from '../../lib/editor/cameraFocus';
+import { ParticleEmitter } from '../three/ParticleEmitter';
 
 interface SceneViewProps {
   scene: any;
@@ -422,6 +423,31 @@ function GameObject({
     if (shape === 'plane' || object.type === 'platform') {
       // Render a plane, scaled by width/height in world units
       // Base rotation: -90 degrees on X-axis to lay flat on XZ plane (horizontal)
+    if (shape === 'particles') {
+      /*
+       * A placed effect renders live, here in the editor, while the child
+       * drags it around. That is the reason particles became an object: until
+       * now they could only be seen by pressing Play, which is where every
+       * "I can't see the particles" question came from.
+       */
+      return (
+        <group position={position} onClick={onClick}>
+          <ParticleEmitter
+            effect={String(properties.effect ?? 'sparkle')}
+            position={[0, 0, 0]}
+            sizePercent={Number(properties.particleSize ?? 100)}
+            amountPercent={Number(properties.particleAmount ?? 100)}
+          />
+          {/* A faint handle so an emitter can still be clicked and moved when
+              it happens to be between puffs. */}
+          <mesh ref={meshRef}>
+            <sphereGeometry args={[0.18, 10, 10]} />
+            <meshBasicMaterial color="#F59E0B" transparent opacity={0.35} />
+          </mesh>
+        </group>
+      );
+    }
+
       // User rotation is applied on top of this base rotation
       // For platforms, we want the rotation to be relative to the horizontal plane
       const baseRotationX = -Math.PI / 2; // -90 degrees to lay flat

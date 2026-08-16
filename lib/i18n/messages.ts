@@ -28,6 +28,7 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 /** Keys are dot-namespaced by surface: nav, explore, share, player, … */
 export const MESSAGES = {
   en: {
+    'toolbar.particles': 'Effect',
     'editor.editDrawing': 'Edit drawing',
     'editor.learn': 'Learn',
     'editor.play': 'Play',
@@ -169,6 +170,7 @@ export const MESSAGES = {
   },
 
   zh: {
+    'toolbar.particles': '特效',
     'editor.editDrawing': '编辑图画',
     'editor.learn': '学习',
     'editor.play': '运行',
@@ -309,6 +311,7 @@ export const MESSAGES = {
     'common.tryAgain': '连不上服务器，请再试一次。',
   },
   es: {
+    'toolbar.particles': 'Efecto',
     'editor.editDrawing': 'Editar dibujo',
     'editor.learn': 'Aprender',
     'editor.play': 'Jugar',
@@ -439,6 +442,7 @@ export const MESSAGES = {
   },
 
   fr: {
+    'toolbar.particles': 'Effet',
     'editor.editDrawing': 'Modifier le dessin',
     'editor.learn': 'Apprendre',
     'editor.play': 'Jouer',
@@ -569,6 +573,7 @@ export const MESSAGES = {
   },
 
   pt: {
+    'toolbar.particles': 'Efeito',
     'editor.editDrawing': 'Editar desenho',
     'editor.learn': 'Aprender',
     'editor.play': 'Jogar',
@@ -699,6 +704,7 @@ export const MESSAGES = {
   },
 
   de: {
+    'toolbar.particles': 'Effekt',
     'editor.editDrawing': 'Zeichnung bearbeiten',
     'editor.learn': 'Lernen',
     'editor.play': 'Starten',
@@ -829,6 +835,7 @@ export const MESSAGES = {
   },
 
   ja: {
+    'toolbar.particles': 'エフェクト',
     'editor.editDrawing': '絵を編集',
     'editor.learn': '学ぶ',
     'editor.play': '実行',
