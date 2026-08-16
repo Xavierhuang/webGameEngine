@@ -388,6 +388,16 @@ const statementDefs: object[] = [
     previousStatement: null, nextStatement: null, colour: COLOUR.looks,
   },
   {
+    type: 'set_particle_size', message0: 'set particle size to %1 %%',
+    args0: [value('value')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
+    type: 'set_particle_amount', message0: 'set particle amount to %1 %%',
+    args0: [value('value')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
     type: 'stop_particles', message0: 'stop my trail',
     previousStatement: null, nextStatement: null, colour: COLOUR.looks,
   },
@@ -667,6 +677,8 @@ export const TOOLBOX = {
         blk('burst_particles'),
         blk('start_particles'),
         blk('stop_particles'),
+        blk('set_particle_size', { value: numShadow(100) }),
+        blk('set_particle_amount', { value: numShadow(100) }),
         blk('go_to_layer'),
         blk('change_layer_by', { amount: numShadow(1) }),
         blk('switch_to_scene'),

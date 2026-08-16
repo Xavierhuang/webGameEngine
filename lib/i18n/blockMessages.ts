@@ -29,6 +29,8 @@ import type { Locale } from './messages';
 export type BlockMessages = Record<string, string>;
 
 const zh: BlockMessages = {
+  set_particle_size: '将粒子大小设为 %1 %%',
+  set_particle_amount: '将粒子数量设为 %1 %%',
   camera_follow: '镜头跟随 %1',
   camera_stop_following: '镜头停止跟随',
   camera_shake: '镜头震动 %1 持续 %2 秒',
@@ -95,6 +97,8 @@ const zh: BlockMessages = {
 };
 
 const es: BlockMessages = {
+  set_particle_size: 'fijar tamaño de partículas a %1 %%',
+  set_particle_amount: 'fijar cantidad de partículas a %1 %%',
   camera_follow: 'la cámara sigue a %1',
   camera_stop_following: 'la cámara deja de seguir',
   camera_shake: 'sacudir la cámara %1 por %2 seg',
@@ -161,6 +165,8 @@ const es: BlockMessages = {
 };
 
 const fr: BlockMessages = {
+  set_particle_size: 'mettre la taille des particules à %1 %%',
+  set_particle_amount: 'mettre la quantité de particules à %1 %%',
   camera_follow: 'la caméra suit %1',
   camera_stop_following: 'la caméra arrête de suivre',
   camera_shake: 'secouer la caméra %1 pendant %2 sec',
@@ -227,6 +233,8 @@ const fr: BlockMessages = {
 };
 
 const pt: BlockMessages = {
+  set_particle_size: 'definir tamanho das partículas como %1 %%',
+  set_particle_amount: 'definir quantidade de partículas como %1 %%',
   camera_follow: 'a câmera segue %1',
   camera_stop_following: 'a câmera para de seguir',
   camera_shake: 'sacudir a câmera %1 por %2 seg',
@@ -293,6 +301,8 @@ const pt: BlockMessages = {
 };
 
 const de: BlockMessages = {
+  set_particle_size: 'setze Partikelgröße auf %1 %%',
+  set_particle_amount: 'setze Partikelmenge auf %1 %%',
   camera_follow: 'Kamera folgt %1',
   camera_stop_following: 'Kamera folgt nicht mehr',
   camera_shake: 'Kamera %1 für %2 Sek wackeln',
@@ -359,6 +369,8 @@ const de: BlockMessages = {
 };
 
 const ja: BlockMessages = {
+  set_particle_size: '粒子の大きさを %1 %% にする',
+  set_particle_amount: '粒子の量を %1 %% にする',
   camera_follow: 'カメラが %1 を追いかける',
   camera_stop_following: 'カメラの追跡をやめる',
   camera_shake: 'カメラを %1 の強さで %2 秒ゆらす',

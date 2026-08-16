@@ -58,7 +58,11 @@ const NEEDS_SCENE: Array<{ label: string; blocks: string[] }> = [
              'go_to_layer', 'change_layer_by', 'switch_costume_to', 'next_costume',
              'switch_animation_to', 'show_variable', 'hide_variable', 'show_list', 'hide_list'],
   },
-  { label: 'particles', blocks: ['burst_particles', 'start_particles', 'stop_particles'] },
+  {
+    label: 'particles',
+    blocks: ['burst_particles', 'start_particles', 'stop_particles',
+             'set_particle_size', 'set_particle_amount'],
+  },
   {
     label: 'the camera',
     blocks: ['camera_follow', 'camera_stop_following', 'camera_shake',

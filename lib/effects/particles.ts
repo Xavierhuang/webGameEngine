@@ -61,6 +61,17 @@ export interface ParticleState {
   particles: Particle[];
   /** Fractional particles owed by a continuous emitter between frames. */
   pending: number;
+  /**
+   * Child-controlled dials, as multipliers where 1 is the preset default.
+   *
+   * The preset numbers were tuned when a character was 0.6 world units tall.
+   * Characters are 2.4u now, and the particles were never rescaled — a sparkle
+   * sat at under 3% of a character's height, which is what "it's so small"
+   * meant. The defaults are corrected, and these let a child go further in
+   * either direction without exposing lifetimes and velocity cones.
+   */
+  sizeScale: number;
+  amountScale: number;
 }
 
 interface PresetSpec {
@@ -82,43 +93,43 @@ interface PresetSpec {
 
 const SPECS: Record<ParticlePreset, PresetSpec> = {
   sparkle: {
-    rate: 30, burst: 24, life: [0.4, 0.9], size: [0.04, 0.10], speed: [0.6, 1.6],
+    rate: 30, burst: 24, life: [0.4, 0.9], size: [0.10, 0.25], speed: [0.6, 1.6],
     upward: 0.5, gravity: -0.8, drag: 0.86,
     colours: [[1, 0.95, 0.55], [1, 1, 1], [1, 0.85, 0.25]],
   },
   smoke: {
-    rate: 18, burst: 14, life: [1.0, 2.0], size: [0.12, 0.28], speed: [0.15, 0.45],
+    rate: 18, burst: 14, life: [1.0, 2.0], size: [0.30, 0.70], speed: [0.15, 0.45],
     upward: 0.9, gravity: 0.25, drag: 0.9,
     colours: [[0.62, 0.62, 0.66], [0.75, 0.75, 0.78], [0.5, 0.5, 0.54]],
   },
   fire: {
-    rate: 42, burst: 26, life: [0.3, 0.7], size: [0.08, 0.18], speed: [0.5, 1.3],
+    rate: 42, burst: 26, life: [0.3, 0.7], size: [0.20, 0.45], speed: [0.5, 1.3],
     upward: 0.95, gravity: 0.9, drag: 0.88,
     colours: [[1, 0.55, 0.1], [1, 0.8, 0.2], [0.9, 0.25, 0.08]],
   },
   confetti: {
-    rate: 26, burst: 40, life: [1.2, 2.4], size: [0.06, 0.13], speed: [1.0, 2.4],
+    rate: 26, burst: 40, life: [1.2, 2.4], size: [0.15, 0.33], speed: [1.0, 2.4],
     upward: 0.7, gravity: -2.6, drag: 0.95,
     colours: [[0.95, 0.3, 0.4], [0.3, 0.7, 0.95], [0.99, 0.83, 0.25],
               [0.45, 0.85, 0.45], [0.75, 0.45, 0.9]],
   },
   bubbles: {
-    rate: 14, burst: 12, life: [1.4, 2.6], size: [0.07, 0.17], speed: [0.2, 0.6],
+    rate: 14, burst: 12, life: [1.4, 2.6], size: [0.18, 0.43], speed: [0.2, 0.6],
     upward: 0.95, gravity: 0.5, drag: 0.97,
     colours: [[0.7, 0.9, 1], [0.85, 0.95, 1], [0.6, 0.85, 0.98]],
   },
   magic: {
-    rate: 34, burst: 28, life: [0.6, 1.4], size: [0.05, 0.12], speed: [0.8, 1.8],
+    rate: 34, burst: 28, life: [0.6, 1.4], size: [0.12, 0.30], speed: [0.8, 1.8],
     upward: 0.3, gravity: 0.15, drag: 0.9,
     colours: [[0.75, 0.45, 0.95], [0.95, 0.55, 0.85], [0.55, 0.65, 1]],
   },
   explosion: {
-    rate: 0, burst: 60, life: [0.35, 0.8], size: [0.09, 0.22], speed: [2.5, 5.5],
+    rate: 0, burst: 60, life: [0.35, 0.8], size: [0.22, 0.55], speed: [2.5, 5.5],
     upward: 0.25, gravity: -1.8, drag: 0.78,
     colours: [[1, 0.62, 0.15], [1, 0.35, 0.1], [0.35, 0.32, 0.3]],
   },
   snow: {
-    rate: 16, burst: 20, life: [2.0, 3.5], size: [0.05, 0.11], speed: [0.1, 0.35],
+    rate: 16, burst: 20, life: [2.0, 3.5], size: [0.12, 0.28], speed: [0.1, 0.35],
     upward: 0.1, gravity: -0.35, drag: 0.99,
     colours: [[1, 1, 1], [0.9, 0.94, 1]],
   },
@@ -128,7 +139,28 @@ const SPECS: Record<ParticlePreset, PresetSpec> = {
 export const MAX_PARTICLES = 300;
 
 export function createParticleState(): ParticleState {
-  return { particles: [], pending: 0 };
+  return { particles: [], pending: 0, sizeScale: 1, amountScale: 1 };
+}
+
+/** Clamped so a child cannot fill the screen with one enormous square. */
+export const SCALE_MIN = 0.1;
+export const SCALE_MAX = 5;
+
+function clampScale(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(SCALE_MIN, Math.min(SCALE_MAX, value));
+}
+
+/** Particle size, as a multiplier of the preset. */
+export function setParticleSize(state: ParticleState, scale: number): ParticleState {
+  state.sizeScale = clampScale(scale);
+  return state;
+}
+
+/** How many particles, as a multiplier of the preset. */
+export function setParticleAmount(state: ParticleState, scale: number): ParticleState {
+  state.amountScale = clampScale(scale);
+  return state;
 }
 
 export function isParticlePreset(value: string): value is ParticlePreset {
@@ -145,7 +177,8 @@ function between(random: Random, [lo, hi]: [number, number]): number {
 function spawn(
   preset: ParticlePreset,
   at: { x: number; y: number; z: number },
-  random: Random
+  random: Random,
+  sizeScale = 1
 ): Particle {
   const spec = SPECS[preset];
   const speed = between(random, spec.speed);
@@ -168,7 +201,7 @@ function spawn(
     vz: rz * speed * (1 - up),
     age: 0,
     life: between(random, spec.life),
-    size: between(random, spec.size),
+    size: between(random, spec.size) * sizeScale,
     r: colour[0], g: colour[1], b: colour[2],
     preset,
   };
@@ -189,9 +222,10 @@ export function burstParticles(
   random: Random = Math.random,
   count?: number
 ): ParticleState {
-  const total = Math.max(0, Math.min(MAX_PARTICLES, count ?? SPECS[preset].burst));
+  const wanted = count ?? Math.round(SPECS[preset].burst * state.amountScale);
+  const total = Math.max(0, Math.min(MAX_PARTICLES, wanted));
   const born: Particle[] = [];
-  for (let i = 0; i < total; i++) born.push(spawn(preset, at, random));
+  for (let i = 0; i < total; i++) born.push(spawn(preset, at, random, state.sizeScale));
   admit(state, born);
   return state;
 }
@@ -224,13 +258,13 @@ export function stepParticles(
 
   if (options.trail && options.at) {
     const spec = SPECS[options.trail];
-    state.pending += spec.rate * step;
+    state.pending += spec.rate * state.amountScale * step;
     const due = Math.floor(state.pending);
     if (due > 0) {
       state.pending -= due;
       const born: Particle[] = [];
       for (let i = 0; i < Math.min(due, MAX_PARTICLES); i++) {
-        born.push(spawn(options.trail, options.at, random));
+        born.push(spawn(options.trail, options.at, random, state.sizeScale));
       }
       admit(state, born);
     }

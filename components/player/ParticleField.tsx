@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { PHYSICS } from '@/lib/constants/game';
 import {
   createParticleState,
+  setParticleSize,
+  setParticleAmount,
   burstParticles,
   stepParticles,
   particleAlpha,
@@ -42,6 +44,9 @@ export interface ParticleController {
   updatePosition(objectId: string, at: [number, number, number]): void;
   /** Forget an object entirely — used when a clone is deleted. */
   remove(objectId: string): void;
+  /** Multipliers on the preset, 1 being the default. */
+  setSize(objectId: string, scale: number): void;
+  setAmount(objectId: string, scale: number): void;
 }
 
 interface Emitter {
@@ -173,6 +178,8 @@ export function ParticleField({
       remove: (objectId) => {
         emitters.delete(objectId);
       },
+      setSize: (objectId, scale) => setParticleSize(ensure(objectId).state, scale),
+      setAmount: (objectId, scale) => setParticleAmount(ensure(objectId).state, scale),
     };
 
     onReadyRef.current?.(controller);

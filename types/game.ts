@@ -160,6 +160,8 @@ export type LogicBlockType =
   | 'burst_particles'
   | 'start_particles'
   | 'stop_particles'
+  | 'set_particle_size'
+  | 'set_particle_amount'
   | 'when_video_motion'
   | 'set_video'
   | 'set_video_transparency'

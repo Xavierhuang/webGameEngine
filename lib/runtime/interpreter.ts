@@ -561,6 +561,8 @@ export class RuntimeWorld {
   private particles: {
     burst(objectId: string, preset: string, at: [number, number, number]): void;
     setTrail(objectId: string, preset: string | null): void;
+    setSize(objectId: string, scale: number): void;
+    setAmount(objectId: string, scale: number): void;
     updatePosition(objectId: string, at: [number, number, number]): void;
     remove(objectId: string): void;
   } | null = null;
@@ -597,6 +599,15 @@ export class RuntimeWorld {
 
   setParticleTrailFor(objectId: string, preset: string | null) {
     this.particles?.setTrail(objectId, preset);
+  }
+
+  /** Percentages from the blocks; the simulation clamps them. */
+  setParticleSizeFor(objectId: string, percent: number) {
+    this.particles?.setSize(objectId, percent / 100);
+  }
+
+  setParticleAmountFor(objectId: string, percent: number) {
+    this.particles?.setAmount(objectId, percent / 100);
   }
 
   /** Called each frame so trails follow their objects. */
@@ -1569,6 +1580,16 @@ export class ObjectRuntime {
           this.world?.setParticleTrailFor(
             this.objectId,
             String(getInput(block, 'effect', env, 'sparkle'))
+          );
+          return;
+        case 'set_particle_size':
+          this.world?.setParticleSizeFor(
+            this.objectId, toNumber(getInput(block, 'value', env, 100))
+          );
+          return;
+        case 'set_particle_amount':
+          this.world?.setParticleAmountFor(
+            this.objectId, toNumber(getInput(block, 'value', env, 100))
           );
           return;
         case 'stop_particles':

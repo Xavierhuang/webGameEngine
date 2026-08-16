@@ -10,6 +10,10 @@
 const assert = require('assert');
 const {
   createParticleState,
+  setParticleSize,
+  setParticleAmount,
+  SCALE_MIN,
+  SCALE_MAX,
   burstParticles,
   stepParticles,
   particleAlpha,
@@ -231,6 +235,65 @@ test('rising presets are unaffected by the floor', () => {
   for (let i = 0; i < 20; i++) stepParticles(state, 1 / 60, { random, floorY: -2 });
   const meanY = state.particles.reduce((a, p) => a + p.y, 0) / state.particles.length;
   assert.ok(meanY > 0, `fire sank to ${meanY.toFixed(2)}`);
+});
+
+test('particles are big enough to see next to a character', () => {
+  // A character is 2.4 world units tall. These were tuned when one was 0.6u
+  // and never rescaled, leaving a sparkle at under 3% of a character — which
+  // is what "it's so small" meant.
+  const CHARACTER = 2.4;
+  for (const preset of PARTICLE_PRESETS) {
+    const spec = presetSpec(preset);
+    const mid = (spec.size[0] + spec.size[1]) / 2;
+    const percent = (mid / CHARACTER) * 100;
+    assert.ok(percent >= 5, `${preset} is ${percent.toFixed(1)}% of a character — too small to see`);
+    assert.ok(percent <= 30, `${preset} is ${percent.toFixed(1)}% of a character — bigger than its own emitter`);
+  }
+});
+
+test('the size dial actually changes particle size', () => {
+  const measure = (scale) => {
+    const random = seeded(43);
+    const state = createParticleState();
+    setParticleSize(state, scale);
+    burstParticles(state, 'sparkle', ORIGIN, random);
+    return state.particles.reduce((a, p) => a + p.size, 0) / state.particles.length;
+  };
+  const normal = measure(1);
+  assert.ok(measure(2) > normal * 1.8, 'doubling the size did not double it');
+  assert.ok(measure(0.5) < normal * 0.6, 'halving the size did not shrink it');
+});
+
+test('the amount dial actually changes how many appear', () => {
+  const count = (scale) => {
+    const random = seeded(47);
+    const state = createParticleState();
+    setParticleAmount(state, scale);
+    burstParticles(state, 'sparkle', ORIGIN, random);
+    return state.particles.length;
+  };
+  const normal = count(1);
+  assert.ok(count(2) > normal, `2x gave ${count(2)} vs ${normal}`);
+  assert.ok(count(0.25) < normal, `0.25x gave ${count(0.25)} vs ${normal}`);
+});
+
+test('the dials are clamped, and nonsense leaves them alone', () => {
+  // `set particle size to 5000%` must not fill the screen with one square.
+  const state = createParticleState();
+  setParticleSize(state, 9999);
+  assert.strictEqual(state.sizeScale, SCALE_MAX);
+  setParticleSize(state, -5);
+  assert.strictEqual(state.sizeScale, SCALE_MIN);
+  setParticleAmount(state, NaN);
+  assert.strictEqual(state.amountScale, 1, 'NaN should leave the dial at its default');
+});
+
+test('a huge amount still respects the hard cap', () => {
+  const random = seeded(53);
+  const state = createParticleState();
+  setParticleAmount(state, SCALE_MAX);
+  for (let i = 0; i < 50; i++) burstParticles(state, 'explosion', ORIGIN, random);
+  assert.ok(state.particles.length <= MAX_PARTICLES, `grew to ${state.particles.length}`);
 });
 
 console.log(`\nparticles: ${passed} checks passed`);
