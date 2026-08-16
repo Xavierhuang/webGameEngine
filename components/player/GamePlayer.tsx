@@ -154,6 +154,18 @@ export default function GamePlayer({ project }: GamePlayerProps) {
    */
   const [runNonce, setRunNonce] = useState(0);
   const [askPrompt, setAskPrompt] = useState<{ prompt: string; resolve: (v: string) => void } | null>(null);
+  /**
+   * Whether the game has been won or lost, and any on-screen message.
+   *
+   * Mirrored into React state from the world once a frame. The world is the
+   * authority — any script can end the game — but the overlay is DOM, so it
+   * needs a render to react to.
+   */
+  const [outcome, setOutcome] = useState<{ state: 'playing' | 'won' | 'lost'; message: string }>({
+    state: 'playing',
+    message: '',
+  });
+  const [banner, setBanner] = useState<string | null>(null);
   const [askDraft, setAskDraft] = useState('');
   const stageRef = useRef<HTMLDivElement | null>(null);
 
@@ -244,9 +256,32 @@ export default function GamePlayer({ project }: GamePlayerProps) {
     try { return JSON.parse(raw || '{}'); } catch { return {}; }
   }
 
+  /*
+   * Poll the world for the outcome and any banner.
+   *
+   * Ten times a second, not every frame: this drives DOM, and a React render
+   * per frame beside a 3D scene is exactly the cost the rest of the player
+   * avoids. Nothing here is animated, so 100ms is imperceptible.
+   */
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const next = world.gameOutcome();
+      setOutcome((prev) =>
+        prev.state === next.state && prev.message === next.message ? prev : { ...next }
+      );
+      const now = performance.now() / 1000;
+      const text = world.currentMessage(now);
+      setBanner((prev) => (prev === text ? prev : text));
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [world]);
+
   const restartRun = () => {
     // Clear cross-run state, then remount every object.
     world.vars.clearAll?.();
+    world.resetOutcome();
+    setOutcome({ state: 'playing', message: '' });
+    setBanner(null);
     world.resetTimer(0);
     world.setAnswer('');
     setAskPrompt(null);
@@ -338,6 +373,44 @@ export default function GamePlayer({ project }: GamePlayerProps) {
             onError={(message) => logger.warn('[GamePlayer] camera:', message)}
           />
           {!showStartSplash && <TouchControls onKeyChange={handleTouchKey} />}
+
+          {/* On-screen message from `show ... for n secs`. */}
+          {banner && outcome.state === 'playing' && (
+            <div className="pointer-events-none absolute inset-x-0 top-6 z-20 flex justify-center px-4">
+              <div className="rounded-2xl bg-slate-900/80 px-5 py-2.5 text-center text-lg font-bold text-white shadow-lg">
+                {banner}
+              </div>
+            </div>
+          )}
+
+          {/*
+            The ending. A win and a loss look different on purpose — a child
+            should be able to tell which happened from across a classroom — and
+            both offer the way back in, because "game over" with no restart is
+            just a dead screen.
+          */}
+          {outcome.state !== 'playing' && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
+              <div className="mx-4 max-w-sm rounded-3xl bg-white px-8 py-7 text-center shadow-2xl">
+                <div className="text-5xl" aria-hidden>
+                  {outcome.state === 'won' ? '🎉' : '💥'}
+                </div>
+                <h2
+                  className={`mt-3 text-2xl font-black tracking-tight ${
+                    outcome.state === 'won' ? 'text-emerald-600' : 'text-slate-900'
+                  }`}
+                >
+                  {outcome.message || (outcome.state === 'won' ? 'You win!' : 'Game over')}
+                </h2>
+                <button
+                  onClick={restartRun}
+                  className="mt-5 inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                >
+                  Play again
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ask-and-wait prompt. Sits above the canvas and blocks until answered. */}
           {askPrompt && (

@@ -152,6 +152,10 @@ export type LogicBlockType =
   // Sensing statements
   | 'ask_and_wait'
   | 'reset_timer'
+  | 'you_win'
+  | 'game_over'
+  | 'show_message'
+  | 'clear_message'
   | 'camera_follow'
   | 'camera_stop_following'
   | 'camera_shake'

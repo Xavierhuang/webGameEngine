@@ -699,6 +699,53 @@ export class RuntimeWorld {
     return handles;
   }
 
+  /**
+   * How the game ended, and anything on screen.
+   *
+   * Held on the world because both are whole-game facts, not per-object ones:
+   * any script can end the game, and the player renders one overlay for it.
+   * Both example games had to fake an ending with a speech bubble and `stop`,
+   * which is what a missing feature looks like from the inside.
+   */
+  private outcome: { state: 'playing' | 'won' | 'lost'; message: string } = {
+    state: 'playing',
+    message: '',
+  };
+  private banner: { text: string; until: number } | null = null;
+
+  /** Back to playing, for Restart. */
+  resetOutcome() {
+    this.outcome = { state: 'playing', message: '' };
+    this.banner = null;
+  }
+
+  /** End the game. Ignored if it has already ended, so the first result wins. */
+  endGame(state: 'won' | 'lost', message = '') {
+    if (this.outcome.state !== 'playing') return;
+    this.outcome = { state, message };
+    this.stopAll();
+  }
+
+  gameOutcome(): { state: 'playing' | 'won' | 'lost'; message: string } {
+    return this.outcome;
+  }
+
+  /** On-screen text. `seconds` of 0 or less means until something clears it. */
+  showMessage(text: string, seconds: number, now: number) {
+    this.banner = { text, until: seconds > 0 ? now + seconds : Infinity };
+  }
+
+  clearMessage() {
+    this.banner = null;
+  }
+
+  /** The banner if it is still due, else null. */
+  currentMessage(now: number): string | null {
+    if (!this.banner) return null;
+    if (now >= this.banner.until) return null;
+    return this.banner.text;
+  }
+
   stopAll() {
     for (const runtime of this.runtimes.values()) {
       runtime.stopAll();
@@ -1265,6 +1312,23 @@ export class ObjectRuntime {
           }
           return;
         }
+        case 'you_win':
+        case 'game_over': {
+          const message = String(getInput(block, 'message', env,
+            block.block_type === 'you_win' ? 'You win!' : 'Game over!'));
+          this.world?.endGame(block.block_type === 'you_win' ? 'won' : 'lost', message);
+          throw STOP_SCRIPT;
+        }
+        case 'show_message':
+          this.world?.showMessage(
+            String(getInput(block, 'text', env, '')),
+            toNumber(getInput(block, 'seconds', env, 2)),
+            time
+          );
+          return;
+        case 'clear_message':
+          this.world?.clearMessage();
+          return;
         case 'stop': {
           const option = String(getInput(block, 'option', env, 'this_script')).toLowerCase();
           if (option === 'all') {

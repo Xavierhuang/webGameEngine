@@ -29,6 +29,10 @@ import type { Locale } from './messages';
 export type BlockMessages = Record<string, string>;
 
 const zh: BlockMessages = {
+  you_win: '你赢了！%1',
+  game_over: '游戏结束 %1',
+  show_message: '显示 %1 %2 秒',
+  clear_message: '清除消息',
   set_particle_size: '将粒子大小设为 %1 %%',
   set_particle_amount: '将粒子数量设为 %1 %%',
   camera_follow: '镜头跟随 %1',
@@ -97,6 +101,10 @@ const zh: BlockMessages = {
 };
 
 const es: BlockMessages = {
+  you_win: '¡has ganado! %1',
+  game_over: 'fin del juego %1',
+  show_message: 'mostrar %1 por %2 seg',
+  clear_message: 'quitar el mensaje',
   set_particle_size: 'fijar tamaño de partículas a %1 %%',
   set_particle_amount: 'fijar cantidad de partículas a %1 %%',
   camera_follow: 'la cámara sigue a %1',
@@ -165,6 +173,10 @@ const es: BlockMessages = {
 };
 
 const fr: BlockMessages = {
+  you_win: 'gagné ! %1',
+  game_over: 'partie terminée %1',
+  show_message: 'afficher %1 pendant %2 sec',
+  clear_message: 'effacer le message',
   set_particle_size: 'mettre la taille des particules à %1 %%',
   set_particle_amount: 'mettre la quantité de particules à %1 %%',
   camera_follow: 'la caméra suit %1',
@@ -233,6 +245,10 @@ const fr: BlockMessages = {
 };
 
 const pt: BlockMessages = {
+  you_win: 'você venceu! %1',
+  game_over: 'fim de jogo %1',
+  show_message: 'mostrar %1 por %2 seg',
+  clear_message: 'limpar a mensagem',
   set_particle_size: 'definir tamanho das partículas como %1 %%',
   set_particle_amount: 'definir quantidade de partículas como %1 %%',
   camera_follow: 'a câmera segue %1',
@@ -301,6 +317,10 @@ const pt: BlockMessages = {
 };
 
 const de: BlockMessages = {
+  you_win: 'gewonnen! %1',
+  game_over: 'Spiel vorbei %1',
+  show_message: 'zeige %1 für %2 Sek',
+  clear_message: 'lösche die Nachricht',
   set_particle_size: 'setze Partikelgröße auf %1 %%',
   set_particle_amount: 'setze Partikelmenge auf %1 %%',
   camera_follow: 'Kamera folgt %1',
@@ -369,6 +389,10 @@ const de: BlockMessages = {
 };
 
 const ja: BlockMessages = {
+  you_win: 'クリア！ %1',
+  game_over: 'ゲームオーバー %1',
+  show_message: '%1 を %2 秒表示する',
+  clear_message: 'メッセージを消す',
   set_particle_size: '粒子の大きさを %1 %% にする',
   set_particle_amount: '粒子の量を %1 %% にする',
   camera_follow: 'カメラが %1 を追いかける',

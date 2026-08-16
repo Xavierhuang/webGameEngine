@@ -37,6 +37,7 @@ const INVISIBLE = new Set([
   'set_variable', 'change_variable', 'add_to_list', 'delete_from_list',
   'insert_into_list', 'replace_in_list', 'delete_all_of_list',
   'broadcast', 'broadcast_and_wait', 'reset_timer',
+  'you_win', 'game_over',
   'ask_and_wait', 'ask_ai', 'ai_decide', 'translate_to',
 ]);
 
@@ -56,7 +57,8 @@ const NEEDS_SCENE: Array<{ label: string; blocks: string[] }> = [
     blocks: ['show', 'hide', 'set_size', 'change_size_by', 'say', 'think', 'clear_bubble',
              'set_color', 'set_effect', 'change_effect_by', 'clear_effects',
              'go_to_layer', 'change_layer_by', 'switch_costume_to', 'next_costume',
-             'switch_animation_to', 'show_variable', 'hide_variable', 'show_list', 'hide_list'],
+             'switch_animation_to', 'show_variable', 'hide_variable', 'show_list', 'hide_list',
+             'show_message', 'clear_message'],
   },
   {
     label: 'particles',

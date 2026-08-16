@@ -427,6 +427,27 @@ const statementDefs: object[] = [
     args0: [value('value')],
     previousStatement: null, nextStatement: null, colour: COLOUR.motion,
   },
+  // Ending a game, and putting words on the screen. Every kid's game needs
+  // both, and until now they had to be faked with a speech bubble and `stop`.
+  {
+    type: 'you_win', message0: 'you win! %1',
+    args0: [text('message', 'You win!')],
+    previousStatement: null, colour: COLOUR.control,
+  },
+  {
+    type: 'game_over', message0: 'game over %1',
+    args0: [text('message', 'Game over!')],
+    previousStatement: null, colour: COLOUR.control,
+  },
+  {
+    type: 'show_message', message0: 'show %1 for %2 secs',
+    args0: [value('text'), value('seconds')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
+    type: 'clear_message', message0: 'clear message',
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
   { type: 'reset_timer', message0: 'reset timer', previousStatement: null, nextStatement: null, colour: COLOUR.sensing },
   {
     type: 'set_video', message0: 'turn video %1',
@@ -667,6 +688,8 @@ export const TOOLBOX = {
         blk('say', { text: textShadow('Hello!'), seconds: numShadow(2) }),
         blk('think', { text: textShadow('Hmm...'), seconds: numShadow(2) }),
         blk('clear_bubble'),
+        blk('show_message', { text: textShadow('Ready?'), seconds: numShadow(2) }),
+        blk('clear_message'),
         blk('set_size', { pct: numShadow(100) }),
         blk('change_size_by', { delta: numShadow(10) }),
         blk('scale', { factor: numShadow(2) }),
@@ -725,6 +748,8 @@ export const TOOLBOX = {
         blk('repeat', { times: numShadow(4) }),
         blk('repeat_until'),
         blk('forever'),
+        blk('you_win'),
+        blk('game_over'),
         blk('stop'),
       ],
     },
