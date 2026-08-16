@@ -36,6 +36,14 @@ npm run test:journey # signs up and builds a game in a real browser
 `test:journey` needs a local server and database and creates a real account, so
 it is local-only — do not point it at production.
 
+**Every block a child can drag is checked to actually do something.**
+`test:palette-coverage` asserts each of the 128 blocks resolves to an
+interpreter case, a hat the runtime starts, or an operator — and that the
+toolbox never offers a type with no definition. That invariant was verified by
+hand once, when the palette was 107 blocks. A block that drags, snaps and saves
+but does nothing at runtime raises no error anywhere; a child just assumes they
+used it wrong.
+
 **Nor is a passing test suite proof anyone can see anything.** A child opened
 the Animation Editor and asked "why can't I see anything?" — the model had
 loaded, all 16 bones were listed, nothing threw, and every assertion was
