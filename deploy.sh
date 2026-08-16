@@ -89,6 +89,12 @@ ssh "$USER@$HOST" "set -e
     mysql \$MYSQL_ARGS \"\$DB\" -e \"INSERT INTO schema_migrations (filename) VALUES ('\$NAME');\"
   done
 
+  # Example games: idempotent, keyed on stable ids, so re-running updates them
+  # in place rather than adding copies. Runs with the migrations, before the
+  # rebuild, so a failure here is visible while the old site is still serving.
+  echo '  seeding example games'
+  npm run seed:examples || echo '  (example seeding failed — gallery keeps the previous copies)'
+
   # Stop BEFORE wiping .next. The old process used to keep serving during the
   # rebuild, handing browsers HTML that referenced chunk files the build had
   # just deleted — which white-screens the app with

@@ -439,7 +439,10 @@ function GameObject({
       );
     }
 
-    if (object.type === 'collectible' || shape === 'circle' || shape === 'sphere') {
+    // Same fix as the player: a collectible with a real model must render as
+    // that model, not as the default sphere.
+    if (!(shape === 'model' && modelUrl)
+        && (object.type === 'collectible' || shape === 'circle' || shape === 'sphere')) {
       return (
         <Sphere ref={meshRef} position={position} rotation={rotation} scale={scale[0]} onClick={onClick}>
           <meshStandardMaterial color={color} />

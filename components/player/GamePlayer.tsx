@@ -1724,7 +1724,12 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   }
 
   // Render based on shape
-  if (object.type === 'collectible' || shape === 'circle' || shape === 'sphere') {
+  // Collectibles default to a sphere, but not when they have a real model:
+  // this branch returned before the model branch below was ever reached, so
+  // every collectible with a 3D model — a star, a coin, a gem — rendered as a
+  // plain ball. Found by building the example games.
+  const hasModel = shape === 'model' && !!modelUrl;
+  if (!hasModel && (object.type === 'collectible' || shape === 'circle' || shape === 'sphere')) {
     return (
       <>
         <Sphere ref={meshRef} position={position} rotation={rotation} scale={scale[0]} onClick={() => world.notifyClicked(objectId)}>
