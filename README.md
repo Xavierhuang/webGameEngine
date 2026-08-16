@@ -166,9 +166,11 @@ Honest, not exhaustive:
   machine-translating a legal document is worse than not doing it. Scratch ships 70+ languages via a volunteer translation community; that
   is a contributor problem, not an engineering one.
 - **No error monitoring.** Failures surface in `journalctl -u lingplay`.
-- **The React Compiler rules are off in thirteen files.** Every one of the 67
-  violations was reviewed; one was a real defect and is fixed, and the rest are
-  deliberate patterns (SSR-safe state, an imperative game loop). The rules are
-  errors everywhere else. See the reasoning in `eslint.config.mjs`.
+- **The React Compiler rules are off in twelve files.** All 67 violations have
+  been read individually; two were real defects and are fixed (an impure
+  `performance.now()` during render, and a hook returning a stale ref
+  snapshot). The remaining 65 are deliberate patterns — SSR-safe state, an
+  imperative game loop, refs written inside pointer handlers. The rules are
+  errors everywhere else. Reasoning in `eslint.config.mjs`.
 - **None of this has been tested with an actual child.** Everything is verified
   against the author's assumptions about what a child will do.

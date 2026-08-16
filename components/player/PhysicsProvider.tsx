@@ -12,7 +12,6 @@ interface PhysicsProviderProps {
 }
 
 export function PhysicsProvider({ children }: PhysicsProviderProps) {
-  const worldRef = useRef<CANNON.World | null>(null);
   const bodiesRef = useRef<Map<string, CANNON.Body>>(new Map());
   
   // Create physics world
@@ -38,24 +37,22 @@ export function PhysicsProvider({ children }: PhysicsProviderProps) {
     return w;
   }, []);
   
-  worldRef.current = world;
-  
   // Step physics simulation
   useFrame((state, delta) => {
-    if (worldRef.current) {
+    if (world) {
       // Clamp delta to prevent large jumps
       const clampedDelta = Math.min(delta, 0.1);
-      worldRef.current.step(clampedDelta);
+      world.step(clampedDelta);
     }
   });
   
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (worldRef.current) {
+      if (world) {
         // Remove all bodies
-        worldRef.current.bodies.forEach((body) => {
-          worldRef.current?.removeBody(body);
+        world.bodies.forEach((body) => {
+          world.removeBody(body);
         });
         logger.debug('[PhysicsProvider] Physics world cleaned up');
       }
@@ -163,6 +160,11 @@ export function usePhysicsBody(
     }
   });
   
-  return bodyRef.current;
+  // The ref itself, not a snapshot of it. Returning `bodyRef.current` handed
+  // the caller whatever the body was during that render — null on the first
+  // one — and never re-rendered when the body was created, so the value was
+  // stale by construction. Nothing outside this module consumed it, so this is
+  // a correctness fix with no callers to update.
+  return bodyRef;
 }
 

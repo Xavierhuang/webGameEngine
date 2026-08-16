@@ -58,10 +58,14 @@ export default [
     /**
      * Files that predate these rules and where the flagged pattern is correct.
      *
-     * I went through all 67 violations individually. Exactly one was a real
-     * defect — FPSCounter seeded a ref with `performance.now()` during render,
-     * an impure call that also read a server clock the client never sees; that
-     * is fixed. The remaining 66 are deliberate and, in this codebase, right:
+     * Every violation has been read individually, twice. Two were real defects
+     * and are fixed: FPSCounter seeded a ref with `performance.now()` during
+     * render (an impure call that also read a server clock the client never
+     * sees), and usePhysicsBody returned `bodyRef.current` — a snapshot that
+     * was null on first render and never updated, stale by construction.
+     * PhysicsProvider is off this list as a result.
+     *
+     * The remaining 65 are deliberate and, in this codebase, right:
      *
      * - `set-state-in-effect` in TutorialPanel, projects/new, PaintEditor and
      *   ShapePreview. Each reads something that only exists in the browser —
@@ -80,8 +84,13 @@ export default [
      *   that bridge is a rewrite of the game loop with real risk to gameplay,
      *   in exchange for lint cleanliness.
      *
+     * One more category worth naming: TouchControls writes refs inside pointer
+     * handlers, which is correct at runtime — the rule is conservative about
+     * handlers defined in a component body. Restructuring working touch input
+     * to satisfy a static analysis would trade a real risk for a cosmetic one.
+     *
      * The cost of scoping it this way, stated plainly: new violations inside
-     * these thirteen files are not caught. Everywhere else in the app they are
+     * these twelve files are not caught. Everywhere else in the app they are
      * errors and fail the build. Shrinking this list is worthwhile work; doing
      * it under cover of a version upgrade was not.
      */
@@ -94,7 +103,6 @@ export default [
       'components/editor/SceneView.tsx',
       'components/editor/ShapePreview.tsx',
       'components/player/GamePlayer.tsx',
-      'components/player/PhysicsProvider.tsx',
       'components/player/TouchControls.tsx',
       'components/realtime/CollaborationProvider.tsx',
       'components/showcase/DragonShowcase.tsx',
