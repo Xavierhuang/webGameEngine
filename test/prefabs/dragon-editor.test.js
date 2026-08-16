@@ -12,7 +12,10 @@ test('each whole-word dragon alias resolves to the checked-in model prefab', () 
     const dragon = matchCharacterPrefab(prompt);
     assert.equal(dragon.name, 'Red Metal Dragon');
     assert.equal(dragon.model_url, '/models/red-metal-dragon.glb');
-    assert.equal(dragon.size, 28);
+    // 41, not the old 28: starter sizes are now normalised so every character
+  // arrives about 2.4 world units across. At 28 the dragon came in at 1.6u on
+  // a 20u grid, small enough that its own transform gizmo dwarfed it.
+  assert.equal(dragon.size, 41);
   }
 });
 
@@ -47,7 +50,7 @@ test('prefab response builder returns the complete dragon API fields', () => {
     },
     {
       model_url: '/models/red-metal-dragon.glb',
-      size: 28,
+      size: 41,
       source: 'prefab',
     }
   );
@@ -60,9 +63,9 @@ test('generate-character route delegates prefab responses to the tested builder'
 });
 
 test('model prefab size flows to sprite data and properties', () => {
-  const visual = buildCharacterVisual({ id: 'dragon', model_url: '/models/red-metal-dragon.glb', size: 28 });
-  assert.equal(visual.spriteData.size, 28);
-  assert.equal(visual.properties.size, 28);
+  const visual = buildCharacterVisual({ id: 'dragon', model_url: '/models/red-metal-dragon.glb', size: 41 });
+  assert.equal(visual.spriteData.size, 41);
+  assert.equal(visual.properties.size, 41);
 });
 
 test('an imported model without a size retains the fallback', () => {
