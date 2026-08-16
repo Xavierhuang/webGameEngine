@@ -5,6 +5,7 @@ import * as Blockly from 'blockly';
 import 'blockly/blocks'; // built-in procedures_defnoreturn / procedures_callnoreturn
 import { localizedBlockDefinitions, localizedToolbox } from '../../lib/blockly/definitions';
 import { useLocale, useTranslator } from '../common/LocaleProvider';
+import { summarisePreview, previewNotice } from '../../lib/editor/previewSupport';
 import { registerNameField, setKnownObjectNames, setKnownSounds } from '../../lib/blockly/nameField';
 import { SOUND_CATALOG } from '../../lib/audio/soundCatalog';
 import { blocklyToLogic, logicToBlockly, normalizeDbBlocks } from '../../lib/blockly/serializer';
@@ -108,6 +109,14 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
   const hostRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [isPreviewing, setIsPreviewing] = useState(false);
+  /**
+   * What this script does that the preview cannot show.
+   *
+   * The preview's context stubs out every visual method, so particles,
+   * movement, the pen and the camera all run into a void. Saying so is the
+   * difference between "nothing happened" and "press Play".
+   */
+  const [previewNote, setPreviewNote] = useState<string | null>(null);
   const previewStopRef = useRef<(() => void) | null>(null);
 
   // Public stop handle for the Stop overlay button and unmount cleanup.
@@ -292,6 +301,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
         window.clearInterval(interval);
         try { ctx.stopAllSounds?.(); } catch { /* noop */ }
       };
+      setPreviewNote(previewNotice(summarisePreview(body as any)));
       setIsPreviewing(true);
     };
 
@@ -342,6 +352,11 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
       </div>
       <div className="relative flex-1 min-h-0">
         <div ref={hostRef} className="absolute inset-0" />
+        {isPreviewing && previewNote && (
+          <div className="absolute top-16 right-3 z-10 max-w-xs rounded-xl bg-slate-900/90 px-3 py-2 text-xs leading-relaxed text-slate-100 shadow-lg">
+            {previewNote}
+          </div>
+        )}
         {isPreviewing && (
           <button
             type="button"
