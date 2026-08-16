@@ -847,8 +847,22 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
     setIsVisible(visible);
   });
   
-  // Always render characters (they're important)
-  if (object.type === 'character') {
+  /*
+   * Frustum culling must never stop a script.
+   *
+   * Unmounting an object destroys its ObjectRuntime, so its blocks stop
+   * running — `when game starts` never fires for anything the camera is not
+   * looking at, and an object that scrolls off screen goes quiet and stays
+   * quiet. Reported as "I don't see any particles": a burst on a platform
+   * simply never ran.
+   *
+   * Culling is a rendering optimisation and has no business deciding which
+   * scripts execute. Anything with blocks now always mounts; the saving on a
+   * scripted object was never the point, and scenery with no blocks is still
+   * culled as before.
+   */
+  const hasScripts = Array.isArray(object.logic_blocks) && object.logic_blocks.length > 0;
+  if (object.type === 'character' || hasScripts) {
     return (
       <GameObject
         object={object}
@@ -1396,7 +1410,23 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   // Physics simulation (simple gravity and movement)
   const hasInitializedPosition = useRef(false);
   useFrame((state, delta) => {
-    if (!meshRef.current) return;
+    /*
+     * Scripts must run even when this object has no mesh ref.
+     *
+     * Platforms render through their own <group> and never attach meshRef, so
+     * this guard used to return before the interpreter was stepped — meaning
+     * no script on a platform had ever run. Not just particles: `when game
+     * starts` did nothing there, for any block at all. Reported as "I don't
+     * see any particles", found by instrumenting rather than reading.
+     *
+     * Everything below this point is mesh work and still needs the ref.
+     */
+    if (!meshRef.current) {
+      if (runtime?.hasScripts && world.started) {
+        runtime.step(delta, state.clock.elapsedTime);
+      }
+      return;
+    }
 
     // Enable physics if object has physics enabled OR has movement logic blocks
     const shouldHavePhysics = object.has_physics || hasMovementLogic || isCharacter;
