@@ -695,7 +695,11 @@ export const TOOLBOX = {
       kind: 'category', name: 'Events', colour: String(COLOUR.event),
       contents: [
         ...['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'when_scene_starts'].map((t) => blk(t)),
-        blk('when_video_motion', { threshold: numShadow(10) }),
+        // No shadow: `threshold` is a field on this block, not a value input,
+        // and attaching a shadow block to a field leaves Blockly unable to
+        // build the entry — which collapsed the whole Events flyout on top of
+        // itself.
+        blk('when_video_motion'),
         blk('broadcast'),
         blk('broadcast_and_wait'),
       ],

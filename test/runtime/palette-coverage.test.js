@@ -126,4 +126,46 @@ test('the toolbox only offers blocks that exist', () => {
   );
 });
 
+test('a toolbox shadow is only ever attached to a value input', () => {
+  /*
+   * Reported as "why are the blocks overlapping?" — a screenshot of the Events
+   * category with every block drawn on top of the others.
+   *
+   * The cause was a toolbox entry attaching a shadow block to `threshold`,
+   * which that block declares as a field rather than a value input. Blockly
+   * cannot build such an entry, and the failure does not throw: it corrupts
+   * the flyout's layout, so the whole category renders in one pile.
+   *
+   * Nothing else catches this. The block exists, the toolbox references a real
+   * type, and every test passes.
+   */
+  const { TOOLBOX, BLOCK_DEFINITIONS } = require('../.build/lib/blockly/definitions');
+  const defs = Object.fromEntries(BLOCK_DEFINITIONS.filter((d) => d.type).map((d) => [d.type, d]));
+  const problems = [];
+  const walk = (node) => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (!node || typeof node !== 'object') return;
+    if (node.kind === 'block' && node.type && node.inputs) {
+      const def = defs[node.type];
+      if (def) {
+        const valueInputs = new Set(
+          (def.args0 || []).filter((a) => a.type === 'input_value').map((a) => a.name)
+        );
+        for (const key of Object.keys(node.inputs)) {
+          if (!valueInputs.has(key)) {
+            problems.push(`${node.type}.${key} is not a value input`);
+          }
+        }
+      }
+    }
+    for (const v of Object.values(node)) if (v && typeof v === 'object') walk(v);
+  };
+  walk(TOOLBOX);
+  assert.deepStrictEqual(
+    problems,
+    [],
+    `these toolbox entries would break their category's layout:\n  ${problems.join('\n  ')}`
+  );
+});
+
 console.log(`\npalette coverage: ${passed} checks passed`);
