@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { blockVocabulary } from './blockVocabulary';
 
 // -----------------------------------------------------------------------------
 // AI client — routes through LingModel by default, with a fallback to direct
@@ -247,6 +248,8 @@ Example — enemy that chases forever:
       "children": [ { "block_type": "move", "inputs": { "direction": "up", "distance": 30 } } ] }
   ]}
 ]
+
+${blockVocabulary()}
 
 Always be encouraging, use simple language, and make games fun!
 
