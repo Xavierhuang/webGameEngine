@@ -81,9 +81,13 @@ export function VideoSensing({
    * rule, not a place to put fresh violations.
    */
   const onMotionRef = useRef(onMotion);
+  const onErrorRef = useRef(onError);
+  const onReadyRef = useRef(onReady);
   useEffect(() => {
     onMotionRef.current = onMotion;
-  }, [onMotion]);
+    onErrorRef.current = onError;
+    onReadyRef.current = onReady;
+  }, [onMotion, onError, onReady]);
 
   useEffect(() => {
     const stop = () => {
@@ -98,7 +102,7 @@ export function VideoSensing({
     const start = async () => {
       if (streamRef.current) return;
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        onError?.("This browser can't use the camera.");
+        onErrorRef.current?.("This browser can't use the camera.");
         return;
       }
       try {
@@ -147,7 +151,7 @@ export function VideoSensing({
           previousRef.current = new Uint8ClampedArray(frame);
         }, SAMPLE_INTERVAL_MS);
       } catch (e: any) {
-        onError?.(
+        onErrorRef.current?.(
           e?.name === 'NotAllowedError'
             ? 'Camera permission was blocked. Allow it to use the video blocks.'
             : "Couldn't start the camera."
@@ -172,13 +176,15 @@ export function VideoSensing({
       },
     };
     handleRef.current = controller;
-    onReady?.(controller);
+    onReadyRef.current?.(controller);
 
     return () => {
       handleRef.current = null;
       stop();
     };
-  }, [handleRef, onError, onReady]);
+    // Runs once. Depending on the callbacks would tear the camera down and
+    // reopen it on every render, since the player passes inline arrows.
+  }, [handleRef]);
 
   // Nothing to render: the video element is offscreen and the canvas is only a
   // sampling buffer. Drawing the feed behind the scene is a separate concern.

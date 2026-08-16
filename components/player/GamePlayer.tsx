@@ -36,6 +36,7 @@ import AudioManager from '../../lib/audio/AudioManager';
 import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
 import { SceneLights } from '@/components/three/SceneLights';
 import { VideoSensing, type VideoSensingHandle } from './VideoSensing';
+import { ParticleField, type ParticleController } from './ParticleField';
 
 // -----------------------------------------------------------------------------
 // Per-extension mesh components. Each one always calls exactly one loader hook,
@@ -131,6 +132,8 @@ export default function GamePlayer({ project }: GamePlayerProps) {
    * context is built further down.
    */
   const videoHandleRef = useRef<VideoSensingHandle | null>(null);
+  /** Particle controller, handed over by <ParticleField/> once it mounts. */
+  const particlesRef = useRef<ParticleController | null>(null);
   const worldRef = useRef<RuntimeWorld | null>(null);
   if (!worldRef.current) {
     worldRef.current = new RuntimeWorld();
@@ -410,6 +413,14 @@ export default function GamePlayer({ project }: GamePlayerProps) {
           }}
         >
           <SceneLights />
+          {/* One points cloud for every emitter in the scene. */}
+          <ParticleField
+            onReady={(c) => {
+              particlesRef.current = c;
+              worldRef.current?.registerParticleController(c);
+            }}
+            onBeforeStep={() => worldRef.current?.syncParticlePositions()}
+          />
           <Grid
             args={[SCENE.GRID_SIZE, SCENE.GRID_SIZE]}
             cellSize={SCENE.GRID_CELL_SIZE}

@@ -369,6 +369,28 @@ const statementDefs: object[] = [
     type: 'ask_and_wait', message0: 'ask %1 and wait', args0: [value('prompt')],
     previousStatement: null, nextStatement: null, colour: COLOUR.sensing,
   },
+  // Particle effects. Presets rather than parameters: a child wants sparkles,
+  // not an emission rate.
+  {
+    type: 'burst_particles', message0: 'burst %1',
+    args0: [dropdown('effect', [
+      ['sparkles', 'sparkle'], ['smoke', 'smoke'], ['fire', 'fire'], ['confetti', 'confetti'],
+      ['bubbles', 'bubbles'], ['magic', 'magic'], ['explosion', 'explosion'], ['snow', 'snow'],
+    ])],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
+    type: 'start_particles', message0: 'start %1 trail',
+    args0: [dropdown('effect', [
+      ['sparkles', 'sparkle'], ['smoke', 'smoke'], ['fire', 'fire'], ['confetti', 'confetti'],
+      ['bubbles', 'bubbles'], ['magic', 'magic'], ['snow', 'snow'],
+    ])],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
+    type: 'stop_particles', message0: 'stop my trail',
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
   { type: 'reset_timer', message0: 'reset timer', previousStatement: null, nextStatement: null, colour: COLOUR.sensing },
   {
     type: 'set_video', message0: 'turn video %1',
@@ -611,6 +633,9 @@ export const TOOLBOX = {
         blk('set_effect', { value: numShadow(50) }),
         blk('change_effect_by', { delta: numShadow(25) }),
         blk('clear_effects'),
+        blk('burst_particles'),
+        blk('start_particles'),
+        blk('stop_particles'),
         blk('go_to_layer'),
         blk('change_layer_by', { amount: numShadow(1) }),
         blk('switch_to_scene'),

@@ -29,6 +29,9 @@ import type { Locale } from './messages';
 export type BlockMessages = Record<string, string>;
 
 const zh: BlockMessages = {
+  burst_particles: '喷发 %1',
+  start_particles: '开始 %1 拖尾',
+  stop_particles: '停止拖尾',
   when_video_motion: '当视频动作 > %1',
   set_video: '%1 摄像头',
   set_video_transparency: '将视频透明度设为 %1',
@@ -87,6 +90,9 @@ const zh: BlockMessages = {
 };
 
 const es: BlockMessages = {
+  burst_particles: 'estallido de %1',
+  start_particles: 'empezar rastro de %1',
+  stop_particles: 'parar mi rastro',
   when_video_motion: 'cuando el movimiento de vídeo > %1',
   set_video: '%1 el vídeo',
   set_video_transparency: 'fijar transparencia de vídeo a %1',
@@ -145,6 +151,9 @@ const es: BlockMessages = {
 };
 
 const fr: BlockMessages = {
+  burst_particles: 'jet de %1',
+  start_particles: 'démarrer une traînée de %1',
+  stop_particles: 'arrêter ma traînée',
   when_video_motion: 'quand le mouvement vidéo > %1',
   set_video: '%1 la vidéo',
   set_video_transparency: 'mettre la transparence vidéo à %1',
@@ -203,6 +212,9 @@ const fr: BlockMessages = {
 };
 
 const pt: BlockMessages = {
+  burst_particles: 'explosão de %1',
+  start_particles: 'começar rastro de %1',
+  stop_particles: 'parar meu rastro',
   when_video_motion: 'quando o movimento de vídeo > %1',
   set_video: '%1 o vídeo',
   set_video_transparency: 'definir transparência do vídeo como %1',
@@ -261,6 +273,9 @@ const pt: BlockMessages = {
 };
 
 const de: BlockMessages = {
+  burst_particles: '%1 ausstoßen',
+  start_particles: '%1-Spur starten',
+  stop_particles: 'meine Spur stoppen',
   when_video_motion: 'wenn Videobewegung > %1',
   set_video: 'Video %1',
   set_video_transparency: 'setze Videotransparenz auf %1',
@@ -319,6 +334,9 @@ const de: BlockMessages = {
 };
 
 const ja: BlockMessages = {
+  burst_particles: '%1 を出す',
+  start_particles: '%1 の跡を始める',
+  stop_particles: '跡をやめる',
   when_video_motion: 'ビデオの動きが %1 より大きいとき',
   set_video: 'ビデオを %1',
   set_video_transparency: 'ビデオの透明度を %1 にする',
@@ -408,6 +426,14 @@ export function blockLabel(type: string, english: string, locale: Locale | strin
  */
 export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
   zh: {
+    'sparkles': '闪光',
+    'smoke': '烟雾',
+    'fire': '火焰',
+    'confetti': '彩纸',
+    'bubbles': '泡泡',
+    'magic': '魔法',
+    'explosion': '爆炸',
+    'snow': '雪',
     'on': '打开',
     'off': '关闭',
     'on flipped': '打开并左右翻转',
@@ -424,6 +450,14 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: '波兰语', Russian: '俄语', Arabic: '阿拉伯语', Hindi: '印地语', Turkish: '土耳其语', Swedish: '瑞典语',
   },
   es: {
+    'sparkles': 'destellos',
+    'smoke': 'humo',
+    'fire': 'fuego',
+    'confetti': 'confeti',
+    'bubbles': 'burbujas',
+    'magic': 'magia',
+    'explosion': 'explosión',
+    'snow': 'nieve',
     'on': 'encender',
     'off': 'apagar',
     'on flipped': 'encender reflejado',
@@ -441,6 +475,14 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: 'polaco', Russian: 'ruso', Arabic: 'árabe', Hindi: 'hindi', Turkish: 'turco', Swedish: 'sueco',
   },
   fr: {
+    'sparkles': 'étincelles',
+    'smoke': 'fumée',
+    'fire': 'feu',
+    'confetti': 'confettis',
+    'bubbles': 'bulles',
+    'magic': 'magie',
+    'explosion': 'explosion',
+    'snow': 'neige',
     'on': 'activer',
     'off': 'désactiver',
     'on flipped': 'activer en miroir',
@@ -459,6 +501,14 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: 'polonais', Russian: 'russe', Arabic: 'arabe', Hindi: 'hindi', Turkish: 'turc', Swedish: 'suédois',
   },
   pt: {
+    'sparkles': 'brilhos',
+    'smoke': 'fumaça',
+    'fire': 'fogo',
+    'confetti': 'confete',
+    'bubbles': 'bolhas',
+    'magic': 'magia',
+    'explosion': 'explosão',
+    'snow': 'neve',
     'on': 'ligar',
     'off': 'desligar',
     'on flipped': 'ligar espelhado',
@@ -476,6 +526,14 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: 'polonês', Russian: 'russo', Arabic: 'árabe', Hindi: 'híndi', Turkish: 'turco', Swedish: 'sueco',
   },
   de: {
+    'sparkles': 'Funken',
+    'smoke': 'Rauch',
+    'fire': 'Feuer',
+    'confetti': 'Konfetti',
+    'bubbles': 'Blasen',
+    'magic': 'Magie',
+    'explosion': 'Explosion',
+    'snow': 'Schnee',
     'on': 'an',
     'off': 'aus',
     'on flipped': 'an gespiegelt',
@@ -493,6 +551,14 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     Polish: 'Polnisch', Russian: 'Russisch', Arabic: 'Arabisch', Hindi: 'Hindi', Turkish: 'Türkisch', Swedish: 'Schwedisch',
   },
   ja: {
+    'sparkles': 'キラキラ',
+    'smoke': 'けむり',
+    'fire': '炎',
+    'confetti': '紙吹雪',
+    'bubbles': 'あわ',
+    'magic': 'まほう',
+    'explosion': 'ばくはつ',
+    'snow': '雪',
     'on': 'オンにする',
     'off': 'オフにする',
     'on flipped': '左右反転してオンにする',

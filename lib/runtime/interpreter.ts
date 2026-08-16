@@ -515,6 +515,45 @@ export class RuntimeWorld {
     this.videoController?.setTransparency(value);
   }
 
+  /**
+   * The particle cloud, registered by the player.
+   *
+   * Same reasoning as the camera: the blocks run inside per-object components
+   * that cannot see the renderer, and the world is the object every script
+   * already shares. Positions are read from the object's own registered
+   * getPosition(), so a trail follows its object without the interpreter
+   * having to carry coordinates around.
+   */
+  private particles: {
+    burst(objectId: string, preset: string, at: [number, number, number]): void;
+    setTrail(objectId: string, preset: string | null): void;
+    updatePosition(objectId: string, at: [number, number, number]): void;
+    remove(objectId: string): void;
+  } | null = null;
+
+  registerParticleController(controller: RuntimeWorld['particles']) {
+    this.particles = controller;
+  }
+
+  /** Burst at an object's current position. */
+  burstParticlesFor(objectId: string, preset: string) {
+    const at = this.objects.get(objectId)?.getPosition();
+    this.particles?.burst(objectId, preset, at ? [at.x, at.y, at.z] : [0, 0, 0]);
+  }
+
+  setParticleTrailFor(objectId: string, preset: string | null) {
+    this.particles?.setTrail(objectId, preset);
+  }
+
+  /** Called each frame so trails follow their objects. */
+  syncParticlePositions() {
+    if (!this.particles) return;
+    for (const [id, hooks] of this.objects) {
+      const at = hooks.getPosition();
+      this.particles.updatePosition(id, [at.x, at.y, at.z]);
+    }
+  }
+
   /** Called by the player once per frame while the camera is on. */
   setVideoMotion(amount: number, direction: number) {
     this.video.amount = amount;
@@ -565,6 +604,7 @@ export class RuntimeWorld {
   }
 
   unregister(id: string) {
+    this.particles?.remove(id);
     this.objects.delete(id);
     this.runtimes.delete(id);
     this.clickCounts.delete(id);
@@ -1444,7 +1484,26 @@ export class ObjectRuntime {
           this.world?.setAnswer(answer);
           return;
         }
-          case 'set_video': {
+          // getInput, not block.inputs: a block round-tripped through the
+        // database carries its fields under block_data, and reading `inputs`
+        // directly meant every effect silently fell back to the default. The
+        // dropdown looked like it worked and did nothing.
+        case 'burst_particles':
+          this.world?.burstParticlesFor(
+            this.objectId,
+            String(getInput(block, 'effect', env, 'sparkle'))
+          );
+          return;
+        case 'start_particles':
+          this.world?.setParticleTrailFor(
+            this.objectId,
+            String(getInput(block, 'effect', env, 'sparkle'))
+          );
+          return;
+        case 'stop_particles':
+          this.world?.setParticleTrailFor(this.objectId, null);
+          return;
+        case 'set_video': {
           const state = String(block.inputs?.state ?? 'on');
           this.world?.requestVideo(state === 'off' ? 'off' : state === 'flipped' ? 'flipped' : 'on');
           return;
