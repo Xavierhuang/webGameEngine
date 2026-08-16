@@ -202,4 +202,35 @@ test('the same seed produces the same simulation', () => {
   assert.strictEqual(run(), run());
 });
 
+test('particles settle on the ground instead of falling through it', () => {
+  // Confetti has strong downward gravity. Without a floor it was below the
+  // scene's ground plane within a second, which is why a trail looked like
+  // nothing was happening.
+  const random = seeded(31);
+  const state = burstParticles(createParticleState(), 'confetti', { x: 0, y: 0, z: 0 }, random);
+  for (let i = 0; i < 90; i++) stepParticles(state, 1 / 60, { random, floorY: -2 });
+  const below = state.particles.filter((p) => p.y < -2.001);
+  assert.deepStrictEqual(below.map((p) => p.y.toFixed(2)), [], 'particles fell through the floor');
+  assert.ok(state.particles.length > 0, 'everything expired before the check was meaningful');
+});
+
+test('settled particles stay put rather than bouncing', () => {
+  // Confetti is thrown upward first, so it needs a moment to come back down —
+  // 60 frames was not long enough for any of it to land.
+  const random = seeded(37);
+  const state = burstParticles(createParticleState(), 'confetti', { x: 0, y: 0, z: 0 }, random);
+  for (let i = 0; i < 90; i++) stepParticles(state, 1 / 60, { random, floorY: -0.5 });
+  const resting = state.particles.filter((p) => Math.abs(p.y + 0.5) < 0.001);
+  assert.ok(resting.length > 0, 'nothing reached the floor');
+  for (const p of resting) assert.strictEqual(p.vy, 0, 'a settled particle kept vertical speed');
+});
+
+test('rising presets are unaffected by the floor', () => {
+  const random = seeded(41);
+  const state = burstParticles(createParticleState(), 'fire', { x: 0, y: 0, z: 0 }, random);
+  for (let i = 0; i < 20; i++) stepParticles(state, 1 / 60, { random, floorY: -2 });
+  const meanY = state.particles.reduce((a, p) => a + p.y, 0) / state.particles.length;
+  assert.ok(meanY > 0, `fire sank to ${meanY.toFixed(2)}`);
+});
+
 console.log(`\nparticles: ${passed} checks passed`);

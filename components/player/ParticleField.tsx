@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { PHYSICS } from '@/lib/constants/game';
 import {
   createParticleState,
   burstParticles,
@@ -205,6 +206,8 @@ export function ParticleField({
       stepParticles(emitter.state, delta, {
         trail: emitter.trail,
         at: { x: emitter.at[0], y: emitter.at[1], z: emitter.at[2] },
+        // Settle on the scene's ground rather than sinking through it.
+        floorY: PHYSICS.GROUND_Y,
       });
 
       for (const p of emitter.state.particles) {

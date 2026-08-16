@@ -209,6 +209,14 @@ export function stepParticles(
     trail?: ParticlePreset | null;
     at?: { x: number; y: number; z: number };
     random?: Random;
+    /**
+     * Ground level. Particles settle here instead of continuing downward.
+     *
+     * Without it, anything with negative gravity — confetti, sparks, snow —
+     * falls straight through the floor and out of sight within a second, which
+     * is what made a confetti trail look like nothing was happening at all.
+     */
+    floorY?: number;
   } = {}
 ): ParticleState {
   const step = Math.max(0, Math.min(0.1, dt));
@@ -245,6 +253,16 @@ export function stepParticles(
     p.x += p.vx * step;
     p.y += p.vy * step;
     p.z += p.vz * step;
+
+    if (options.floorY !== undefined && p.y < options.floorY) {
+      // Settle rather than bounce: a bouncing sparkle reads as a bug, and a
+      // scatter of confetti lying on the ground reads as confetti.
+      p.y = options.floorY;
+      p.vy = 0;
+      p.vx *= 0.5;
+      p.vz *= 0.5;
+    }
+
     alive.push(p);
   }
   state.particles = alive;

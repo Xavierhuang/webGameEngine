@@ -569,10 +569,30 @@ export class RuntimeWorld {
     this.particles = controller;
   }
 
+  /**
+   * Where particles should come out of an object.
+   *
+   * The object's own position is its origin, which for a character sitting on
+   * the ground is its feet. Emitting there put every particle at floor level,
+   * so anything that falls — confetti, sparks — sank straight through the
+   * ground plane and vanished within a second. Measured: the emitter sat at
+   * y = -2 and particles were at y = -3.5 three seconds later, well under the
+   * floor.
+   *
+   * Lifting by the object's own radius puts the source at roughly its middle,
+   * which is where a child expects sparkles to come from anyway.
+   */
+  private emitPointFor(objectId: string): [number, number, number] {
+    const hooks = this.objects.get(objectId);
+    const at = hooks?.getPosition();
+    if (!at) return [0, 0, 0];
+    const lift = hooks?.getRadius ? Math.max(0, hooks.getRadius()) : 0;
+    return [at.x, at.y + lift, at.z];
+  }
+
   /** Burst at an object's current position. */
   burstParticlesFor(objectId: string, preset: string) {
-    const at = this.objects.get(objectId)?.getPosition();
-    this.particles?.burst(objectId, preset, at ? [at.x, at.y, at.z] : [0, 0, 0]);
+    this.particles?.burst(objectId, preset, this.emitPointFor(objectId));
   }
 
   setParticleTrailFor(objectId: string, preset: string | null) {
@@ -582,9 +602,8 @@ export class RuntimeWorld {
   /** Called each frame so trails follow their objects. */
   syncParticlePositions() {
     if (!this.particles) return;
-    for (const [id, hooks] of this.objects) {
-      const at = hooks.getPosition();
-      this.particles.updatePosition(id, [at.x, at.y, at.z]);
+    for (const id of this.objects.keys()) {
+      this.particles.updatePosition(id, this.emitPointFor(id));
     }
   }
 

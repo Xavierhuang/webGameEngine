@@ -20,13 +20,20 @@ const TITLE_NOUNS = [
   'Island', 'Party', 'Castle', 'Rescue', 'Chase', 'Treasure',
   'Jungle', 'Voyage',
 ];
-const DESCRIPTIONS = [
-  "A super fun game I'm making!",
-  'A game about a brave hero on an epic journey.',
-  'Collect coins, dodge enemies, save the day!',
-  'A colorful world full of surprises.',
-  'Jump, run, and explore!',
-];
+/*
+ * New projects start with no description.
+ *
+ * They used to get a random one from a list, and two of those described
+ * specific gameplay — "Collect coins, dodge enemies, save the day!" sat above
+ * an empty field containing one character and a platform. A child reads that,
+ * looks at the screen, and concludes their game is broken. It was reported
+ * exactly that way: "what should I see in the screen?"
+ *
+ * A random *title* is a friendly nudge and can't be wrong. A description is a
+ * claim about contents, and a wrong claim costs trust the moment it is
+ * compared with the screen. Blank, with a placeholder inviting them to write
+ * one when they have something to describe.
+ */
 const GENRES: { value: string; label: string; emoji: string }[] = [
   { value: 'platformer', label: 'Platformer', emoji: '🏃' },
   { value: 'puzzle', label: 'Puzzle', emoji: '🧩' },
@@ -40,7 +47,7 @@ const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
 const randomTitle = () => `${pick(TITLE_ADJECTIVES)} ${pick(TITLE_NOUNS)}`;
 const randomDefaults = () => ({
   title: randomTitle(),
-  description: pick(DESCRIPTIONS),
+  description: '',
   genre: pick(GENRES.filter((g) => g.value !== 'other')).value,
 });
 
