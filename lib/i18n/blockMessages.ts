@@ -29,6 +29,11 @@ import type { Locale } from './messages';
 export type BlockMessages = Record<string, string>;
 
 const zh: BlockMessages = {
+  camera_follow: '镜头跟随 %1',
+  camera_stop_following: '镜头停止跟随',
+  camera_shake: '镜头震动 %1 持续 %2 秒',
+  camera_zoom: '将镜头缩放设为 %1',
+  camera_zoom_by: '将镜头缩放增加 %1',
   burst_particles: '喷发 %1',
   start_particles: '开始 %1 拖尾',
   stop_particles: '停止拖尾',
@@ -90,6 +95,11 @@ const zh: BlockMessages = {
 };
 
 const es: BlockMessages = {
+  camera_follow: 'la cámara sigue a %1',
+  camera_stop_following: 'la cámara deja de seguir',
+  camera_shake: 'sacudir la cámara %1 por %2 seg',
+  camera_zoom: 'fijar zoom de cámara a %1',
+  camera_zoom_by: 'cambiar zoom de cámara por %1',
   burst_particles: 'estallido de %1',
   start_particles: 'empezar rastro de %1',
   stop_particles: 'parar mi rastro',
@@ -151,6 +161,11 @@ const es: BlockMessages = {
 };
 
 const fr: BlockMessages = {
+  camera_follow: 'la caméra suit %1',
+  camera_stop_following: 'la caméra arrête de suivre',
+  camera_shake: 'secouer la caméra %1 pendant %2 sec',
+  camera_zoom: 'mettre le zoom caméra à %1',
+  camera_zoom_by: 'ajouter %1 au zoom caméra',
   burst_particles: 'jet de %1',
   start_particles: 'démarrer une traînée de %1',
   stop_particles: 'arrêter ma traînée',
@@ -212,6 +227,11 @@ const fr: BlockMessages = {
 };
 
 const pt: BlockMessages = {
+  camera_follow: 'a câmera segue %1',
+  camera_stop_following: 'a câmera para de seguir',
+  camera_shake: 'sacudir a câmera %1 por %2 seg',
+  camera_zoom: 'definir zoom da câmera como %1',
+  camera_zoom_by: 'mudar zoom da câmera em %1',
   burst_particles: 'explosão de %1',
   start_particles: 'começar rastro de %1',
   stop_particles: 'parar meu rastro',
@@ -273,6 +293,11 @@ const pt: BlockMessages = {
 };
 
 const de: BlockMessages = {
+  camera_follow: 'Kamera folgt %1',
+  camera_stop_following: 'Kamera folgt nicht mehr',
+  camera_shake: 'Kamera %1 für %2 Sek wackeln',
+  camera_zoom: 'setze Kamerazoom auf %1',
+  camera_zoom_by: 'ändere Kamerazoom um %1',
   burst_particles: '%1 ausstoßen',
   start_particles: '%1-Spur starten',
   stop_particles: 'meine Spur stoppen',
@@ -334,6 +359,11 @@ const de: BlockMessages = {
 };
 
 const ja: BlockMessages = {
+  camera_follow: 'カメラが %1 を追いかける',
+  camera_stop_following: 'カメラの追跡をやめる',
+  camera_shake: 'カメラを %1 の強さで %2 秒ゆらす',
+  camera_zoom: 'カメラのズームを %1 にする',
+  camera_zoom_by: 'カメラのズームを %1 ずつ変える',
   burst_particles: '%1 を出す',
   start_particles: '%1 の跡を始める',
   stop_particles: '跡をやめる',

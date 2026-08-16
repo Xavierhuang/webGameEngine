@@ -37,6 +37,7 @@ import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../t
 import { SceneLights } from '@/components/three/SceneLights';
 import { VideoSensing, type VideoSensingHandle } from './VideoSensing';
 import { ParticleField, type ParticleController } from './ParticleField';
+import { CameraDirector } from './CameraDirector';
 
 // -----------------------------------------------------------------------------
 // Per-extension mesh components. Each one always calls exactly one loader hook,
@@ -420,6 +421,14 @@ export default function GamePlayer({ project }: GamePlayerProps) {
               worldRef.current?.registerParticleController(c);
             }}
             onBeforeStep={() => worldRef.current?.syncParticlePositions()}
+          />
+          {/* Applies the camera blocks. Leaves the camera untouched until a
+              script actually uses one. */}
+          <CameraDirector
+            onReady={(c) => worldRef.current?.registerCameraController(c)}
+            getObjectPosition={(name) =>
+              worldRef.current?.getObjectPositionByName(name) ?? null
+            }
           />
           <Grid
             args={[SCENE.GRID_SIZE, SCENE.GRID_SIZE]}

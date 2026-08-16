@@ -391,6 +391,32 @@ const statementDefs: object[] = [
     type: 'stop_particles', message0: 'stop my trail',
     previousStatement: null, nextStatement: null, colour: COLOUR.looks,
   },
+  // Camera. Scratch has no equivalent — its stage is fixed — so this is the
+  // difference between a diorama and a game.
+  {
+    type: 'camera_follow', message0: 'camera follow %1',
+    args0: [nameField('target', 'object', 'Hero')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.motion,
+  },
+  {
+    type: 'camera_stop_following', message0: 'camera stop following',
+    previousStatement: null, nextStatement: null, colour: COLOUR.motion,
+  },
+  {
+    type: 'camera_shake', message0: 'shake camera %1 for %2 secs',
+    args0: [value('strength'), value('seconds')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.motion,
+  },
+  {
+    type: 'camera_zoom', message0: 'set camera zoom to %1',
+    args0: [value('value')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.motion,
+  },
+  {
+    type: 'camera_zoom_by', message0: 'change camera zoom by %1',
+    args0: [value('value')],
+    previousStatement: null, nextStatement: null, colour: COLOUR.motion,
+  },
   { type: 'reset_timer', message0: 'reset timer', previousStatement: null, nextStatement: null, colour: COLOUR.sensing },
   {
     type: 'set_video', message0: 'turn video %1',
@@ -616,6 +642,11 @@ export const TOOLBOX = {
         blk('rotate', { x: numShadow(0), y: numShadow(90), z: numShadow(0) }),
         blk('set_rotation', { x: numShadow(0), y: numShadow(0), z: numShadow(0) }),
         blk('point_towards'),
+        blk('camera_follow'),
+        blk('camera_stop_following'),
+        blk('camera_shake', { strength: numShadow(1), seconds: numShadow(0.4) }),
+        blk('camera_zoom', { value: numShadow(1) }),
+        blk('camera_zoom_by', { value: numShadow(0.2) }),
       ],
     },
     {

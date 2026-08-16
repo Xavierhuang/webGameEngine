@@ -55,7 +55,7 @@ export const EXAMPLE_GAMES: ExampleGame[] = [
     description:
       'Run around and grab every coin before the timer runs out. Each coin sparkles when you catch it.',
     tagline: 'Collect the coins — they sparkle when you get one!',
-    teaches: ['variables', 'clones', 'touching', 'particles', 'sound'],
+    teaches: ['variables', 'clones', 'touching', 'particles', 'camera follow', 'sound'],
     difficulty: 'easy',
     objects: [
       {
@@ -65,6 +65,7 @@ export const EXAMPLE_GAMES: ExampleGame[] = [
         position: [0, 0, 0],
         blocks: [
           { block_type: 'on_start' },
+          { block_type: 'camera_follow', inputs: { target: 'Hero' } },
           { block_type: 'set_variable', inputs: { name: 'score', value: 0, scope: 'global' } },
           { block_type: 'show_variable', inputs: { name: 'score', scope: 'global' } },
 
@@ -126,7 +127,7 @@ export const EXAMPLE_GAMES: ExampleGame[] = [
     description:
       'Rocks fall from the sky. Dodge them for as long as you can — one hit and it is over.',
     tagline: 'Dodge the falling rocks. How long can you last?',
-    teaches: ['clones', 'gravity', 'collision', 'explosion particles', 'game over'],
+    teaches: ['clones', 'gravity', 'collision', 'explosion particles', 'camera shake', 'game over'],
     difficulty: 'medium',
     objects: [
       {
@@ -188,6 +189,7 @@ export const EXAMPLE_GAMES: ExampleGame[] = [
 
           { block_type: 'when_touches', inputs: { target: 'Ship' } },
           { block_type: 'burst_particles', inputs: { effect: 'explosion' } },
+          { block_type: 'camera_shake', inputs: { strength: 2, seconds: 0.6 } },
           { block_type: 'say', inputs: { text: 'Game over!', seconds: 3 } },
           { block_type: 'stop', inputs: { option: 'all' } },
         ],

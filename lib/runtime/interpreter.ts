@@ -516,6 +516,40 @@ export class RuntimeWorld {
   }
 
   /**
+   * The camera, registered by the player.
+   *
+   * Same route as particles and the camera feed: the blocks run inside
+   * per-object components that cannot see the camera, and the world is the one
+   * object every script shares.
+   */
+  private camera: {
+    follow(target: string | null): void;
+    shake(strength: number, seconds: number): void;
+    setZoom(zoom: number): void;
+    changeZoom(delta: number): void;
+  } | null = null;
+
+  registerCameraController(controller: RuntimeWorld['camera']) {
+    this.camera = controller;
+  }
+
+  cameraFollow(target: string | null) {
+    this.camera?.follow(target);
+  }
+
+  cameraShake(strength: number, seconds: number) {
+    this.camera?.shake(strength, seconds);
+  }
+
+  cameraZoom(zoom: number) {
+    this.camera?.setZoom(zoom);
+  }
+
+  cameraZoomBy(delta: number) {
+    this.camera?.changeZoom(delta);
+  }
+
+  /**
    * The particle cloud, registered by the player.
    *
    * Same reasoning as the camera: the blocks run inside per-object components
@@ -1488,6 +1522,24 @@ export class ObjectRuntime {
         // database carries its fields under block_data, and reading `inputs`
         // directly meant every effect silently fell back to the default. The
         // dropdown looked like it worked and did nothing.
+        case 'camera_follow':
+          this.world?.cameraFollow(String(getInput(block, 'target', env, '')));
+          return;
+        case 'camera_stop_following':
+          this.world?.cameraFollow(null);
+          return;
+        case 'camera_shake':
+          this.world?.cameraShake(
+            toNumber(getInput(block, 'strength', env, 1)),
+            toNumber(getInput(block, 'seconds', env, 0.4))
+          );
+          return;
+        case 'camera_zoom':
+          this.world?.cameraZoom(toNumber(getInput(block, 'value', env, 1)));
+          return;
+        case 'camera_zoom_by':
+          this.world?.cameraZoomBy(toNumber(getInput(block, 'value', env, 0.2)));
+          return;
         case 'burst_particles':
           this.world?.burstParticlesFor(
             this.objectId,

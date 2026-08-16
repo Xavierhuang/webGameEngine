@@ -144,7 +144,8 @@ test('the examples between them show off the range', () => {
   // they would not answer "what is possible".
   const used = new Set(exampleBlockTypes());
   for (const feature of ['burst_particles', 'start_particles', 'create_clone_of', 'ask_ai',
-                         'speak', 'translate_to', 'pen_down', 'set_variable', 'when_touches']) {
+                         'speak', 'translate_to', 'pen_down', 'set_variable', 'when_touches',
+                         'camera_follow', 'camera_shake']) {
     assert.ok(used.has(feature), `no example demonstrates ${feature}`);
   }
   assert.ok(used.size >= 25, `examples only use ${used.size} distinct blocks`);
