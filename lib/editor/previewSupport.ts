@@ -63,7 +63,7 @@ const NEEDS_SCENE: Array<{ label: string; blocks: string[] }> = [
   {
     label: 'particles',
     blocks: ['burst_particles', 'start_particles', 'stop_particles',
-             'set_particle_size', 'set_particle_amount'],
+             'set_particle_size', 'set_particle_amount', 'set_particle_color'],
   },
   {
     label: 'the camera',

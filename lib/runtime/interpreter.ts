@@ -563,6 +563,7 @@ export class RuntimeWorld {
     setTrail(objectId: string, preset: string | null): void;
     setSize(objectId: string, scale: number): void;
     setAmount(objectId: string, scale: number): void;
+    setColour(objectId: string, hex: string | null): void;
     updatePosition(objectId: string, at: [number, number, number]): void;
     remove(objectId: string): void;
   } | null = null;
@@ -608,6 +609,10 @@ export class RuntimeWorld {
 
   setParticleAmountFor(objectId: string, percent: number) {
     this.particles?.setAmount(objectId, percent / 100);
+  }
+
+  setParticleColourFor(objectId: string, hex: string | null) {
+    this.particles?.setColour(objectId, hex);
   }
 
   /** Called each frame so trails follow their objects. */
@@ -1654,6 +1659,11 @@ export class ObjectRuntime {
         case 'set_particle_amount':
           this.world?.setParticleAmountFor(
             this.objectId, toNumber(getInput(block, 'value', env, 100))
+          );
+          return;
+        case 'set_particle_color':
+          this.world?.setParticleColourFor(
+            this.objectId, String(getInput(block, 'colour', env, '#FFCC33'))
           );
           return;
         case 'stop_particles':

@@ -1822,6 +1822,7 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
           position={[0, 0, 0]}
           sizePercent={Number(properties.particleSize ?? 100)}
           amountPercent={Number(properties.particleAmount ?? 100)}
+          colour={properties.particleColour ?? null}
           floorY={PHYSICS.GROUND_Y - (position?.[1] ?? 0)}
         />
       </group>

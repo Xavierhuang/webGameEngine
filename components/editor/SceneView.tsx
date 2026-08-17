@@ -437,12 +437,13 @@ function GameObject({
             position={[0, 0, 0]}
             sizePercent={Number(properties.particleSize ?? 100)}
             amountPercent={Number(properties.particleAmount ?? 100)}
+            colour={properties.particleColour ?? null}
           />
           {/* A faint handle so an emitter can still be clicked and moved when
               it happens to be between puffs. */}
           <mesh ref={meshRef}>
-            <sphereGeometry args={[0.18, 10, 10]} />
-            <meshBasicMaterial color="#F59E0B" transparent opacity={0.35} />
+            <sphereGeometry args={[0.1, 8, 8]} />
+            <meshBasicMaterial color="#F59E0B" transparent opacity={0.18} />
           </mesh>
         </group>
       );

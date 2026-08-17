@@ -46,6 +46,9 @@ export interface Particle {
   size: number;
   /** 0-1 RGB, resolved at spawn so a preset can vary colour per particle. */
   r: number; g: number; b: number;
+  /** Current rotation in radians, and how fast it turns. */
+  rotation: number;
+  spin: number;
   /**
    * Which preset's physics this particle follows.
    *
@@ -72,6 +75,8 @@ export interface ParticleState {
    */
   sizeScale: number;
   amountScale: number;
+  /** Overrides the preset palette when set, as 0-1 RGB. */
+  tint: [number, number, number] | null;
 }
 
 interface PresetSpec {
@@ -89,6 +94,26 @@ interface PresetSpec {
   drag: number;
   /** Colours chosen from at spawn, as 0-1 RGB. */
   colours: [number, number, number][];
+  /**
+   * Turns per second, as a range. Confetti tumbles; smoke drifts.
+   * Zero means the particle never rotates, which is right for a round puff.
+   */
+  spin: [number, number];
+  /**
+   * How elongated the particle is, 1 being round.
+   *
+   * Above 1 the shape stretches along its rotation, which is what makes a
+   * spark read as a streak and a snowflake as a flake rather than a dot.
+   */
+  aspect: number;
+  /**
+   * 0 draws a soft round particle; 1 gives it a hot core and a wide halo.
+   *
+   * Deliberately not additive blending. Additive looks right on a dark scene
+   * and vanishes on a pale sky — which it did here, invisibly, until it was
+   * measured. A bright core with a soft falloff reads as glow on any backdrop.
+   */
+  glow: number;
 }
 
 const SPECS: Record<ParticlePreset, PresetSpec> = {
@@ -96,42 +121,50 @@ const SPECS: Record<ParticlePreset, PresetSpec> = {
     rate: 30, burst: 24, life: [0.4, 0.9], size: [0.10, 0.25], speed: [0.6, 1.6],
     upward: 0.5, gravity: -0.8, drag: 0.86,
     colours: [[1, 0.95, 0.55], [1, 1, 1], [1, 0.85, 0.25]],
+    spin: [2, 6], aspect: 1.0, glow: 1.0,
   },
   smoke: {
     rate: 18, burst: 14, life: [1.0, 2.0], size: [0.30, 0.70], speed: [0.15, 0.45],
     upward: 0.9, gravity: 0.25, drag: 0.9,
     colours: [[0.62, 0.62, 0.66], [0.75, 0.75, 0.78], [0.5, 0.5, 0.54]],
+    spin: [0.1, 0.5], aspect: 1.15, glow: 0.0,
   },
   fire: {
     rate: 42, burst: 26, life: [0.3, 0.7], size: [0.20, 0.45], speed: [0.5, 1.3],
     upward: 0.95, gravity: 0.9, drag: 0.88,
     colours: [[1, 0.55, 0.1], [1, 0.8, 0.2], [0.9, 0.25, 0.08]],
+    spin: [0.2, 0.8], aspect: 1.6, glow: 0.9,
   },
   confetti: {
     rate: 26, burst: 40, life: [1.2, 2.4], size: [0.15, 0.33], speed: [1.0, 2.4],
     upward: 0.7, gravity: -2.6, drag: 0.95,
     colours: [[0.95, 0.3, 0.4], [0.3, 0.7, 0.95], [0.99, 0.83, 0.25],
               [0.45, 0.85, 0.45], [0.75, 0.45, 0.9]],
+    spin: [3, 9], aspect: 2.2, glow: 0.0,
   },
   bubbles: {
     rate: 14, burst: 12, life: [1.4, 2.6], size: [0.18, 0.43], speed: [0.2, 0.6],
     upward: 0.95, gravity: 0.5, drag: 0.97,
     colours: [[0.7, 0.9, 1], [0.85, 0.95, 1], [0.6, 0.85, 0.98]],
+    spin: [0.2, 0.7], aspect: 1.0, glow: 0.35,
   },
   magic: {
     rate: 34, burst: 28, life: [0.6, 1.4], size: [0.12, 0.30], speed: [0.8, 1.8],
     upward: 0.3, gravity: 0.15, drag: 0.9,
     colours: [[0.75, 0.45, 0.95], [0.95, 0.55, 0.85], [0.55, 0.65, 1]],
+    spin: [1.5, 5], aspect: 1.3, glow: 0.85,
   },
   explosion: {
     rate: 0, burst: 60, life: [0.35, 0.8], size: [0.22, 0.55], speed: [2.5, 5.5],
     upward: 0.25, gravity: -1.8, drag: 0.78,
     colours: [[1, 0.62, 0.15], [1, 0.35, 0.1], [0.35, 0.32, 0.3]],
+    spin: [1, 4], aspect: 1.8, glow: 0.8,
   },
   snow: {
     rate: 16, burst: 20, life: [2.0, 3.5], size: [0.12, 0.28], speed: [0.1, 0.35],
     upward: 0.1, gravity: -0.35, drag: 0.99,
     colours: [[1, 1, 1], [0.9, 0.94, 1]],
+    spin: [0.3, 1.2], aspect: 1.25, glow: 0.15,
   },
 };
 
@@ -139,7 +172,7 @@ const SPECS: Record<ParticlePreset, PresetSpec> = {
 export const MAX_PARTICLES = 300;
 
 export function createParticleState(): ParticleState {
-  return { particles: [], pending: 0, sizeScale: 1, amountScale: 1 };
+  return { particles: [], pending: 0, sizeScale: 1, amountScale: 1, tint: null };
 }
 
 /** Clamped so a child cannot fill the screen with one enormous square. */
@@ -149,6 +182,25 @@ export const SCALE_MAX = 5;
 function clampScale(value: number): number {
   if (!Number.isFinite(value)) return 1;
   return Math.max(SCALE_MIN, Math.min(SCALE_MAX, value));
+}
+
+/**
+ * Override the preset's colours with one of the child's choosing.
+ *
+ * Takes `#rrggbb`, because that is what a colour input gives you and what the
+ * rest of the block language already uses. Null restores the preset palette,
+ * which is the only way back to multi-coloured confetti.
+ */
+export function setParticleColour(state: ParticleState, hex: string | null): ParticleState {
+  if (!hex) {
+    state.tint = null;
+    return state;
+  }
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return state;
+  const n = parseInt(m[1], 16);
+  state.tint = [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  return state;
 }
 
 /** Particle size, as a multiplier of the preset. */
@@ -178,7 +230,8 @@ function spawn(
   preset: ParticlePreset,
   at: { x: number; y: number; z: number },
   random: Random,
-  sizeScale = 1
+  sizeScale = 1,
+  tint: [number, number, number] | null = null
 ): Particle {
   const spec = SPECS[preset];
   const speed = between(random, spec.speed);
@@ -192,7 +245,10 @@ function spawn(
   const rz = Math.sin(phi) * Math.sin(theta);
   const up = spec.upward;
 
-  const colour = spec.colours[Math.floor(random() * spec.colours.length)] ?? [1, 1, 1];
+  const palette = tint ? [tint] : spec.colours;
+  const colour = palette[Math.floor(random() * palette.length)] ?? [1, 1, 1];
+  // Half the particles spin the other way, or a burst looks choreographed.
+  const spin = between(random, spec.spin) * (random() < 0.5 ? -1 : 1);
 
   return {
     x: at.x, y: at.y, z: at.z,
@@ -203,6 +259,8 @@ function spawn(
     life: between(random, spec.life),
     size: between(random, spec.size) * sizeScale,
     r: colour[0], g: colour[1], b: colour[2],
+    rotation: random() * Math.PI * 2,
+    spin,
     preset,
   };
 }
@@ -225,7 +283,7 @@ export function burstParticles(
   const wanted = count ?? Math.round(SPECS[preset].burst * state.amountScale);
   const total = Math.max(0, Math.min(MAX_PARTICLES, wanted));
   const born: Particle[] = [];
-  for (let i = 0; i < total; i++) born.push(spawn(preset, at, random, state.sizeScale));
+  for (let i = 0; i < total; i++) born.push(spawn(preset, at, random, state.sizeScale, state.tint));
   admit(state, born);
   return state;
 }
@@ -264,7 +322,7 @@ export function stepParticles(
       state.pending -= due;
       const born: Particle[] = [];
       for (let i = 0; i < Math.min(due, MAX_PARTICLES); i++) {
-        born.push(spawn(options.trail, options.at, random, state.sizeScale));
+        born.push(spawn(options.trail, options.at, random, state.sizeScale, state.tint));
       }
       admit(state, born);
     }
@@ -287,6 +345,7 @@ export function stepParticles(
     p.x += p.vx * step;
     p.y += p.vy * step;
     p.z += p.vz * step;
+    p.rotation += p.spin * step;
 
     if (options.floorY !== undefined && p.y < options.floorY) {
       // Settle rather than bounce: a bouncing sparkle reads as a bug, and a

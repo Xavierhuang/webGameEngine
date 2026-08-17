@@ -121,6 +121,29 @@ export default function PropertiesPanel({
                   ))}
               </select>
             </PPField>
+            <PPField label="Colour">
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={selectedObject.properties?.particleColour ?? '#ffcc33'}
+                  onChange={(e) =>
+                    onUpdate({ properties: { ...(selectedObject.properties || {}), particleColour: e.target.value } })
+                  }
+                  className="h-8 w-12 cursor-pointer rounded border border-slate-200"
+                />
+                {/* Confetti and fire are multi-coloured by design, so there has
+                    to be a way back to the preset's own palette. */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdate({ properties: { ...(selectedObject.properties || {}), particleColour: null } })
+                  }
+                  className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300"
+                >
+                  Use preset colours
+                </button>
+              </div>
+            </PPField>
             <PPField label={`Size — ${selectedObject.properties?.particleSize ?? 100}%`}>
               <input
                 type="range"

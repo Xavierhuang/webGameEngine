@@ -29,6 +29,7 @@ import type { Locale } from './messages';
 export type BlockMessages = Record<string, string>;
 
 const zh: BlockMessages = {
+  set_particle_color: '将粒子颜色设为 %1',
   you_win: '你赢了！%1',
   game_over: '游戏结束 %1',
   show_message: '显示 %1 %2 秒',
@@ -101,6 +102,7 @@ const zh: BlockMessages = {
 };
 
 const es: BlockMessages = {
+  set_particle_color: 'fijar color de partículas a %1',
   you_win: '¡has ganado! %1',
   game_over: 'fin del juego %1',
   show_message: 'mostrar %1 por %2 seg',
@@ -173,6 +175,7 @@ const es: BlockMessages = {
 };
 
 const fr: BlockMessages = {
+  set_particle_color: 'mettre la couleur des particules à %1',
   you_win: 'gagné ! %1',
   game_over: 'partie terminée %1',
   show_message: 'afficher %1 pendant %2 sec',
@@ -245,6 +248,7 @@ const fr: BlockMessages = {
 };
 
 const pt: BlockMessages = {
+  set_particle_color: 'definir cor das partículas como %1',
   you_win: 'você venceu! %1',
   game_over: 'fim de jogo %1',
   show_message: 'mostrar %1 por %2 seg',
@@ -317,6 +321,7 @@ const pt: BlockMessages = {
 };
 
 const de: BlockMessages = {
+  set_particle_color: 'setze Partikelfarbe auf %1',
   you_win: 'gewonnen! %1',
   game_over: 'Spiel vorbei %1',
   show_message: 'zeige %1 für %2 Sek',
@@ -389,6 +394,7 @@ const de: BlockMessages = {
 };
 
 const ja: BlockMessages = {
+  set_particle_color: '粒子の色を %1 にする',
   you_win: 'クリア！ %1',
   game_over: 'ゲームオーバー %1',
   show_message: '%1 を %2 秒表示する',

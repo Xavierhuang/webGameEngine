@@ -8,9 +8,11 @@ import {
   createParticleState,
   setParticleSize,
   setParticleAmount,
+  setParticleColour,
   burstParticles,
   stepParticles,
   particleAlpha,
+  presetSpec,
   isParticlePreset,
   MAX_PARTICLES,
   type ParticlePreset,
@@ -47,6 +49,8 @@ export interface ParticleController {
   /** Multipliers on the preset, 1 being the default. */
   setSize(objectId: string, scale: number): void;
   setAmount(objectId: string, scale: number): void;
+  /** Null restores the preset palette — the only way back to multi-coloured confetti. */
+  setColour(objectId: string, hex: string | null): void;
 }
 
 interface Emitter {
@@ -89,6 +93,9 @@ export function ParticleField({
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CAPACITY * 3), 3));
     g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(CAPACITY * 3), 3));
     g.setAttribute('size', new THREE.BufferAttribute(new Float32Array(CAPACITY), 1));
+    g.setAttribute('rotation', new THREE.BufferAttribute(new Float32Array(CAPACITY), 1));
+    g.setAttribute('aspect', new THREE.BufferAttribute(new Float32Array(CAPACITY), 1));
+    g.setAttribute('glow', new THREE.BufferAttribute(new Float32Array(CAPACITY), 1));
     g.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(CAPACITY), 1));
     g.setDrawRange(0, 0);
 
@@ -116,29 +123,57 @@ export function ParticleField({
       vertexShader: `
         attribute float size;
         attribute float alpha;
+        attribute float rotation;
+        attribute float aspect;
+        attribute float glow;
         varying vec3 vColour;
         varying float vAlpha;
+        varying float vRotation;
+        varying float vAspect;
+        varying float vGlow;
         uniform float uScale;
         void main() {
           vColour = color;
           vAlpha = alpha;
+          vRotation = rotation;
+          vAspect = aspect;
+          vGlow = glow;
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          // Perspective size: nearer particles are larger, as with
-          // sizeAttenuation, but driven by the per-particle attribute.
-          gl_PointSize = size * uScale / max(0.001, -mv.z);
+          // Stretched particles need a bigger sprite to stretch inside of.
+          gl_PointSize = size * max(1.0, aspect) * uScale / max(0.001, -mv.z);
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: `
         varying vec3 vColour;
         varying float vAlpha;
+        varying float vRotation;
+        varying float vAspect;
+        varying float vGlow;
         void main() {
-          // Round, soft-edged sprite. Square points read as confetti no matter
-          // which preset is running.
+          // Rotate the sprite's own coordinates, then squash one axis: one
+          // shader draws a tumbling confetti flake, a stretched spark and a
+          // round puff, depending only on the preset's numbers.
           vec2 d = gl_PointCoord - vec2(0.5);
-          float r = length(d);
-          if (r > 0.5) discard;
-          float edge = smoothstep(0.5, 0.15, r);
-          gl_FragColor = vec4(vColour, vAlpha * edge);
+          float c = cos(vRotation);
+          float s = sin(vRotation);
+          vec2 r = vec2(d.x * c - d.y * s, d.x * s + d.y * c);
+          // Squash the short axis rather than widening the long one. Widening
+          // pushes the shape past the edge of its own point sprite, which
+          // clips it into a rectangle — it rendered as coloured squares until
+          // this was the other way round. gl_PointSize already grew by aspect,
+          // so squashing here gives length without losing the ends.
+          r.y *= max(1.0, vAspect);
+          float dist = length(r) * 2.0;
+          if (dist > 1.0) discard;
+
+          // Glow is a hot core plus a soft halo, not additive blending:
+          // additive reads correctly on a dark scene and disappears on a pale
+          // sky, which is exactly how it failed here before it was measured.
+          float core = smoothstep(1.0, 0.35, dist);
+          float halo = smoothstep(1.0, 0.0, dist);
+          float shape = mix(core, halo * halo, 0.35);
+          vec3 lit = mix(vColour, min(vec3(1.0), vColour + 0.55), vGlow * core);
+          gl_FragColor = vec4(lit, vAlpha * shape);
         }`,
     });
     return { geometry: g, material: m };
@@ -180,6 +215,7 @@ export function ParticleField({
       },
       setSize: (objectId, scale) => setParticleSize(ensure(objectId).state, scale),
       setAmount: (objectId, scale) => setParticleAmount(ensure(objectId).state, scale),
+      setColour: (objectId, hex) => setParticleColour(ensure(objectId).state, hex),
     };
 
     onReadyRef.current?.(controller);
@@ -202,10 +238,16 @@ export function ParticleField({
     const position = geo.getAttribute('position') as THREE.BufferAttribute;
     const colour = geo.getAttribute('color') as THREE.BufferAttribute;
     const size = geo.getAttribute('size') as THREE.BufferAttribute;
+    const rot = geo.getAttribute('rotation') as THREE.BufferAttribute;
+    const asp = geo.getAttribute('aspect') as THREE.BufferAttribute;
+    const glo = geo.getAttribute('glow') as THREE.BufferAttribute;
     const alpha = geo.getAttribute('alpha') as THREE.BufferAttribute;
     const posArray = position.array as Float32Array;
     const colArray = colour.array as Float32Array;
     const sizeArray = size.array as Float32Array;
+    const rotArray = rot.array as Float32Array;
+    const aspArray = asp.array as Float32Array;
+    const gloArray = glo.array as Float32Array;
     const alphaArray = alpha.array as Float32Array;
 
     let n = 0;
@@ -230,6 +272,8 @@ export function ParticleField({
         colArray[i3 + 2] = p.b;
         sizeArray[n] = p.size;
         alphaArray[n] = particleAlpha(p);
+        { const spec = presetSpec(p.preset);
+          rotArray[n] = p.rotation; aspArray[n] = spec.aspect; gloArray[n] = spec.glow; }
         n++;
       }
     }
@@ -239,6 +283,9 @@ export function ParticleField({
     colour.needsUpdate = true;
     size.needsUpdate = true;
     alpha.needsUpdate = true;
+    rot.needsUpdate = true;
+    asp.needsUpdate = true;
+    glo.needsUpdate = true;
     // Without this the cloud vanishes as soon as its first bounding sphere is
     // computed from an empty buffer.
     geo.boundingSphere = null;

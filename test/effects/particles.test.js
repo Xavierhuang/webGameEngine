@@ -10,6 +10,7 @@
 const assert = require('assert');
 const {
   createParticleState,
+  setParticleColour,
   setParticleSize,
   setParticleAmount,
   SCALE_MIN,
@@ -294,6 +295,67 @@ test('a huge amount still respects the hard cap', () => {
   setParticleAmount(state, SCALE_MAX);
   for (let i = 0; i < 50; i++) burstParticles(state, 'explosion', ORIGIN, random);
   assert.ok(state.particles.length <= MAX_PARTICLES, `grew to ${state.particles.length}`);
+});
+
+test('every preset declares how it looks, not just how it moves', () => {
+  for (const preset of PARTICLE_PRESETS) {
+    const spec = presetSpec(preset);
+    assert.ok(Array.isArray(spec.spin) && spec.spin[1] >= spec.spin[0], `${preset} has a bad spin range`);
+    assert.ok(spec.aspect >= 1 && spec.aspect <= 4, `${preset} aspect ${spec.aspect} is out of range`);
+    assert.ok(spec.glow >= 0 && spec.glow <= 1, `${preset} glow ${spec.glow} is out of range`);
+  }
+});
+
+test('confetti tumbles and smoke barely turns', () => {
+  // The visual difference a still screenshot cannot show, and the reason
+  // rotation is per-particle rather than a global wobble.
+  assert.ok(presetSpec('confetti').spin[1] > presetSpec('smoke').spin[1] * 4,
+    'confetti should spin far faster than smoke');
+  assert.ok(presetSpec('confetti').aspect > 1.5, 'confetti should be a flake, not a dot');
+  assert.strictEqual(presetSpec('sparkle').aspect, 1, 'a sparkle should stay round');
+});
+
+test('particles actually rotate as time passes', () => {
+  const random = seeded(59);
+  const state = burstParticles(createParticleState(), 'confetti', ORIGIN, random);
+  const before = state.particles.map((p) => p.rotation);
+  for (let i = 0; i < 30; i++) stepParticles(state, 1 / 60, { random });
+  const moved = state.particles.filter((p, i) => before[i] !== undefined && p.rotation !== before[i]);
+  assert.ok(moved.length > 0, 'nothing rotated');
+});
+
+test('a burst does not look choreographed', () => {
+  // All-same-direction spin reads as a machine rather than a scatter.
+  const random = seeded(61);
+  const state = burstParticles(createParticleState(), 'confetti', ORIGIN, random);
+  assert.ok(state.particles.some((p) => p.spin > 0), 'nothing spins one way');
+  assert.ok(state.particles.some((p) => p.spin < 0), 'nothing spins the other way');
+  const angles = new Set(state.particles.map((p) => p.rotation.toFixed(3)));
+  assert.ok(angles.size > 3, 'every particle started at the same angle');
+});
+
+test('a colour override replaces the palette, and null restores it', () => {
+  const random = seeded(67);
+  const tinted = createParticleState();
+  setParticleColour(tinted, '#ff0000');
+  burstParticles(tinted, 'confetti', ORIGIN, random);
+  for (const p of tinted.particles) {
+    assert.ok(p.r > 0.9 && p.g < 0.1 && p.b < 0.1, `expected red, got ${p.r},${p.g},${p.b}`);
+  }
+  setParticleColour(tinted, null);
+  tinted.particles = [];
+  burstParticles(tinted, 'confetti', ORIGIN, random);
+  const distinct = new Set(tinted.particles.map((p) => `${p.r},${p.g},${p.b}`));
+  assert.ok(distinct.size > 1, 'clearing the tint did not bring back the preset palette');
+});
+
+test('a malformed colour is ignored rather than blanking the effect', () => {
+  const state = createParticleState();
+  setParticleColour(state, '#ff0000');
+  setParticleColour(state, 'not a colour');
+  assert.deepStrictEqual(state.tint, [1, 0, 0], 'bad input wiped a good colour');
+  setParticleColour(state, 'ff0000');
+  assert.deepStrictEqual(state.tint, [1, 0, 0], 'a hex without # should still work');
 });
 
 console.log(`\nparticles: ${passed} checks passed`);

@@ -398,6 +398,11 @@ const statementDefs: object[] = [
     previousStatement: null, nextStatement: null, colour: COLOUR.looks,
   },
   {
+    type: 'set_particle_color', message0: 'set particle color to %1',
+    args0: [{ type: 'field_colour', name: 'colour', colour: '#FFCC33' }],
+    previousStatement: null, nextStatement: null, colour: COLOUR.looks,
+  },
+  {
     type: 'stop_particles', message0: 'stop my trail',
     previousStatement: null, nextStatement: null, colour: COLOUR.looks,
   },
@@ -702,6 +707,7 @@ export const TOOLBOX = {
         blk('stop_particles'),
         blk('set_particle_size', { value: numShadow(100) }),
         blk('set_particle_amount', { value: numShadow(100) }),
+        blk('set_particle_color'),
         blk('go_to_layer'),
         blk('change_layer_by', { amount: numShadow(1) }),
         blk('switch_to_scene'),
