@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { GitFork } from 'lucide-react';
+import { ensureGuestSession } from '@/lib/auth/guestSessionClient';
 import { useTranslator } from '../common/LocaleProvider';
 
 /**
@@ -19,6 +20,7 @@ export function RemixButton({ projectId }: { projectId: string }) {
     setBusy(true);
     setError(null);
     try {
+      await ensureGuestSession();
       const response = await fetch(`/api/projects/${projectId}/remix`, { method: 'POST' });
       const data = await response.json().catch(() => ({}));
 
@@ -27,8 +29,8 @@ export function RemixButton({ projectId }: { projectId: string }) {
         return;
       }
       router.push(`/editor/${data.project.id}`);
-    } catch {
-      setError('Could not reach the server. Try again.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not reach the server. Try again.');
     } finally {
       setBusy(false);
     }

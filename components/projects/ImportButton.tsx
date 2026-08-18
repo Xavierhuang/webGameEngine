@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload } from 'lucide-react';
+import { ensureGuestSession } from '@/lib/auth/guestSessionClient';
 import { useTranslator } from '../common/LocaleProvider';
 
 /** Import a `.lingplay` file exported from another account or instance. */
@@ -26,6 +27,7 @@ export function ImportButton() {
         return;
       }
 
+      await ensureGuestSession();
       const response = await fetch('/api/projects/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -38,8 +40,8 @@ export function ImportButton() {
         return;
       }
       router.push(`/editor/${data.project.id}`);
-    } catch {
-      setError('Could not read that file.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Could not import that project.');
     } finally {
       setBusy(false);
     }

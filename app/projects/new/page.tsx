@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, Shuffle, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
+import { ensureGuestSession } from '@/lib/auth/guestSessionClient';
 
 // Random game name pool — adjective + noun combos so /projects/new is
 // zero-input: a kid lands here and can immediately hit "Create Game" without
@@ -100,6 +101,7 @@ function NewProjectPageInner() {
     setError(null);
 
     try {
+      await ensureGuestSession();
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

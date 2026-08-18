@@ -146,6 +146,33 @@ async function main() {
     assert.doesNotMatch(source, /\bcookies\b|issueGuestSession/);
   });
 
+  await test('guest-capable client mutations bootstrap through a token-blind helper', async () => {
+    const helperFile = 'lib/auth/guestSessionClient.ts';
+    assert.equal(fs.existsSync(helperFile), true, `${helperFile} must provide client bootstrap`);
+
+    const helper = fs.readFileSync(helperFile, 'utf8');
+    assert.match(helper, /fetch\(\s*['"]\/api\/guest-session['"]\s*,\s*\{[\s\S]*method:\s*['"]POST['"]/);
+    assert.match(helper, /Promise<void>/);
+    assert.doesNotMatch(
+      helper,
+      /document\.cookie|localStorage|sessionStorage|lingplay_guest_session|guest-profile-id|response\.(?:json|text|blob|arrayBuffer|formData)\s*\(|response\.body|return\s+response/,
+    );
+
+    for (const [file, mutation] of [
+      ['app/projects/new/page.tsx', "fetch('/api/projects'"],
+      ['components/projects/ImportButton.tsx', "fetch('/api/projects/import'"],
+      ['components/projects/RemixButton.tsx', 'fetch(`/api/projects/${projectId}/remix`'],
+    ]) {
+      const source = fs.readFileSync(file, 'utf8');
+      const bootstrapAt = source.indexOf('await ensureGuestSession()');
+      const mutationAt = source.indexOf(mutation);
+      assert.match(source, /import \{ ensureGuestSession \} from ['"]@\/lib\/auth\/guestSessionClient['"]/);
+      assert.notEqual(bootstrapAt, -1, `${file} must await guest session bootstrap`);
+      assert.notEqual(mutationAt, -1, `${file} mutation request must remain present`);
+      assert.ok(bootstrapAt < mutationAt, `${file} must bootstrap before its mutation request`);
+    }
+  });
+
   await test('every excluded response-cookie route explicitly clears the legacy cookie', async () => {
     for (const file of [
       'app/api/guest-session/route.ts',
