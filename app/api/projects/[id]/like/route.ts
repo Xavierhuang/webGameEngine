@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/mysql/server';
-import { getActorProfileId, getProjectAccess } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectView } from '@/lib/auth/access';
 
 /**
  * Toggle a "love-it" on a project.
@@ -10,49 +11,32 @@ import { getActorProfileId, getProjectAccess } from '@/lib/auth/access';
  * the source of truth and the counter is a cache recomputed from it.
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
 
-    const actorProfileId = await getActorProfileId();
-    if (!actorProfileId) {
+    const actor = await resolveActor(request);
+    if (actor.kind === 'anonymous') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const project = await queryOne<{
-      id: string;
-      owner_id: string;
-      visibility: string;
-      moderation_status: string;
-    }>(
-      'SELECT id, owner_id, visibility, moderation_status FROM projects WHERE id = ?',
-      [id]
-    );
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    const access = await getProjectAccess(project);
-    if (!access.canView) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    await requireProjectView(actor, id);
 
     const existing = await queryOne<{ project_id: string }>(
       'SELECT project_id FROM project_likes WHERE project_id = ? AND profile_id = ?',
-      [id, actorProfileId]
+      [id, actor.profileId]
     );
 
     if (existing) {
       await query('DELETE FROM project_likes WHERE project_id = ? AND profile_id = ?', [
         id,
-        actorProfileId,
+        actor.profileId,
       ]);
     } else {
       await query(
         'INSERT IGNORE INTO project_likes (project_id, profile_id) VALUES (?, ?)',
-        [id, actorProfileId]
+        [id, actor.profileId]
       );
     }
 
@@ -74,6 +58,9 @@ export async function POST(
       like_count: updated?.like_count ?? 0,
     });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
     console.error('Error toggling like:', error);
     return NextResponse.json({ error: 'Failed to toggle like' }, { status: 500 });
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireResourceEdit } from '@/lib/auth/access';
 import { sanitizeUserInput } from '@/lib/safety/moderation';
 
 const ALLOWED_FIELDS = new Set([
@@ -12,33 +13,14 @@ const ALLOWED_FIELDS = new Set([
   'order_index',
 ]);
 
-async function authorize(sceneId: string) {
-  const scene = await queryOne<{ id: string; project_id: string }>(
-    'SELECT id, project_id FROM scenes WHERE id = ?',
-    [sceneId]
-  );
-  if (!scene) return { error: NextResponse.json({ error: 'Scene not found' }, { status: 404 }) };
-
-  const project = await queryOne<{ owner_id: string; visibility: string; moderation_status: string }>(
-    'SELECT owner_id, visibility, moderation_status FROM projects WHERE id = ?',
-    [scene.project_id]
-  );
-  if (!project) return { error: NextResponse.json({ error: 'Project not found' }, { status: 404 }) };
-
-  const access = await getProjectAccess(project);
-  if (!access.canEdit) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-
-  return { scene };
-}
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const authorized = await authorize(id);
-    if ('error' in authorized) return authorized.error;
+    const actor = await resolveActor(request);
+    await requireResourceEdit(actor, 'scene', id);
 
     const body = await request.json();
     const updateFields: string[] = [];
@@ -62,25 +44,28 @@ export async function PATCH(
     const scene = await queryOne<any>('SELECT * FROM scenes WHERE id = ?', [id]);
     return NextResponse.json({ scene });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Scene not found' }, { status: error.status });
+    }
     console.error('Error updating scene:', error);
     return NextResponse.json({ error: 'Failed to update scene' }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const authorized = await authorize(id);
-    if ('error' in authorized) return authorized.error;
+    const actor = await resolveActor(request);
+    const authorized = await requireResourceEdit(actor, 'scene', id);
 
     // A project must always have at least one scene, or the editor and player
     // have nothing to render.
     const siblings = await queryOne<{ count: number }>(
       'SELECT COUNT(*) AS count FROM scenes WHERE project_id = ?',
-      [authorized.scene.project_id]
+      [authorized.project.id]
     );
     if ((siblings?.count ?? 0) <= 1) {
       return NextResponse.json(
@@ -92,6 +77,9 @@ export async function DELETE(
     await query('DELETE FROM scenes WHERE id = ?', [id]);
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Scene not found' }, { status: error.status });
+    }
     console.error('Error deleting scene:', error);
     return NextResponse.json({ error: 'Failed to delete scene' }, { status: 500 });
   }

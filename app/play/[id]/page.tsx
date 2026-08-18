@@ -1,5 +1,7 @@
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess } from '@/lib/auth/access';
+import { query, queryOne } from '@/lib/mysql/server';
+import { notFound } from 'next/navigation';
+import { resolveCurrentActor } from '@/lib/auth/actor';
+import { requireProjectView } from '@/lib/auth/access';
 import GamePlayer from '@/components/player/GamePlayer';
 import type { Project } from '@/types/game';
 import Link from 'next/link';
@@ -13,7 +15,13 @@ interface PlayPageProps {
 
 export default async function PlayPage({ params }: PlayPageProps) {
   const { id } = await params;
-  const user = await getAuthenticatedUser();
+  const actor = await resolveCurrentActor();
+  let authorized;
+  try {
+    authorized = await requireProjectView(actor, id);
+  } catch {
+    notFound();
+  }
 
   // Fetch project data
   const project = await queryOne<{
@@ -23,36 +31,20 @@ export default async function PlayPage({ params }: PlayPageProps) {
     description: string | null;
     visibility: string;
     moderation_status: string;
-  }>('SELECT * FROM projects WHERE id = ?', [id]);
+  }>(
+    `SELECT id, title, description, visibility, moderation_status
+       FROM projects WHERE id = ?`,
+    [id]
+  );
 
   if (!project) {
-    return (
-      <PlayerErrorScreen
-        icon={<Ghost className="w-6 h-6" />}
-        title="Game not found"
-        body="The game you're looking for doesn't exist, or it may have been removed."
-      />
-    );
-  }
-
-  // Owner-or-public, for signed-in users and cookie-identified guests alike.
-  // The guest branch here used to be an empty `if`, so any logged-out visitor
-  // with the UUID could play a private game.
-  const access = await getProjectAccess(project);
-  if (!access.canView) {
-    return (
-      <PlayerErrorScreen
-        icon={<Lock className="w-6 h-6" />}
-        title="Private game"
-        body="This game hasn't been shared publicly. Ask the creator to make it public if you want to play."
-      />
-    );
+    notFound();
   }
 
   // Count the play. `play_count` and `last_played_at` have been rendered in the
   // UI since the initial schema but nothing ever wrote to them. Owners playing
   // their own game don't inflate the count.
-  if (!access.isOwner) {
+  if (!authorized.access.isOwner) {
     try {
       await query(
         'UPDATE projects SET play_count = play_count + 1, last_played_at = CURRENT_TIMESTAMP WHERE id = ?',
@@ -73,7 +65,12 @@ export default async function PlayPage({ params }: PlayPageProps) {
     background_image_url: string | null;
     physics_enabled: boolean;
     gravity_y: number;
-  }>('SELECT * FROM scenes WHERE project_id = ? ORDER BY order_index', [id]);
+  }>(
+    `SELECT id, project_id, name, order_index, background_color,
+            background_image_url, physics_enabled, gravity_y
+       FROM scenes WHERE project_id = ? ORDER BY order_index`,
+    [id]
+  );
 
   // Fetch game objects
   const sceneIds = scenes.map((s) => s.id);
@@ -98,7 +95,12 @@ export default async function PlayPage({ params }: PlayPageProps) {
         mass: number;
         properties: any;
       }>(
-        `SELECT * FROM game_objects WHERE scene_id IN (${sceneIds.map(() => '?').join(',')}) ORDER BY order_index, created_at`,
+        `SELECT id, scene_id, type, name, position_x, position_y, position_z,
+                rotation, scale_x, scale_y, sprite_url, color, width, height,
+                has_physics, is_static, mass, properties
+           FROM game_objects
+          WHERE scene_id IN (${sceneIds.map(() => '?').join(',')})
+          ORDER BY order_index, created_at`,
         sceneIds
       )
     : [];
@@ -115,7 +117,8 @@ export default async function PlayPage({ params }: PlayPageProps) {
         order_index: number;
         block_data: any;
       }>(
-        `SELECT * FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})`,
+        `SELECT id, game_object_id, block_type, category, order_index, block_data
+           FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})`,
         gameObjectIds
       )
     : [];
@@ -171,4 +174,3 @@ function PlayerErrorScreen({
     </div>
   );
 }
-

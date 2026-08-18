@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne, getAuthenticatedUser } from '@/lib/mysql/server';
+import { query, queryOne } from '@/lib/mysql/server';
+import { resolveActor } from '@/lib/auth/actor';
+import { requireAdmin } from '@/lib/auth/admin';
 
 /**
  * Moderation queue.
@@ -8,19 +10,10 @@ import { query, queryOne, getAuthenticatedUser } from '@/lib/mysql/server';
  * there was no GET handler, no admin surface, and no `role = 'admin'` check
  * anywhere in the codebase. Reports went into a table nobody could see.
  */
-async function requireAdmin() {
-  const user = await getAuthenticatedUser();
-  if (!user) return null;
-  const profile = await queryOne<{ id: string; role: string }>(
-    'SELECT id, role FROM profiles WHERE user_id = ?',
-    [user.id]
-  );
-  return profile?.role === 'admin' ? profile : null;
-}
-
 export async function GET(request: NextRequest) {
   try {
-    const admin = await requireAdmin();
+    const actor = await resolveActor(request);
+    const admin = await requireAdmin(actor);
     if (!admin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -53,7 +46,8 @@ export async function GET(request: NextRequest) {
 /** Act on a report: dismiss it, or take the project down. */
 export async function PATCH(request: NextRequest) {
   try {
-    const admin = await requireAdmin();
+    const actor = await resolveActor(request);
+    const admin = await requireAdmin(actor);
     if (!admin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { getActorProfileId } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectEdit } from '@/lib/auth/access';
 import { query } from '@/lib/mysql/server';
 import { rateLimit, clientKey } from '@/lib/safety/rateLimit';
 
@@ -26,12 +27,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const actorProfileId = await getActorProfileId();
-    if (!actorProfileId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const actor = await resolveActor(request);
     const { dataUrl, projectId, name } = await request.json();
+
+    if (typeof projectId !== 'string' || !projectId) {
+      return NextResponse.json({ error: 'projectId required; personal media is disabled' }, { status: 400 });
+    }
+    const authorized = await requireProjectEdit(actor, projectId);
 
     if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/png;base64,')) {
       return NextResponse.json({ error: 'Expected a PNG data URL.' }, { status: 400 });
@@ -54,7 +56,8 @@ export async function POST(request: NextRequest) {
     const id = crypto.randomUUID();
     const dir = path.join(process.cwd(), 'public', 'uploads', 'textures');
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, `${id}.png`), buffer);
+    const filePath = path.join(dir, `${id}.png`);
+    await fs.writeFile(filePath, buffer);
 
     const url = `/uploads/textures/${id}.png`;
 
@@ -65,21 +68,24 @@ export async function POST(request: NextRequest) {
          VALUES (?, ?, ?, 'texture', ?, ?, ?, 'image/png', FALSE)`,
         [
           id,
-          typeof projectId === 'string' && projectId ? projectId : null,
-          actorProfileId,
+          projectId,
+          authorized.project.owner_id,
           (typeof name === 'string' && name ? name : 'Drawing').substring(0, 255),
           url,
           buffer.byteLength,
         ]
       );
     } catch (error) {
-      // The file is written and usable; losing the bookkeeping row shouldn't
-      // fail the save.
       console.error('[texture] failed to record asset row:', error);
+      await fs.unlink(filePath).catch(() => {});
+      throw error;
     }
 
     return NextResponse.json({ url });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
     console.error('Texture upload failed:', error);
     return NextResponse.json({ error: 'Failed to save the drawing.' }, { status: 500 });
   }

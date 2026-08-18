@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectEdit } from '@/lib/auth/access';
 import { sanitizeUserInput } from '@/lib/safety/moderation';
 
 /**
@@ -20,17 +21,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'projectId required' }, { status: 400 });
     }
 
-    const project = await queryOne<{ owner_id: string; visibility: string; moderation_status: string }>(
-      'SELECT owner_id, visibility, moderation_status FROM projects WHERE id = ?',
-      [projectId]
-    );
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-    const access = await getProjectAccess(project);
-    if (!access.canEdit) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const actor = await resolveActor(request);
+    await requireProjectEdit(actor, projectId);
 
     const rawName = typeof body.name === 'string' ? sanitizeUserInput(body.name) : '';
     const name = (rawName || 'New Scene').substring(0, 255);
@@ -52,6 +44,9 @@ export async function POST(request: NextRequest) {
     const scene = await queryOne<any>('SELECT * FROM scenes WHERE id = ?', [id]);
     return NextResponse.json({ scene });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
     console.error('Error creating scene:', error);
     return NextResponse.json({ error: 'Failed to create scene' }, { status: 500 });
   }

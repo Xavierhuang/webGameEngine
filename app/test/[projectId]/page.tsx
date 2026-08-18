@@ -1,4 +1,7 @@
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { query, queryOne } from '@/lib/mysql/server';
+import { notFound } from 'next/navigation';
+import { resolveCurrentActor } from '@/lib/auth/actor';
+import { requireProjectEdit } from '@/lib/auth/access';
 import LogicBlockTester from '@/components/test/LogicBlockTester';
 
 interface TestPageProps {
@@ -6,8 +9,15 @@ interface TestPageProps {
 }
 
 export default async function TestPage({ params }: TestPageProps) {
+  if (process.env.NODE_ENV === 'production') notFound();
+
   const { projectId } = await params;
-  const user = await getAuthenticatedUser();
+  const actor = await resolveCurrentActor();
+  try {
+    await requireProjectEdit(actor, projectId);
+  } catch {
+    notFound();
+  }
 
   // Fetch project
   const project = await queryOne<{
@@ -86,4 +96,3 @@ export default async function TestPage({ params }: TestPageProps) {
 
   return <LogicBlockTester projectId={projectId} data={testData} />;
 }
-

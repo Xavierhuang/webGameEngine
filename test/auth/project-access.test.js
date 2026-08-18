@@ -113,9 +113,6 @@ function fakeService(rows, actorRoles = {}) {
       const id = params.at(-1);
       return rows[id] ?? null;
     },
-    async resolveCurrentActor() {
-      throw new Error('compatibility resolver should not run for actor-first calls');
-    },
   });
   return { service, calls };
 }
@@ -174,6 +171,28 @@ test('a resource from another project is rejected', async () => {
   assert.deepEqual(objectQuery.params.slice(-1), ['object-in-a']);
 });
 
+test('resource reads bind the nested id to its true owning project', async () => {
+  const published = project({ visibility: 'public', moderation_status: 'published' });
+  const { service, calls } = fakeService({
+    'object-public': { resource_id: 'object-public', ...published },
+    'object-private': { resource_id: 'object-private', ...project() },
+  });
+
+  const authorized = await service.requireResourceView(anonymous, 'object', 'object-public');
+  assert.equal(authorized.project.id, 'project-a');
+  assert.equal(authorized.resource.id, 'object-public');
+
+  await assert.rejects(
+    () => service.requireResourceView(stranger, 'object', 'object-private'),
+    (error) => error instanceof AccessError &&
+      error.status === 404 && error.code === 'resource_not_viewable'
+  );
+
+  const objectQuery = calls.find((call) => call.params.at(-1) === 'object-public');
+  assert.match(objectQuery.sql, /JOIN scenes/i);
+  assert.match(objectQuery.sql, /JOIN projects/i);
+});
+
 test('nested resource types use a closed SQL whitelist keyed by resource ID', async () => {
   const { service, calls } = fakeService({
     scene: { resource_id: 'scene', ...project() },
@@ -216,39 +235,6 @@ test('moderators get a 403 when edit is denied on a project they may inspect', a
   const roleLookup = calls.find((call) => /FROM profiles actor_profile/i.test(call.sql));
   assert.deepEqual(roleLookup.params, ['profile-other', 'user-other']);
   assert.match(roleLookup.sql, /profile_kind = 'user'/i);
-});
-
-test('the deprecated row overload resolves a secure current actor', async () => {
-  let resolutions = 0;
-  const service = createAccessService({
-    async queryOne(sql, params) {
-      assert.match(sql, /FROM profiles actor_profile/i);
-      assert.deepEqual(params, ['profile-owner', 'user-owner']);
-      return { role: 'child' };
-    },
-    async resolveCurrentActor() {
-      resolutions += 1;
-      return ownerUser;
-    },
-  });
-
-  const access = await service.getProjectAccess(project());
-  assert.equal(access.canEdit, true);
-  assert.equal(resolutions, 1);
-});
-
-test('the deprecated row overload ignores forged moderator authority on its supplied row', async () => {
-  const service = createAccessService({
-    async queryOne() { return null; },
-    async resolveCurrentActor() { return stranger; },
-  });
-
-  const access = await service.getProjectAccess(
-    project({ actor_role: 'admin', visibility: 'private' })
-  );
-  assert.equal(access.canView, false);
-  assert.equal(access.canPublish, false);
-  assert.equal(access.reason, 'private');
 });
 
 test('inherited object keys are rejected as resource types before querying', async () => {

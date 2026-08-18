@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectView } from '@/lib/auth/access';
 
 /**
  * Export a project as a single portable `.lingplay` file (JSON).
@@ -14,20 +15,17 @@ import { getProjectAccess } from '@/lib/auth/access';
 const EXPORT_FORMAT_VERSION = 1;
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const actor = await resolveActor(request);
+    await requireProjectView(actor, id);
 
     const project = await queryOne<any>('SELECT * FROM projects WHERE id = ?', [id]);
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    const access = await getProjectAccess(project);
-    if (!access.canView) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const scenes = await query<any>(
@@ -112,6 +110,9 @@ export async function GET(
       },
     });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
     console.error('Error exporting project:', error);
     return NextResponse.json({ error: 'Failed to export project' }, { status: 500 });
   }

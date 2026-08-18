@@ -1,4 +1,6 @@
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { query } from '@/lib/mysql/server';
+import { resolveCurrentActor } from '@/lib/auth/actor';
+import { requireAdmin } from '@/lib/auth/admin';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
 import { ReportQueue } from '@/components/admin/ReportQueue';
@@ -9,19 +11,13 @@ import { ShieldAlert } from 'lucide-react';
  * existed in the schema since 001 and was never checked anywhere.
  */
 export default async function AdminReportsPage() {
-  const user = await getAuthenticatedUser();
+  const actor = await resolveCurrentActor();
+  const profile = await requireAdmin(actor);
 
-  const profile = user
-    ? await queryOne<{ id: string; role: string; display_name: string | null }>(
-        'SELECT id, role, display_name FROM profiles WHERE user_id = ?',
-        [user.id]
-      )
-    : null;
-
-  if (!profile || profile.role !== 'admin') {
+  if (!profile) {
     return (
       <div className="relative min-h-screen overflow-hidden bg-white">
-        <AppNav signedInAs={profile?.display_name ?? undefined} />
+        <AppNav />
         <PageBackdrop />
         <div className="relative mx-auto max-w-md px-6 pt-24 text-center">
           <ShieldAlert className="mx-auto mb-3 h-8 w-8 text-slate-400" />
@@ -69,7 +65,7 @@ export default async function AdminReportsPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-white">
-      <AppNav signedInAs={profile.display_name ?? undefined} />
+      <AppNav signedInAs={profile.email} />
       <PageBackdrop />
       <div className="relative mx-auto max-w-4xl px-6 pb-20 pt-10">
         <h1 className="text-2xl font-black tracking-tight text-slate-900">Moderation</h1>

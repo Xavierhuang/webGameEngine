@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess } from '@/lib/auth/access';
+import { query, queryOne } from '@/lib/mysql/server';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireResourceEdit, requireResourceView } from '@/lib/auth/access';
 
 export async function GET(
   request: NextRequest,
@@ -8,7 +9,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const user = await getAuthenticatedUser();
+    const actor = await resolveActor(request);
+    await requireResourceView(actor, 'object', id);
 
     const gameObject = await queryOne<{
       id: string;
@@ -29,49 +31,24 @@ export async function GET(
       is_static: boolean;
       mass: number;
       properties: any;
-    }>('SELECT * FROM game_objects WHERE id = ?', [id]);
+    }>(
+      `SELECT id, scene_id, type, name, position_x, position_y, position_z,
+              rotation, scale_x, scale_y, sprite_url, color, width, height,
+              has_physics, is_static, mass, properties
+         FROM game_objects
+        WHERE id = ?`,
+      [id]
+    );
 
     if (!gameObject) {
       return NextResponse.json({ error: 'Game object not found' }, { status: 404 });
     }
 
-    // Check if user has access to this object's scene/project
-    const scene = await queryOne<{ project_id: string }>(
-      'SELECT project_id FROM scenes WHERE id = ?',
-      [gameObject.scene_id]
-    );
-
-    if (!scene) {
-      return NextResponse.json({ error: 'Scene not found' }, { status: 404 });
-    }
-
-    const project = await queryOne<{ owner_id: string; visibility: string }>(
-      'SELECT owner_id, visibility FROM projects WHERE id = ?',
-      [scene.project_id]
-    );
-
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    // Check access (same logic as project GET)
-    if (user) {
-      const profile = await queryOne<{ id: string }>(
-        'SELECT id FROM profiles WHERE user_id = ?',
-        [user.id]
-      );
-      
-      if (profile && project.owner_id !== profile.id && project.visibility !== 'public') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    } else {
-      if (project.visibility !== 'public') {
-        // Guests can access their own projects
-      }
-    }
-
     return NextResponse.json(gameObject);
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Game object not found' }, { status: error.status });
+    }
     console.error('Error fetching game object:', error);
     return NextResponse.json(
       { error: 'Failed to fetch game object' },
@@ -86,43 +63,9 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const user = await getAuthenticatedUser();
+    const actor = await resolveActor(request);
+    await requireResourceEdit(actor, 'object', id);
     const updates = await request.json();
-
-    // Verify object exists and user has access
-    const gameObject = await queryOne<{ scene_id: string }>(
-      'SELECT scene_id FROM game_objects WHERE id = ?',
-      [id]
-    );
-
-    if (!gameObject) {
-      return NextResponse.json({ error: 'Game object not found' }, { status: 404 });
-    }
-
-    // Check access (same as GET)
-    const scene = await queryOne<{ project_id: string }>(
-      'SELECT project_id FROM scenes WHERE id = ?',
-      [gameObject.scene_id]
-    );
-
-    if (scene) {
-      const project = await queryOne<{ owner_id: string; visibility: string }>(
-        'SELECT owner_id, visibility FROM projects WHERE id = ?',
-        [scene.project_id]
-      );
-
-      // Writes are owner-only. This check used to sit inside `if (project &&
-      // user)`, so an unauthenticated caller skipped it entirely and could
-      // mutate any project's objects. `visibility === 'public'` must never
-      // grant write access.
-      if (!project) {
-        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-      }
-      const access = await getProjectAccess(project);
-      if (!access.canEdit) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    }
 
     // Build update query
     const updateFields: string[] = [];
@@ -162,6 +105,9 @@ export async function PATCH(
 
     return NextResponse.json(updatedObject);
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Game object not found' }, { status: error.status });
+    }
     console.error('Error updating game object:', error);
     return NextResponse.json(
       { error: 'Failed to update game object' },
@@ -176,42 +122,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const user = await getAuthenticatedUser();
-
-    // Verify object exists and user has access
-    const gameObject = await queryOne<{ scene_id: string }>(
-      'SELECT scene_id FROM game_objects WHERE id = ?',
-      [id]
-    );
-
-    if (!gameObject) {
-      return NextResponse.json({ error: 'Game object not found' }, { status: 404 });
-    }
-
-    // Check access (same as GET)
-    const scene = await queryOne<{ project_id: string }>(
-      'SELECT project_id FROM scenes WHERE id = ?',
-      [gameObject.scene_id]
-    );
-
-    if (scene) {
-      const project = await queryOne<{ owner_id: string; visibility: string }>(
-        'SELECT owner_id, visibility FROM projects WHERE id = ?',
-        [scene.project_id]
-      );
-
-      // Writes are owner-only. This check used to sit inside `if (project &&
-      // user)`, so an unauthenticated caller skipped it entirely and could
-      // mutate any project's objects. `visibility === 'public'` must never
-      // grant write access.
-      if (!project) {
-        return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-      }
-      const access = await getProjectAccess(project);
-      if (!access.canEdit) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-    }
+    const actor = await resolveActor(request);
+    await requireResourceEdit(actor, 'object', id);
 
     // Delete logic blocks first (foreign key constraint)
     await query('DELETE FROM logic_blocks WHERE game_object_id = ?', [id]);
@@ -221,6 +133,9 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: 'Game object deleted' });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Game object not found' }, { status: error.status });
+    }
     console.error('Error deleting game object:', error);
     return NextResponse.json(
       { error: 'Failed to delete game object' },
@@ -228,4 +143,3 @@ export async function DELETE(
     );
   }
 }
-

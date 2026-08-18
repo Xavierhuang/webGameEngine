@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, requireAuth, query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess, getActorProfileId } from '@/lib/auth/access';
+import { query, queryOne } from '@/lib/mysql/server';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectEdit, requireProjectView } from '@/lib/auth/access';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
 export async function GET(
@@ -9,7 +10,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const user = await getAuthenticatedUser();
+    const actor = await resolveActor(request);
+    await requireProjectView(actor, id);
 
     // Fetch project (allow guests to access their own projects)
     const project = await queryOne<{
@@ -33,12 +35,6 @@ export async function GET(
 
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    // Owner-or-public, for signed-in users and cookie-identified guests alike.
-    const access = await getProjectAccess(project);
-    if (!access.canView) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Fetch scenes
@@ -127,25 +123,80 @@ export async function GET(
 
     // Structure the response with nested relations (mirrors what a single Supabase select-with-joins used to return)
     const projectWithRelations = {
-      ...project,
+      id: project.id,
+      title: project.title,
+      description: project.description,
+      thumbnail_url: project.thumbnail_url,
+      is_published: project.is_published,
+      is_template: project.is_template,
+      visibility: project.visibility,
+      genre: project.genre,
+      created_at: project.created_at,
+      updated_at: project.updated_at,
+      last_played_at: project.last_played_at,
+      play_count: project.play_count,
+      like_count: project.like_count,
+      moderation_status: project.moderation_status,
       scenes: scenes.map((scene) => ({
-        ...scene,
+        id: scene.id,
+        name: scene.name,
+        order_index: scene.order_index,
+        background_color: scene.background_color,
+        background_image_url: scene.background_image_url,
+        physics_enabled: scene.physics_enabled,
+        gravity_y: scene.gravity_y,
         game_objects: gameObjects
           .filter((go) => go.scene_id === scene.id)
           .map((go) => ({
-            ...go,
+            id: go.id,
+            scene_id: go.scene_id,
+            type: go.type,
+            name: go.name,
+            position_x: go.position_x,
+            position_y: go.position_y,
+            position_z: go.position_z,
+            rotation: go.rotation,
+            scale_x: go.scale_x,
+            scale_y: go.scale_y,
+            sprite_url: go.sprite_url,
+            color: go.color,
+            width: go.width,
+            height: go.height,
+            has_physics: go.has_physics,
+            is_static: go.is_static,
+            mass: go.mass,
+            properties: go.properties,
             logic_blocks: logicBlocks.filter(
               (lb) => lb.game_object_id === go.id
-            ),
+            ).map((lb) => ({
+              id: lb.id,
+              game_object_id: lb.game_object_id,
+              block_type: lb.block_type,
+              category: lb.category,
+              parent_block_id: lb.parent_block_id,
+              order_index: lb.order_index,
+              block_data: lb.block_data,
+            })),
           })),
       })),
-      assets,
+      assets: assets.map((asset) => ({
+        id: asset.id,
+        asset_type: asset.asset_type,
+        name: asset.name,
+        file_url: asset.file_url,
+        file_size: asset.file_size,
+        mime_type: asset.mime_type,
+        frame_width: asset.frame_width,
+        frame_height: asset.frame_height,
+        frame_count: asset.frame_count,
+        generated_by_ai: asset.generated_by_ai,
+      })),
     };
 
     return NextResponse.json({ project: projectWithRelations });
   } catch (error: any) {
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
     }
     console.error('Error fetching project:', error);
     return NextResponse.json(
@@ -161,25 +212,9 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const user = await getAuthenticatedUser();
-
-    // Editing is owner-only, but "owner" includes a cookie-identified guest —
-    // requireAuth() here used to 401 every guest editing their own project.
-    const actorProfileId = await getActorProfileId();
-    if (!actorProfileId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const owner = await queryOne<{ owner_id: string }>(
-      'SELECT owner_id FROM projects WHERE id = ?',
-      [id]
-    );
-    if (!owner) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-    if (owner.owner_id !== actorProfileId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const actor = await resolveActor(request);
+    const authorized = await requireProjectEdit(actor, id);
+    const actorProfileId = authorized.project.owner_id;
 
     const body = await request.json();
 
@@ -198,7 +233,11 @@ export async function PATCH(
     const sanitizedDescription = typeof body.description === 'string' ? sanitizeUserInput(body.description) : undefined;
     const textToCheck = [sanitizedTitle, sanitizedDescription].filter(Boolean).join('\n');
     if (textToCheck) {
-      const modResult = await moderateText(textToCheck, user?.id ?? null, user ? null : actorProfileId);
+      const modResult = await moderateText(
+        textToCheck,
+        actor.kind === 'user' ? actor.userId : null,
+        actor.kind === 'guest' ? actor.profileId : null
+      );
       if (!modResult.safe) {
         return NextResponse.json(
           {
@@ -239,7 +278,7 @@ export async function PATCH(
       // whether a parent needs to consent. Publishing requires an account —
       // the same rule Scratch applies — and says so plainly rather than
       // showing a parental-permission message to someone who never gave an age.
-      if (!user) {
+      if (actor.kind !== 'user') {
         return NextResponse.json(
           {
             error: 'Account needed',
@@ -275,10 +314,17 @@ export async function PATCH(
         sanitizedDescription ?? stored?.description ?? '',
       ].filter(Boolean).join('\n');
       const verdict = publishText
-        ? await moderateText(publishText, user?.id ?? null, user ? null : actorProfileId)
+        ? await moderateText(
+            publishText,
+            actor.kind === 'user' ? actor.userId : null,
+            actor.kind === 'guest' ? actor.profileId : null
+          )
         : { safe: true as const };
       updateFields.push('moderation_status = ?');
-      updateValues.push(verdict.safe ? 'approved' : 'rejected');
+      // Migration 008 removed the legacy mutable-graph "approved" state.
+      // Safe content enters the review queue; Task 8 alone may publish an
+      // immutable approved snapshot.
+      updateValues.push(verdict.safe ? 'moderation_pending' : 'rejected');
     }
 
     if (updateFields.length === 0) {
@@ -318,8 +364,8 @@ export async function PATCH(
 
     return NextResponse.json({ project });
   } catch (error: any) {
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
     }
     console.error('Error updating project:', error);
     return NextResponse.json(
@@ -335,20 +381,20 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-
-    const actorProfileId = await getActorProfileId();
-    if (!actorProfileId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const actor = await resolveActor(request);
+    const authorized = await requireProjectEdit(actor, id);
 
     // Delete project (cascade will handle related records). Scoped to the owner,
     // so a non-owner deletes nothing rather than erroring.
-    await query('DELETE FROM projects WHERE id = ? AND owner_id = ?', [id, actorProfileId]);
+    await query('DELETE FROM projects WHERE id = ? AND owner_id = ?', [
+      id,
+      authorized.project.owner_id,
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    if (error.message === 'Unauthorized') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
     }
     console.error('Error deleting project:', error);
     return NextResponse.json(
@@ -357,4 +403,3 @@ export async function DELETE(
     );
   }
 }
-

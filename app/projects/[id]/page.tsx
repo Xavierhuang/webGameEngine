@@ -1,5 +1,7 @@
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess } from '@/lib/auth/access';
+import { query, queryOne } from '@/lib/mysql/server';
+import { notFound } from 'next/navigation';
+import { resolveCurrentActor } from '@/lib/auth/actor';
+import { requireProjectView } from '@/lib/auth/access';
 import Link from 'next/link';
 import { Play, Edit, GitFork, Heart, Ghost, Lock } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
@@ -17,8 +19,15 @@ import { getTranslator } from '@/lib/i18n/server';
  */
 export default async function ProjectPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
-  const user = await getAuthenticatedUser();
+  const actor = await resolveCurrentActor();
   const t = await getTranslator();
+
+  let authorized;
+  try {
+    authorized = await requireProjectView(actor, id);
+  } catch {
+    notFound();
+  }
 
   const project = await queryOne<any>(
     `SELECT p.*, author.display_name AS author_name, author.username AS author_username,
@@ -30,37 +39,17 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
     [id]
   );
 
-  if (!project) {
-    return (
-      <Shell>
-        <Message icon={<Ghost className="h-6 w-6" />} title="Game not found">
-          This game doesn&apos;t exist, or it may have been removed.
-        </Message>
-      </Shell>
-    );
-  }
-
-  const access = await getProjectAccess(project);
-  if (!access.canView) {
-    return (
-      <Shell>
-        <Message icon={<Lock className="h-6 w-6" />} title="Private game">
-          This game hasn&apos;t been shared publicly. Ask the creator to share it if
-          you want to play.
-        </Message>
-      </Shell>
-    );
-  }
+  if (!project) notFound();
 
   const remixes = await query<{ id: string; title: string }>(
     `SELECT id, title FROM projects
-     WHERE remixed_from = ? AND visibility = 'public' AND moderation_status = 'approved'
+     WHERE remixed_from = ? AND visibility = 'public' AND moderation_status = 'published'
      ORDER BY created_at DESC LIMIT 8`,
     [id]
   );
 
   return (
-    <Shell signedInAs={user ? project.author_name : undefined}>
+    <Shell signedInAs={actor.kind !== 'anonymous' ? project.author_name : undefined}>
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.2fr_1fr]">
         <div>
           <div className="relative flex h-64 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200">
@@ -85,7 +74,7 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
 
             <LikeButton projectId={project.id} initialCount={project.like_count ?? 0} />
 
-            {access.isOwner ? (
+            {authorized.access.isOwner ? (
               <Link
                 href={`/editor/${project.id}`}
                 className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-slate-300"

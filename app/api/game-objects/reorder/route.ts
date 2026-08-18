@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess } from '@/lib/auth/access';
+import { query } from '@/lib/mysql/server';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireResourceEdit } from '@/lib/auth/access';
 
 /**
  * Persist a new sprite order for one scene.
@@ -17,20 +18,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'sceneId and orderedIds required' }, { status: 400 });
     }
 
-    const scene = await queryOne<{ project_id: string }>(
-      'SELECT project_id FROM scenes WHERE id = ?',
-      [sceneId]
-    );
-    if (!scene) return NextResponse.json({ error: 'Scene not found' }, { status: 404 });
-
-    const project = await queryOne<{ owner_id: string; visibility: string; moderation_status: string }>(
-      'SELECT owner_id, visibility, moderation_status FROM projects WHERE id = ?',
-      [scene.project_id]
-    );
-    if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-
-    const access = await getProjectAccess(project);
-    if (!access.canEdit) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const actor = await resolveActor(request);
+    await requireResourceEdit(actor, 'scene', sceneId);
 
     // Scoped to the scene, so an id from another project can't be renumbered.
     for (let i = 0; i < orderedIds.length; i++) {
@@ -41,6 +30,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Scene not found' }, { status: error.status });
+    }
     console.error('Error reordering objects:', error);
     return NextResponse.json({ error: 'Failed to reorder' }, { status: 500 });
   }

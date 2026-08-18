@@ -1,5 +1,5 @@
 import { queryOne } from '../mysql/server';
-import { resolveCurrentActor, type Actor } from './actor';
+import type { Actor } from './actor';
 import {
   decideAccess,
   MISSING_PROJECT_ACCESS,
@@ -16,6 +16,7 @@ export type AccessErrorCode =
   | 'project_edit_forbidden'
   | 'resource_type_invalid'
   | 'resource_not_found'
+  | 'resource_not_viewable'
   | 'resource_edit_forbidden';
 
 export class AccessError extends Error {
@@ -49,7 +50,6 @@ interface ResourceProjectRow extends ProjectRecord {
 
 interface AccessDependencies {
   queryOne<T>(sql: string, params?: unknown[]): Promise<T | null>;
-  resolveCurrentActor(): Promise<Actor>;
 }
 
 const PROJECT_SELECT = `
@@ -96,9 +96,6 @@ const RESOURCE_PROJECT_SELECT: Readonly<Record<ResourceType, string>> = Object.f
      WHERE resource.id = ?`,
 });
 
-const actorProfileId = (actor: Actor): string | null =>
-  actor.kind === 'anonymous' ? null : actor.profileId;
-
 function editDenialStatus(actor: Actor, access: ProjectAccess): 403 | 404 {
   return access.canView && actor.kind !== 'anonymous' ? 403 : 404;
 }
@@ -117,23 +114,49 @@ export function createAccessService(dependencies: AccessDependencies) {
     return row?.role ?? null;
   }
 
-  async function getProjectAccess(actor: Actor, projectId: string): Promise<ProjectAccess>;
-  /** @deprecated Task 4 removes this row overload; it still resolves a secure actor. */
-  async function getProjectAccess(project: ProjectRow): Promise<ProjectAccess>;
-  async function getProjectAccess(
-    actorOrProject: Actor | ProjectRow,
-    projectId?: string
-  ): Promise<ProjectAccess> {
-    if (projectId === undefined) {
-      const actor = await dependencies.resolveCurrentActor();
-      return decideAccess(actorOrProject as ProjectRow, actor, await resolveActorRole(actor));
-    }
-    const actor = actorOrProject as Actor;
+  async function getProjectAccess(actor: Actor, projectId: string): Promise<ProjectAccess> {
     const [project, actorRole] = await Promise.all([
       loadProject(projectId),
       resolveActorRole(actor),
     ]);
     return project ? decideAccess(project, actor, actorRole) : MISSING_PROJECT_ACCESS;
+  }
+
+  function resourceProjectSelect(resourceType: ResourceType): string {
+    if (!Object.prototype.hasOwnProperty.call(RESOURCE_PROJECT_SELECT, resourceType)) {
+      throw new AccessError('resource_type_invalid', 404);
+    }
+    return RESOURCE_PROJECT_SELECT[resourceType];
+  }
+
+  async function loadResourceProject(
+    sql: string,
+    resourceId: string
+  ): Promise<ResourceProjectRow | null> {
+    return dependencies.queryOne<ResourceProjectRow>(
+      sql,
+      [resourceId]
+    );
+  }
+
+  async function requireResourceView(
+    actor: Actor,
+    resourceType: ResourceType,
+    resourceId: string
+  ): Promise<AuthorizedResource> {
+    const sql = resourceProjectSelect(resourceType);
+    const [row, actorRole] = await Promise.all([
+      loadResourceProject(sql, resourceId),
+      resolveActorRole(actor),
+    ]);
+    if (!row) throw new AccessError('resource_not_found', 404);
+    const access = decideAccess(row, actor, actorRole);
+    if (!access.canView) throw new AccessError('resource_not_viewable', 404);
+    return {
+      resource: { id: row.resource_id, type: resourceType },
+      project: row,
+      access,
+    };
   }
 
   async function requireProjectView(actor: Actor, projectId: string): Promise<AuthorizedProject> {
@@ -165,13 +188,9 @@ export function createAccessService(dependencies: AccessDependencies) {
     resourceType: ResourceType,
     resourceId: string
   ): Promise<AuthorizedResource> {
-    if (!Object.prototype.hasOwnProperty.call(RESOURCE_PROJECT_SELECT, resourceType)) {
-      throw new AccessError('resource_type_invalid', 404);
-    }
-    const sql = RESOURCE_PROJECT_SELECT[resourceType];
-
+    const sql = resourceProjectSelect(resourceType);
     const [row, actorRole] = await Promise.all([
-      dependencies.queryOne<ResourceProjectRow>(sql, [resourceId]),
+      loadResourceProject(sql, resourceId),
       resolveActorRole(actor),
     ]);
     if (!row) throw new AccessError('resource_not_found', 404);
@@ -186,29 +205,19 @@ export function createAccessService(dependencies: AccessDependencies) {
     };
   }
 
-  return { getProjectAccess, requireProjectView, requireProjectEdit, requireResourceEdit };
+  return {
+    getProjectAccess,
+    requireProjectView,
+    requireProjectEdit,
+    requireResourceView,
+    requireResourceEdit,
+  };
 }
 
-const defaultAccessService = createAccessService({ queryOne, resolveCurrentActor });
+const defaultAccessService = createAccessService({ queryOne });
 
-export async function getProjectAccess(actor: Actor, projectId: string): Promise<ProjectAccess>;
-/** @deprecated Task 4 removes this row overload; it still resolves a secure actor. */
-export async function getProjectAccess(project: ProjectRow): Promise<ProjectAccess>;
-export async function getProjectAccess(
-  actorOrProject: Actor | ProjectRow,
-  projectId?: string
-): Promise<ProjectAccess> {
-  if (projectId === undefined) {
-    return defaultAccessService.getProjectAccess(actorOrProject as ProjectRow);
-  }
-  return defaultAccessService.getProjectAccess(actorOrProject as Actor, projectId);
-}
-
+export const getProjectAccess = defaultAccessService.getProjectAccess;
 export const requireProjectView = defaultAccessService.requireProjectView;
 export const requireProjectEdit = defaultAccessService.requireProjectEdit;
+export const requireResourceView = defaultAccessService.requireResourceView;
 export const requireResourceEdit = defaultAccessService.requireResourceEdit;
-
-/** @deprecated Task 4 removes profile-id call sites in favor of Actor. */
-export async function getActorProfileId(): Promise<string | null> {
-  return actorProfileId(await resolveCurrentActor());
-}

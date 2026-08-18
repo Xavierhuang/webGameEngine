@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { query, queryOne } from '@/lib/mysql/server';
-import { getActorProfileId, getProjectAccess } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectView } from '@/lib/auth/access';
 
 /**
  * Remix (fork) a project.
@@ -15,7 +16,7 @@ import { getActorProfileId, getProjectAccess } from '@/lib/auth/access';
  * gallery until its owner explicitly publishes it.
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -24,11 +25,14 @@ export async function POST(
     // Anyone who can *see* a project can remix it — but they must be
     // identifiable, so we can assign ownership. Guests get a profile minted on
     // first project creation; here we require one to already exist.
-    let actorProfileId = await getActorProfileId();
-    if (!actorProfileId) {
-      const { getOrCreateGuestUser } = await import('@/lib/auth/guest');
-      const guest = await getOrCreateGuestUser();
-      actorProfileId = guest.profileId;
+    const actor = await resolveActor(request);
+    if (actor.kind === 'anonymous') {
+      return NextResponse.json({ error: 'Guest session required' }, { status: 401 });
+    }
+
+    const authorized = await requireProjectView(actor, sourceId);
+    if (!authorized.access.canRemix) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const source = await queryOne<{
@@ -46,14 +50,7 @@ export async function POST(
       [sourceId]
     );
 
-    if (!source) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    const access = await getProjectAccess(source);
-    if (!access.canView) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    if (!source) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     const newProjectId = randomUUID();
     const remixTitle = `${source.title} (remix)`.substring(0, 255);
@@ -61,10 +58,10 @@ export async function POST(
     await query(
       `INSERT INTO projects
          (id, owner_id, remixed_from, title, description, genre, thumbnail_url, visibility, moderation_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'private', 'pending')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'private', 'draft')`,
       [
         newProjectId,
-        actorProfileId,
+        actor.profileId,
         source.id,
         remixTitle,
         source.description,
@@ -186,6 +183,9 @@ export async function POST(
       project: { id: newProjectId, title: remixTitle, remixed_from: source.id },
     });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
     console.error('Error remixing project:', error);
     return NextResponse.json({ error: 'Failed to remix project' }, { status: 500 });
   }

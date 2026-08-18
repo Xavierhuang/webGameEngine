@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
-import { getProjectAccess } from '@/lib/auth/access';
+import { query } from '@/lib/mysql/server';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireResourceEdit } from '@/lib/auth/access';
 
 const HATS = new Set(['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'define_custom_block']);
 
@@ -29,43 +30,13 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const user = await getAuthenticatedUser();
+    const actor = await resolveActor(request);
+    const authorized = await requireResourceEdit(actor, 'object', id);
     const body = await request.json();
     const blocks = body.blocks;
 
     if (!Array.isArray(blocks)) {
       return NextResponse.json({ error: 'blocks array required' }, { status: 400 });
-    }
-
-    const gameObject = await queryOne<{ scene_id: string }>(
-      'SELECT scene_id FROM game_objects WHERE id = ?',
-      [id]
-    );
-    if (!gameObject) {
-      return NextResponse.json({ error: 'Game object not found' }, { status: 404 });
-    }
-
-    const scene = await queryOne<{ project_id: string }>(
-      'SELECT project_id FROM scenes WHERE id = ?',
-      [gameObject.scene_id]
-    );
-    if (!scene) {
-      return NextResponse.json({ error: 'Scene not found' }, { status: 404 });
-    }
-
-    const project = await queryOne<{ owner_id: string; visibility: string }>(
-      'SELECT owner_id, visibility FROM projects WHERE id = ?',
-      [scene.project_id]
-    );
-    // Writing scripts is owner-only. The old check lived inside `if (project &&
-    // user)`, so an unauthenticated caller skipped it entirely and could
-    // overwrite any project's scripts. Note "public" must NOT grant write.
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-    const access = await getProjectAccess(project);
-    if (!access.canEdit) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     await query('DELETE FROM logic_blocks WHERE game_object_id = ?', [id]);
@@ -80,7 +51,7 @@ export async function PUT(
         [
           randomUUID(),
           id,
-          scene.project_id,
+          authorized.project.id,
           block.block_type,
           block.category || categoryFor(block.block_type),
           i,
@@ -91,6 +62,9 @@ export async function PUT(
 
     return NextResponse.json({ success: true, count: blocks.length });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Game object not found' }, { status: error.status });
+    }
     console.error('Error saving logic blocks:', error);
     return NextResponse.json({ error: 'Failed to save logic blocks' }, { status: 500 });
   }

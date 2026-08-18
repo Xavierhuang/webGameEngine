@@ -1,4 +1,5 @@
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { query, queryOne } from '@/lib/mysql/server';
+import { resolveCurrentActor } from '@/lib/auth/actor';
 import Link from 'next/link';
 import { Plus, Play, Edit, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
@@ -11,15 +12,14 @@ export default async function ProjectsPage(props: {
 }) {
   const searchParams = await props.searchParams;
 
-  // Allow both authenticated and guest users
-  const user = await getAuthenticatedUser();
+  const actor = await resolveCurrentActor();
   const t = await getTranslator();
 
   let projects: any[] = [];
   let displayName = 'Guest';
   let profile: any = null;
 
-  if (user) {
+  if (actor.kind !== 'anonymous') {
     profile = await queryOne<{
       id: string;
       role: string;
@@ -29,8 +29,8 @@ export default async function ProjectsPage(props: {
       display_name: string | null;
       username: string | null;
     }>(
-      'SELECT id, role, parental_approval, can_publish, can_share, display_name, username FROM profiles WHERE user_id = ?',
-      [user.id]
+      'SELECT id, role, parental_approval, can_publish, can_share, display_name, username FROM profiles WHERE id = ?',
+      [actor.profileId]
     );
 
     if (profile) {
@@ -47,7 +47,7 @@ export default async function ProjectsPage(props: {
 
   return (
     <div className="relative min-h-screen bg-white overflow-hidden">
-      <AppNav signedInAs={user ? displayName : undefined} />
+      <AppNav signedInAs={actor.kind !== 'anonymous' ? displayName : undefined} />
       <PageBackdrop />
 
       <div className="relative max-w-7xl mx-auto px-6 pt-10 pb-20">
@@ -58,7 +58,7 @@ export default async function ProjectsPage(props: {
             body="Start creating games — every project you make is saved to your account."
           />
         )}
-        {!user && (
+        {actor.kind === 'anonymous' && (
           <NotificationBar
             tone="info"
             title="You're creating as a guest."
@@ -80,7 +80,7 @@ export default async function ProjectsPage(props: {
         <div className="flex items-end justify-between flex-wrap gap-4 mb-8 mt-2">
           <div>
             <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-              {user ? t('projects.signedIn') : t('projects.guestMode')}
+              {actor.kind === 'user' ? t('projects.signedIn') : t('projects.guestMode')}
             </div>
             <h1 className="mt-1 text-4xl font-black tracking-tight text-slate-900">
               {displayName}&apos;s Games

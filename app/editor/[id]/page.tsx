@@ -1,6 +1,7 @@
-import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
-import { requireAuth, queryOne } from '@/lib/mysql/server';
+import { query, queryOne } from '@/lib/mysql/server';
+import { resolveCurrentActor } from '@/lib/auth/actor';
+import { requireProjectEdit } from '@/lib/auth/access';
 import GameEditor from '@/components/editor/GameEditor';
 import { CollaborationProvider } from '@/components/realtime/CollaborationProvider';
 
@@ -12,19 +13,14 @@ interface EditorPageProps {
 
 export default async function EditorPage({ params }: EditorPageProps) {
   const { id } = await params;
-  
-  // Allow both authenticated and guest users
-  const { getAuthenticatedUser } = await import('@/lib/mysql/server');
-  const user = await getAuthenticatedUser();
-  
-  let profileId: string | null = null;
-  if (user) {
-    const profile = await queryOne<{ id: string }>(
-      'SELECT id FROM profiles WHERE user_id = ?',
-      [user.id]
-    );
-    profileId = profile?.id || null;
+
+  const actor = await resolveCurrentActor();
+  try {
+    await requireProjectEdit(actor, id);
+  } catch {
+    notFound();
   }
+  if (actor.kind === 'anonymous') notFound();
 
   // Fetch project
   const project = await queryOne<{
@@ -50,18 +46,7 @@ export default async function EditorPage({ params }: EditorPageProps) {
     notFound();
   }
 
-  // Check ownership (only if user is authenticated)
-  // Guest users can access projects they created (we'll handle this client-side)
-  if (user && profileId && project.owner_id !== profileId) {
-    // Check if it's a public project
-    if (project.visibility !== 'public' || !project.is_published) {
-    notFound();
-  }
-  }
-
   // Fetch related data
-  const { query } = await import('@/lib/mysql/server');
-  
   const scenes = await query<{
     id: string;
     project_id: string;
@@ -160,17 +145,13 @@ export default async function EditorPage({ params }: EditorPageProps) {
   };
 
   // Get user info for collaboration
-  let userId = 'guest';
+  let userId = actor.kind === 'user' ? actor.userId : actor.profileId;
   let username = 'Guest';
-  
-  if (user) {
-    userId = user.id;
-    const userProfile = await queryOne<{ username: string | null; display_name: string | null }>(
-      'SELECT username, display_name FROM profiles WHERE user_id = ?',
-      [user.id]
-    );
-    username = userProfile?.username || userProfile?.display_name || 'Player';
-  }
+  const userProfile = await queryOne<{ username: string | null; display_name: string | null }>(
+    'SELECT username, display_name FROM profiles WHERE id = ?',
+    [actor.profileId]
+  );
+  username = userProfile?.username || userProfile?.display_name || 'Player';
 
   return (
     <CollaborationProvider
@@ -190,4 +171,3 @@ export async function generateMetadata({ params }: EditorPageProps) {
     description: 'Create your amazing game!',
   };
 }
-

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { captureError } from '@/lib/monitoring/errors';
-import { getActorProfileId } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
 import { rateLimit, clientKey } from '@/lib/safety/rateLimit';
 
 /**
@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
   if (!limit.allowed) return NextResponse.json({ ok: true });
 
   try {
+    const actor = await resolveActor(request);
     const { message, stack, url } = await request.json();
     if (typeof message !== 'string' || !message.trim()) {
       return NextResponse.json({ ok: true });
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
       message,
       stack: typeof stack === 'string' ? stack : null,
       url: typeof url === 'string' ? url : null,
-      profileId: await getActorProfileId().catch(() => null),
+      profileId: actor.kind === 'anonymous' ? null : actor.profileId,
       userAgent: request.headers.get('user-agent'),
     });
   } catch {

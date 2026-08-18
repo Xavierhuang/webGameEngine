@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { getActorProfileId } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectEdit } from '@/lib/auth/access';
 import { query } from '@/lib/mysql/server';
 
 const ALLOWED_EXTS = new Set(['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae']);
@@ -12,16 +13,14 @@ const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
-    // This route used to be completely unauthenticated with no size cap: a free
-    // disk-fill and arbitrary-static-file-hosting primitive on the droplet.
-    const actorProfileId = await getActorProfileId();
-    if (!actorProfileId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const actor = await resolveActor(request);
     const form = await request.formData();
     const file = form.get('file') as File | null;
     const projectId = form.get('projectId');
+    if (typeof projectId !== 'string' || !projectId) {
+      return NextResponse.json({ error: 'projectId required; personal media is disabled' }, { status: 400 });
+    }
+    const authorized = await requireProjectEdit(actor, projectId);
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
@@ -70,8 +69,8 @@ export async function POST(request: NextRequest) {
          VALUES (?, ?, ?, 'model', ?, ?, ?, ?, FALSE)`,
         [
           id,
-          typeof projectId === 'string' && projectId ? projectId : null,
-          actorProfileId,
+          projectId,
+          authorized.project.owner_id,
           original.substring(0, 255),
           url,
           buffer.byteLength,
@@ -79,16 +78,18 @@ export async function POST(request: NextRequest) {
         ]
       );
     } catch (error) {
-      // The file is already on disk and usable; losing the bookkeeping row
-      // shouldn't fail the upload.
       console.error('[upload] failed to record asset row:', error);
+      await fs.unlink(filepath).catch(() => {});
+      throw error;
     }
 
     return NextResponse.json({ url, name: original });
   } catch (e: any) {
+    if (e instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: e.status });
+    }
     console.error('Upload failed:', e);
     return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
   }
 }
-
 

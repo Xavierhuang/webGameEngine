@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { query, queryOne } from '@/lib/mysql/server';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectView } from '@/lib/auth/access';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
 const ALLOWED_REASONS = new Set(['inappropriate', 'harassment', 'spam', 'violence', 'other']);
@@ -20,6 +22,7 @@ const ALLOWED_REASONS = new Set(['inappropriate', 'harassment', 'spam', 'violenc
  */
 export async function POST(request: NextRequest) {
   try {
+    const actor = await resolveActor(request);
     const body = await request.json();
     const projectId = typeof body.projectId === 'string' ? body.projectId : null;
     const reportedProfileId = typeof body.profileId === 'string' ? body.profileId : null;
@@ -32,8 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Verify the reported entity exists (avoids junk rows and helps rate limits).
     if (projectId) {
-      const p = await queryOne<{ id: string }>('SELECT id FROM projects WHERE id = ?', [projectId]);
-      if (!p) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      await requireProjectView(actor, projectId);
     }
     if (reportedProfileId) {
       const p = await queryOne<{ id: string }>('SELECT id FROM profiles WHERE id = ?', [reportedProfileId]);
@@ -43,8 +45,11 @@ export async function POST(request: NextRequest) {
     // Report details go through the same moderation gate — a report field is
     // not a bypass channel for slurs. Empty details skip the check.
     if (details) {
-      const user = await getAuthenticatedUser();
-      const modResult = await moderateText(details, user?.id ?? null, null);
+      const modResult = await moderateText(
+        details,
+        actor.kind === 'user' ? actor.userId : null,
+        actor.kind === 'guest' ? actor.profileId : null
+      );
       if (!modResult.safe) {
         return NextResponse.json(
           { error: 'Report details failed moderation', reason: modResult.reason },
@@ -54,15 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve reporter profile id (null for anonymous guests).
-    const user = await getAuthenticatedUser();
-    let reporterProfileId: string | null = null;
-    if (user) {
-      const profile = await queryOne<{ id: string }>(
-        'SELECT id FROM profiles WHERE user_id = ?',
-        [user.id]
-      );
-      reporterProfileId = profile?.id ?? null;
-    }
+    const reporterProfileId = actor.kind === 'anonymous' ? null : actor.profileId;
 
     const id = randomUUID();
     await query(
@@ -74,6 +71,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ id, status: 'open' });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
     console.error('Report creation error:', error);
     return NextResponse.json({ error: error?.message ?? 'Failed to file report' }, { status: 500 });
   }

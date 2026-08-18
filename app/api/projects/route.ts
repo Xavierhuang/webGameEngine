@@ -1,27 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, query } from '@/lib/mysql/server';
+import { query } from '@/lib/mysql/server';
+import { resolveActor } from '@/lib/auth/actor';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser();
+    const actor = await resolveActor(request);
 
-    // If no user, return empty projects array (guest users)
-    if (!user) {
+    if (actor.kind === 'anonymous') {
       return NextResponse.json({ projects: [] });
     }
-
-    // Get profile id from user_id
-    const profile = await query<{ id: string }>(
-      'SELECT id FROM profiles WHERE user_id = ?',
-      [user.id]
-    );
-
-    if (!profile || profile.length === 0) {
-      return NextResponse.json({ projects: [] });
-    }
-
-    const profileId = profile[0].id;
 
     const projects = await query<{
       id: string;
@@ -42,7 +30,7 @@ export async function GET(request: NextRequest) {
       moderation_notes: string | null;
     }>(
       'SELECT * FROM projects WHERE owner_id = ? ORDER BY updated_at DESC',
-      [profileId]
+      [actor.profileId]
     );
 
     return NextResponse.json({ projects });
@@ -57,27 +45,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Allow both authenticated and guest users
-    const user = await getAuthenticatedUser();
-    let profileId: string;
-
-    if (user) {
-      // Authenticated user - get their profile
-      const profile = await query<{ id: string }>(
-        'SELECT id FROM profiles WHERE user_id = ?',
-        [user.id]
-      );
-
-      if (!profile || profile.length === 0) {
-        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-      }
-
-      profileId = profile[0].id;
-    } else {
-      // Guest user - create a temporary guest user and profile
-      const { getOrCreateGuestUser } = await import('@/lib/auth/guest');
-      const guest = await getOrCreateGuestUser();
-      profileId = guest.profileId;
+    const actor = await resolveActor(request);
+    if (actor.kind === 'anonymous') {
+      return NextResponse.json({ error: 'Guest session required' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -94,8 +64,8 @@ export async function POST(request: NextRequest) {
     // so a single API call covers both fields.
     const modResult = await moderateText(
       `${rawTitle}\n${rawDescription}`,
-      user?.id ?? null,
-      user ? null : profileId
+      actor.kind === 'user' ? actor.userId : null,
+      actor.kind === 'guest' ? actor.profileId : null
     );
     if (!modResult.safe) {
       return NextResponse.json(
@@ -117,7 +87,7 @@ export async function POST(request: NextRequest) {
        VALUES (?, ?, ?, ?, ?)`,
       [
         projectId,
-        profileId,
+        actor.profileId,
         rawTitle,
         rawDescription ? rawDescription.substring(0, 500) : null,
         genre,
@@ -164,4 +134,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

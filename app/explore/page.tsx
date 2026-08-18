@@ -1,4 +1,6 @@
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { queryOne } from '@/lib/mysql/server';
+import { resolveCurrentActor } from '@/lib/auth/actor';
+import { listPublicProjects } from '@/lib/auth/publicProjects';
 import Link from 'next/link';
 import { Play, Search, Heart, GitFork, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
@@ -23,18 +25,18 @@ export default async function ExplorePage(props: {
   searchParams?: Promise<{ q?: string; sort?: string }>;
 }) {
   const searchParams = await props.searchParams;
-  const user = await getAuthenticatedUser();
+  const actor = await resolveCurrentActor();
   const t = await getTranslator();
 
   const rawQuery = (searchParams?.q ?? '').trim().substring(0, 100);
   const sortKey = searchParams?.sort && SORTS[searchParams.sort] ? searchParams.sort : 'newest';
 
   let displayName = 'Guest';
-  if (user) {
+  if (actor.kind !== 'anonymous') {
     try {
       const profile = await queryOne<{ display_name: string | null; username: string | null }>(
-        'SELECT display_name, username FROM profiles WHERE user_id = ?',
-        [user.id]
+        'SELECT display_name, username FROM profiles WHERE id = ?',
+        [actor.profileId]
       );
       displayName = profile?.display_name || profile?.username || 'Player';
     } catch {
@@ -42,38 +44,19 @@ export default async function ExplorePage(props: {
     }
   }
 
-  const where = ["p.visibility = 'public'", "p.moderation_status = 'approved'"];
-  const args: any[] = [];
-  if (rawQuery) {
-    where.push('(p.title LIKE ? OR p.description LIKE ?)');
-    args.push(`%${rawQuery}%`, `%${rawQuery}%`);
-  }
-
   // Unlike the other pages, this one always hits the database — there is no
   // signed-out short circuit. An unreachable DB used to 500 the whole page
   // rather than showing the empty state, so a transient blip took Explore down.
   let projects: any[] = [];
   try {
-    projects = await query<any>(
-      `SELECT p.id, p.title, p.description, p.thumbnail_url, p.genre, p.created_at,
-              p.play_count, p.like_count, p.remix_count, p.remixed_from,
-              author.display_name AS author_name, author.username AS author_username,
-              parent.title AS parent_title
-       FROM projects p
-       LEFT JOIN profiles author ON author.id = p.owner_id
-       LEFT JOIN projects parent ON parent.id = p.remixed_from
-       WHERE ${where.join(' AND ')}
-       ORDER BY ${SORTS[sortKey].order}
-       LIMIT 48`,
-      args
-    );
+    projects = await listPublicProjects({ search: rawQuery, sort: sortKey, limit: 48 });
   } catch (error) {
     console.error('[explore] project query failed:', error);
   }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-white">
-      <AppNav signedInAs={user ? displayName : undefined} />
+      <AppNav signedInAs={actor.kind !== 'anonymous' ? displayName : undefined} />
       <PageBackdrop />
 
       <div className="relative mx-auto max-w-7xl px-6 pb-20 pt-10">
@@ -156,13 +139,13 @@ function ExploreCard({ project }: { project: any }) {
           <h2 className="truncate font-bold text-slate-900 hover:underline">{project.title}</h2>
         </Link>
         <p className="mt-0.5 truncate text-xs text-slate-500">
-          by {project.author_name || 'Someone'}
+          by {project.author.display_name || project.author.username || 'Someone'}
         </p>
 
-        {project.parent_title && (
+        {project.parent && (
           <p className="mt-1.5 truncate text-xs text-slate-400">
             <GitFork className="mr-1 inline h-3 w-3" />
-            remix of {project.parent_title}
+            remix of {project.parent.title}
           </p>
         )}
 

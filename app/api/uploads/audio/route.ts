@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { getActorProfileId } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectEdit } from '@/lib/auth/access';
 import { query } from '@/lib/mysql/server';
 import { rateLimit, clientKey } from '@/lib/safety/rateLimit';
 
@@ -29,15 +30,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const actorProfileId = await getActorProfileId();
-    if (!actorProfileId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
+    const actor = await resolveActor(request);
     const form = await request.formData();
     const file = form.get('audio') as File | null;
     const name = form.get('name');
     const projectId = form.get('projectId');
+
+    if (typeof projectId !== 'string' || !projectId) {
+      return NextResponse.json({ error: 'projectId required; personal media is disabled' }, { status: 400 });
+    }
+    const authorized = await requireProjectEdit(actor, projectId);
 
     if (!file) {
       return NextResponse.json({ error: 'No recording provided.' }, { status: 400 });
@@ -64,7 +66,8 @@ export async function POST(request: NextRequest) {
     const id = crypto.randomUUID();
     const dir = path.join(process.cwd(), 'public', 'uploads', 'audio');
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, `${id}.${ext}`), buffer);
+    const filePath = path.join(dir, `${id}.${ext}`);
+    await fs.writeFile(filePath, buffer);
 
     const url = `/uploads/audio/${id}.${ext}`;
 
@@ -75,8 +78,8 @@ export async function POST(request: NextRequest) {
          VALUES (?, ?, ?, 'sound', ?, ?, ?, ?, FALSE)`,
         [
           id,
-          typeof projectId === 'string' && projectId ? projectId : null,
-          actorProfileId,
+          projectId,
+          authorized.project.owner_id,
           (typeof name === 'string' && name ? name : 'Recording').substring(0, 255),
           url,
           buffer.byteLength,
@@ -85,10 +88,15 @@ export async function POST(request: NextRequest) {
       );
     } catch (error) {
       console.error('[audio] failed to record asset row:', error);
+      await fs.unlink(filePath).catch(() => {});
+      throw error;
     }
 
     return NextResponse.json({ url });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
     console.error('Audio upload failed:', error);
     return NextResponse.json({ error: 'Failed to save the recording.' }, { status: 500 });
   }

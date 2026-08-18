@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
 import { query } from '@/lib/mysql/server';
-import { getActorProfileId } from '@/lib/auth/access';
+import { resolveActor } from '@/lib/auth/actor';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
 /**
@@ -17,11 +17,9 @@ const MAX_BLOCKS = 5000;
 
 export async function POST(request: NextRequest) {
   try {
-    let actorProfileId = await getActorProfileId();
-    if (!actorProfileId) {
-      const { getOrCreateGuestUser } = await import('@/lib/auth/guest');
-      const guest = await getOrCreateGuestUser();
-      actorProfileId = guest.profileId;
+    const actor = await resolveActor(request);
+    if (actor.kind === 'anonymous') {
+      return NextResponse.json({ error: 'Guest session required' }, { status: 401 });
     }
 
     const payload = await request.json();
@@ -51,7 +49,11 @@ export async function POST(request: NextRequest) {
 
     // Imported text is user-supplied content like any other, so it goes through
     // the same moderation gate as project create.
-    const verdict = await moderateText([title, description].filter(Boolean).join('\n'), null, actorProfileId);
+    const verdict = await moderateText(
+      [title, description].filter(Boolean).join('\n'),
+      actor.kind === 'user' ? actor.userId : null,
+      actor.kind === 'guest' ? actor.profileId : null
+    );
     if (!verdict.safe) {
       return NextResponse.json(
         { error: 'Content moderation failed', reason: verdict.reason },
@@ -62,8 +64,8 @@ export async function POST(request: NextRequest) {
     const projectId = randomUUID();
     await query(
       `INSERT INTO projects (id, owner_id, title, description, genre, visibility, moderation_status)
-       VALUES (?, ?, ?, ?, ?, 'private', 'pending')`,
-      [projectId, actorProfileId, title, description, payload.project?.genre ?? null]
+       VALUES (?, ?, ?, ?, ?, 'private', 'draft')`,
+      [projectId, actor.profileId, title, description, payload.project?.genre ?? null]
     );
 
     const sceneIdMap = new Map<string, string>();
