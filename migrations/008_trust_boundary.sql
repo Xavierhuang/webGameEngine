@@ -7,9 +7,10 @@
 USE gameengine;
 
 -- ---------------------------------------------------------------------------
--- Profiles: a secure guest has a profile but no users row. The precise age
--- field is removed; the application stores only a YYYY-MM birth month and
--- derives the age band on the server.
+-- Profiles: a secure guest has a profile but no users row. New code stores
+-- only a YYYY-MM birth month and derives the age band on the server. The
+-- nullable legacy age column stays until its remaining application consumers
+-- are migrated; a later contract migration removes it after deployment.
 -- ---------------------------------------------------------------------------
 ALTER TABLE profiles MODIFY COLUMN user_id CHAR(36) NULL;
 
@@ -37,25 +38,14 @@ SET @sql := IF(@birth_month_check = 0,
   'SET @noop = 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
-SET @age_check := (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
-                   WHERE table_schema = DATABASE() AND table_name = 'profiles'
-                     AND constraint_name = 'valid_age');
-SET @sql := IF(@age_check = 1,
-  'ALTER TABLE profiles DROP CHECK valid_age',
-  'SET @noop = 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @age_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
-                 WHERE table_schema = DATABASE() AND table_name = 'profiles'
-                   AND column_name = 'age');
-SET @sql := IF(@age_col = 1,
-  'ALTER TABLE profiles DROP COLUMN age',
-  'SET @noop = 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
 -- ---------------------------------------------------------------------------
 -- Legacy guest quarantine. These records are explicitly non-authorizing.
 -- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS trust_migration_state (
+  migration_key VARCHAR(100) PRIMARY KEY,
+  completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS legacy_guest_quarantine (
   id CHAR(36) PRIMARY KEY,
   legacy_profile_id CHAR(36) NOT NULL,
@@ -79,9 +69,21 @@ SELECT
   END
 FROM profiles p
 LEFT JOIN users u ON u.id = p.user_id
-WHERE p.profile_kind = 'guest'
-   OR p.user_id IS NULL
-   OR u.email LIKE 'guest-%@temp.local';
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM trust_migration_state
+  WHERE migration_key = '008_trust_boundary_legacy_guest_backfill'
+)
+  AND (
+    p.profile_kind = 'guest'
+    OR p.user_id IS NULL
+    OR u.email LIKE 'guest-%@temp.local'
+  );
+
+-- Mark completion only after the full insert succeeds. This remains correct
+-- when there were no legacy guests and permits a partial failed run to retry.
+INSERT IGNORE INTO trust_migration_state (migration_key)
+VALUES ('008_trust_boundary_legacy_guest_backfill');
 
 -- ---------------------------------------------------------------------------
 -- Opaque guest sessions. The raw 32-byte base64url token is response-only;
@@ -170,7 +172,7 @@ ON DUPLICATE KEY UPDATE enabled = FALSE;
 -- ---------------------------------------------------------------------------
 ALTER TABLE projects MODIFY COLUMN moderation_status
   ENUM('pending', 'approved', 'rejected', 'draft', 'moderation_pending', 'published')
-  NOT NULL DEFAULT 'draft';
+  NULL DEFAULT 'draft';
 
 UPDATE projects
 SET moderation_status = CASE
@@ -178,7 +180,8 @@ SET moderation_status = CASE
   WHEN moderation_status IN ('pending', 'approved') THEN 'draft'
   ELSE moderation_status
 END
-WHERE moderation_status IN ('pending', 'approved');
+WHERE moderation_status IS NULL
+   OR moderation_status IN ('pending', 'approved');
 
 ALTER TABLE projects MODIFY COLUMN moderation_status
   ENUM('draft', 'moderation_pending', 'published', 'rejected')

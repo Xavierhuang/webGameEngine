@@ -58,19 +58,40 @@ test('records durable quota buckets and redacted security audit fields', () => {
   includes(/feature_flags[\s\S]*?enabled\s+BOOLEAN\s+NOT NULL\s+DEFAULT FALSE/i, 'feature flag default');
 });
 
-test('makes profiles support guests without retaining a precise age', () => {
+test('expands profiles for guests while retaining deprecated age compatibility', () => {
   includes(/MODIFY COLUMN user_id CHAR\(36\) NULL/i, 'nullable profiles.user_id');
   includes(/profile_kind ENUM\(''user'',\s*''guest''\) NOT NULL DEFAULT ''user''/i, 'profile kind');
   includes(/birth_month CHAR\(7\) NULL/i, 'birth month');
-  includes(/DROP COLUMN age/i, 'legacy precise age removal');
+  assert.doesNotMatch(migration, /DROP COLUMN age/i, 'age removal must wait for the contract migration');
 });
 
-test('quarantines all legacy guest identity patterns without granting authority', () => {
+test('quarantines legacy identities exactly once with a durable completion marker', () => {
+  includes(/CREATE TABLE IF NOT EXISTS trust_migration_state\b/i, 'migration state table');
   includes(/INSERT IGNORE INTO legacy_guest_quarantine/i, 'legacy quarantine insert');
+  includes(/WHERE NOT EXISTS\s*\(\s*SELECT 1\s*FROM trust_migration_state/i, 'legacy backfill completion guard');
+  includes(/INSERT IGNORE INTO trust_migration_state\s*\(migration_key\)/i, 'legacy backfill completion marker');
   includes(/p\.profile_kind\s*=\s*'guest'/i, 'guest profile condition');
   includes(/p\.user_id\s+IS NULL/i, 'missing user condition');
   includes(/u\.email\s+LIKE\s+'guest-%@temp\.local'/i, 'temporary guest email condition');
   includes(/guest-profile-id/i, 'legacy cookie is documented as non-authority');
+  assert.ok(
+    migration.indexOf('INSERT IGNORE INTO trust_migration_state (migration_key)') >
+      migration.indexOf('INSERT IGNORE INTO legacy_guest_quarantine'),
+    'the marker must be written only after the legacy backfill completes'
+  );
+});
+
+test('normalizes nullable project statuses before the final non-null enum', () => {
+  includes(/WHERE moderation_status IS NULL\s+OR moderation_status IN \('pending', 'approved'\)/i, 'null status normalization');
+  includes(/WHEN visibility = 'public' OR is_published = TRUE THEN 'moderation_pending'/i, 'public null status transition');
+  const firstProjectEnum = migration.indexOf('ALTER TABLE projects MODIFY COLUMN moderation_status');
+  const finalProjectEnum = migration.lastIndexOf('ALTER TABLE projects MODIFY COLUMN moderation_status');
+  assert.ok(firstProjectEnum >= 0 && finalProjectEnum > firstProjectEnum, 'expected interim and final project enums');
+  assert.match(migration.slice(firstProjectEnum, finalProjectEnum), /\bNULL DEFAULT 'draft'/i, 'interim enum must remain nullable');
+  assert.ok(
+    migration.indexOf('UPDATE projects') > firstProjectEnum && migration.indexOf('UPDATE projects') < finalProjectEnum,
+    'normalization must run before the final NOT NULL enum'
+  );
 });
 
 test('keeps public projects pending until immutable snapshots are approved', () => {

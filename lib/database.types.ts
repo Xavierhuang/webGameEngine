@@ -25,6 +25,8 @@ export interface Database {
           username: string | null;
           display_name: string | null;
           birth_month: string | null;
+          /** @deprecated Kept only while legacy application queries are migrated. */
+          age: number | null;
           parent_id: string | null;
           avatar_url: string | null;
           created_at: string;
@@ -42,6 +44,8 @@ export interface Database {
           username?: string | null;
           display_name?: string | null;
           birth_month?: string | null;
+          /** @deprecated Kept only while legacy application queries are migrated. */
+          age?: number | null;
           parent_id?: string | null;
           avatar_url?: string | null;
           parental_approval?: boolean;
@@ -57,6 +61,8 @@ export interface Database {
           username?: string | null;
           display_name?: string | null;
           birth_month?: string | null;
+          /** @deprecated Kept only while legacy application queries are migrated. */
+          age?: number | null;
           parent_id?: string | null;
           avatar_url?: string | null;
           parental_approval?: boolean;
@@ -410,6 +416,16 @@ export interface Database {
           legacy_profile_id: string;
           legacy_user_id?: string | null;
           reason: 'profile_kind_guest' | 'missing_user' | 'temporary_guest_email';
+        };
+        Update: Record<string, never>;
+      };
+      trust_migration_state: {
+        Row: {
+          migration_key: string;
+          completed_at: string;
+        };
+        Insert: {
+          migration_key: string;
         };
         Update: Record<string, never>;
       };
