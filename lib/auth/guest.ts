@@ -1,8 +1,6 @@
 import { randomUUID } from 'crypto';
-import { cookies } from 'next/headers';
 import { resolveCurrentActor } from './actor';
-import { GUEST_COOKIE, issueGuestSession } from './guestSession';
-import { guestSessionStore, query } from '../mysql/server';
+import { query } from '../mysql/server';
 
 /**
  * Create a guest profile without a users row. Authority comes only from a
@@ -20,7 +18,7 @@ export async function createGuestProfile(): Promise<string> {
   return profileId;
 }
 
-/** Resolve an existing actor or mint a secure profile and opaque session. */
+/** Compatibility resolver. Anonymous callers must bootstrap through the API. */
 export async function getOrCreateGuestUser(): Promise<{
   userId: string | null;
   profileId: string;
@@ -33,10 +31,5 @@ export async function getOrCreateGuestUser(): Promise<{
     return { userId: null, profileId: actor.profileId };
   }
 
-  const profileId = await createGuestProfile();
-  const issued = await issueGuestSession(guestSessionStore, profileId);
-  const cookieStore = await cookies();
-  const { name, ...options } = GUEST_COOKIE;
-  cookieStore.set(name, issued.token, options);
-  return { userId: null, profileId };
+  throw new Error('Guest session required; call POST /api/guest-session');
 }

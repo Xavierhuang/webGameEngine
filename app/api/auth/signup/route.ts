@@ -13,8 +13,9 @@ import {
 } from '@/lib/safety/coppa';
 import { createConsentRequest } from '@/lib/safety/parentalConsent';
 import { sendEmail, parentalConsentEmail } from '@/lib/email/send';
+import { expireLegacyGuestCookie } from '@/lib/auth/guestSession';
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   // Credential stuffing / account-spam guard — there was no rate limiting
   // anywhere on the auth endpoints.
   //
@@ -107,8 +108,8 @@ export async function POST(request: NextRequest) {
     // MySQL where the app user lacks SUPER and binary logging is on (ERROR
     // 1419). The old code did a bare UPDATE, which silently matched zero rows,
     // so every registered signup produced a user with NO profile: no age, no
-    // permissions, and nothing to own their projects. Guests were unaffected
-    // because getOrCreateGuestUser inserts its profile in code.
+    // permissions, and nothing to own their projects. Secure guest profiles
+    // are created separately by the dedicated guest-session endpoint.
     //
     // ON DUPLICATE KEY UPDATE keeps this correct on databases where the
     // trigger *does* exist and has already inserted a row.
@@ -228,3 +229,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  const response = await handlePost(request);
+  expireLegacyGuestCookie(response);
+  return response;
+}

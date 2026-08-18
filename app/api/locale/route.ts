@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveLocale } from '@/lib/i18n/messages';
 import { LOCALE_COOKIE } from '@/lib/i18n/server';
+import { expireLegacyGuestCookie } from '@/lib/auth/guestSession';
 
 /** Persist an explicit language choice; it wins over Accept-Language. */
 export async function POST(request: NextRequest) {
@@ -14,5 +15,6 @@ export async function POST(request: NextRequest) {
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
   });
+  expireLegacyGuestCookie(response);
   return response;
 }

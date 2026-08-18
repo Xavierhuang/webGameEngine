@@ -1,4 +1,4 @@
-import { query, queryOne } from './client';
+import { getPool, query, queryOne } from './client';
 import { cookies } from 'next/headers';
 import { getUserIdFromToken } from '../auth/jwt';
 import type { GuestSessionRow, GuestSessionStore } from '../auth/guestSession';
@@ -60,6 +60,40 @@ export const guestSessionStore: GuestSessionStore = {
        VALUES (?, ?, ?, ?)`,
       [row.sessionId, row.profileId, row.tokenHash, row.expiresAt]
     );
+  },
+  async rotate({ parentTokenHash, expectedProfileId, rotatedAt, replacement }) {
+    const connection = await getPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.execute(
+        `UPDATE guest_sessions SET revoked_at = ?
+         WHERE token_hash = ? AND profile_id = ?
+           AND revoked_at IS NULL AND expires_at > ?`,
+        [rotatedAt, parentTokenHash, expectedProfileId, rotatedAt]
+      );
+      if ((result as { affectedRows: number }).affectedRows !== 1) {
+        await connection.rollback();
+        return false;
+      }
+
+      await connection.execute(
+        `INSERT INTO guest_sessions (id, profile_id, token_hash, expires_at)
+         VALUES (?, ?, ?, ?)`,
+        [
+          replacement.sessionId,
+          replacement.profileId,
+          replacement.tokenHash,
+          replacement.expiresAt,
+        ]
+      );
+      await connection.commit();
+      return true;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
   async findByTokenHash(tokenHash) {
     const row = await queryOne<GuestSessionDatabaseRow>(

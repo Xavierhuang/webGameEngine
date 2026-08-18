@@ -3,8 +3,9 @@ import { rateLimit, clientKey, retryMessage } from '@/lib/safety/rateLimit';
 import { queryOne } from '@/lib/mysql/client';
 import { verifyPassword } from '@/lib/auth/password';
 import { generateToken } from '@/lib/auth/jwt';
+import { expireLegacyGuestCookie } from '@/lib/auth/guestSession';
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   // Credential stuffing / account-spam guard — there was no rate limiting
   // anywhere on the auth endpoints.
   // A shared school IP means one class logging in must not lock out the next.
@@ -75,3 +76,8 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  const response = await handlePost(request);
+  expireLegacyGuestCookie(response);
+  return response;
+}

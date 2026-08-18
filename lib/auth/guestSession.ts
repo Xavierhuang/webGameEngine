@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'crypto';
+import type { NextResponse } from 'next/server';
 import { readSecurityConfig } from '../config/security';
 
 export const GUEST_COOKIE = {
@@ -11,6 +12,16 @@ export const GUEST_COOKIE = {
 };
 
 export const LEGACY_GUEST_COOKIE_NAME = 'guest-profile-id';
+
+export function expireLegacyGuestCookie(response: NextResponse): void {
+  response.cookies.set(LEGACY_GUEST_COOKIE_NAME, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
+}
 
 export interface GuestSessionRow {
   sessionId: string;
@@ -30,6 +41,12 @@ export interface NewGuestSessionRow {
 
 export interface GuestSessionStore {
   insert(row: NewGuestSessionRow): Promise<void>;
+  rotate(input: {
+    parentTokenHash: string;
+    expectedProfileId: string;
+    rotatedAt: Date;
+    replacement: NewGuestSessionRow;
+  }): Promise<boolean>;
   findByTokenHash(tokenHash: string): Promise<GuestSessionRow | null>;
   revokeByTokenHash(tokenHash: string, revokedAt: Date): Promise<void>;
   touchByTokenHash(tokenHash: string, lastSeenAt: Date): Promise<void>;
@@ -56,31 +73,28 @@ export async function issueGuestSession(
   parentToken: string | null = null,
   now = new Date()
 ): Promise<IssuedGuestSession> {
-  if (parentToken) {
-    const parentHash = hashGuestToken(parentToken);
-    const parent = await store.findByTokenHash(parentHash);
-    if (
-      !parent ||
-      parent.profileId !== profileId ||
-      parent.revokedAt !== null ||
-      parent.expiresAt.getTime() <= now.getTime()
-    ) {
-      throw new Error('Cannot rotate an invalid guest session');
-    }
-    await store.revokeByTokenHash(parentHash, now);
-  }
-
   const token = randomBytes(32).toString('base64url');
   const sessionId = randomUUID();
   const sessionDays = readSecurityConfig(process.env).guestSessionDays;
   const expiresAt = new Date(now.getTime() + sessionDays * 24 * 60 * 60 * 1000);
-
-  await store.insert({
+  const replacement = {
     sessionId,
     profileId,
     tokenHash: hashGuestToken(token),
     expiresAt,
-  });
+  };
+
+  if (parentToken) {
+    const rotated = await store.rotate({
+      parentTokenHash: hashGuestToken(parentToken),
+      expectedProfileId: profileId,
+      rotatedAt: now,
+      replacement,
+    });
+    if (!rotated) throw new Error('Guest session rotation race lost');
+  } else {
+    await store.insert(replacement);
+  }
 
   return { sessionId, profileId, token, expiresAt };
 }
