@@ -18,6 +18,7 @@
     "test:rate-limit": "tsc lib/safety/rateLimit.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/safety/rate-limit.test.js",
     "test:safety": "tsc lib/safety/keyword-scan.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/safety/keyword-scan.test.js",
     "test:access": "tsc lib/auth/projectAccess.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/auth/project-access.test.js",
+    "test:trust-schema": "tsc lib/config/security.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/database/trust-boundary-migration.test.js && node test/config/security.test.js",
     "test:game-outcome": "tsc lib/runtime/interpreter.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/runtime/game-outcome.test.js",
     "test:scripts-run": "node test/player/scripts-always-run.test.js",
     "test:preview-support": "tsc lib/editor/previewSupport.ts lib/blockly/definitions.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/editor/preview-support.test.js",

@@ -7,7 +7,10 @@ export type Json =
   | Json[];
 
 export type UserRole = 'child' | 'parent' | 'admin';
+export type ProfileKind = 'user' | 'guest';
 export type ModerationStatus = 'pending' | 'approved' | 'rejected';
+export type ProjectModerationStatus = 'draft' | 'moderation_pending' | 'published' | 'rejected';
+export type PublicationModerationStatus = 'moderation_pending' | 'published' | 'rejected';
 export type ProjectVisibility = 'private' | 'shared' | 'public';
 
 export interface Database {
@@ -16,10 +19,12 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
+          user_id: string | null;
+          profile_kind: ProfileKind;
           role: UserRole;
           username: string | null;
           display_name: string | null;
-          age: number | null;
+          birth_month: string | null;
           parent_id: string | null;
           avatar_url: string | null;
           created_at: string;
@@ -31,10 +36,12 @@ export interface Database {
         };
         Insert: {
           id: string;
+          user_id?: string | null;
+          profile_kind?: ProfileKind;
           role?: UserRole;
           username?: string | null;
           display_name?: string | null;
-          age?: number | null;
+          birth_month?: string | null;
           parent_id?: string | null;
           avatar_url?: string | null;
           parental_approval?: boolean;
@@ -44,10 +51,12 @@ export interface Database {
         };
         Update: {
           id?: string;
+          user_id?: string | null;
+          profile_kind?: ProfileKind;
           role?: UserRole;
           username?: string | null;
           display_name?: string | null;
-          age?: number | null;
+          birth_month?: string | null;
           parent_id?: string | null;
           avatar_url?: string | null;
           parental_approval?: boolean;
@@ -72,7 +81,7 @@ export interface Database {
           last_played_at: string | null;
           play_count: number;
           like_count: number;
-          moderation_status: ModerationStatus;
+          moderation_status: ProjectModerationStatus;
           moderation_notes: string | null;
         };
         Insert: {
@@ -85,7 +94,7 @@ export interface Database {
           is_template?: boolean;
           visibility?: ProjectVisibility;
           genre?: string | null;
-          moderation_status?: ModerationStatus;
+          moderation_status?: ProjectModerationStatus;
         };
         Update: {
           title?: string;
@@ -94,7 +103,7 @@ export interface Database {
           is_published?: boolean;
           visibility?: ProjectVisibility;
           genre?: string | null;
-          moderation_status?: ModerationStatus;
+          moderation_status?: ProjectModerationStatus;
           moderation_notes?: string | null;
         };
       };
@@ -364,7 +373,185 @@ export interface Database {
           last_activity_at?: string;
         };
       };
+      guest_sessions: {
+        Row: {
+          id: string;
+          profile_id: string;
+          token_hash: string;
+          created_at: string;
+          last_seen_at: string | null;
+          expires_at: string;
+          revoked_at: string | null;
+        };
+        Insert: {
+          id: string;
+          profile_id: string;
+          token_hash: string;
+          expires_at: string;
+          last_seen_at?: string | null;
+          revoked_at?: string | null;
+        };
+        Update: {
+          last_seen_at?: string | null;
+          expires_at?: string;
+          revoked_at?: string | null;
+        };
+      };
+      legacy_guest_quarantine: {
+        Row: {
+          id: string;
+          legacy_profile_id: string;
+          legacy_user_id: string | null;
+          reason: 'profile_kind_guest' | 'missing_user' | 'temporary_guest_email';
+          quarantined_at: string;
+        };
+        Insert: {
+          id: string;
+          legacy_profile_id: string;
+          legacy_user_id?: string | null;
+          reason: 'profile_kind_guest' | 'missing_user' | 'temporary_guest_email';
+        };
+        Update: Record<string, never>;
+      };
+      consent_tokens: {
+        Row: {
+          id: string;
+          profile_id: string;
+          token_hash: string;
+          purpose: 'parental_consent' | 'email_verification';
+          status: 'pending' | 'granted' | 'denied' | 'expired';
+          created_at: string;
+          expires_at: string;
+          consumed_at: string | null;
+        };
+        Insert: {
+          id: string;
+          profile_id: string;
+          token_hash: string;
+          purpose?: 'parental_consent' | 'email_verification';
+          status?: 'pending' | 'granted' | 'denied' | 'expired';
+          expires_at: string;
+          consumed_at?: string | null;
+        };
+        Update: {
+          status?: 'pending' | 'granted' | 'denied' | 'expired';
+          consumed_at?: string | null;
+        };
+      };
+      rate_limit_buckets: {
+        Row: {
+          bucket_key: string;
+          scope: string;
+          subject_hash: string;
+          window_started_at: string;
+          request_count: number;
+          active_count: number;
+          updated_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          bucket_key: string;
+          scope: string;
+          subject_hash: string;
+          window_started_at: string;
+          request_count?: number;
+          active_count?: number;
+          expires_at: string;
+        };
+        Update: {
+          window_started_at?: string;
+          request_count?: number;
+          active_count?: number;
+          expires_at?: string;
+        };
+      };
+      security_audit_events: {
+        Row: {
+          id: string;
+          actor_kind: 'user' | 'guest' | 'anonymous' | 'system';
+          actor_id: string | null;
+          operation: string;
+          outcome: 'allowed' | 'denied' | 'error';
+          reason_code: string | null;
+          request_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          actor_kind: 'user' | 'guest' | 'anonymous' | 'system';
+          actor_id?: string | null;
+          operation: string;
+          outcome: 'allowed' | 'denied' | 'error';
+          reason_code?: string | null;
+          request_id?: string | null;
+        };
+        Update: Record<string, never>;
+      };
+      feature_flags: {
+        Row: {
+          flag_key: string;
+          enabled: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          flag_key: string;
+          enabled?: boolean;
+        };
+        Update: {
+          enabled?: boolean;
+        };
+      };
+      publication_snapshots: {
+        Row: {
+          id: string;
+          project_id: string;
+          snapshot_json: Json;
+          content_hash: string;
+          moderation_status: PublicationModerationStatus;
+          stale_at: string | null;
+          created_at: string;
+          moderated_at: string | null;
+          published_at: string | null;
+        };
+        Insert: {
+          id: string;
+          project_id: string;
+          snapshot_json: Json;
+          content_hash: string;
+          moderation_status?: PublicationModerationStatus;
+          stale_at?: string | null;
+          moderated_at?: string | null;
+          published_at?: string | null;
+        };
+        Update: {
+          moderation_status?: PublicationModerationStatus;
+          stale_at?: string | null;
+          moderated_at?: string | null;
+          published_at?: string | null;
+        };
+      };
+      publication_assets: {
+        Row: {
+          id: string;
+          publication_snapshot_id: string;
+          asset_id: string | null;
+          content_hash: string;
+          storage_key: string;
+          mime_type: string;
+          byte_size: number;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          publication_snapshot_id: string;
+          asset_id?: string | null;
+          content_hash: string;
+          storage_key: string;
+          mime_type: string;
+          byte_size: number;
+        };
+        Update: Record<string, never>;
+      };
     };
   };
 }
-
