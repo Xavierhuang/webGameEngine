@@ -177,6 +177,7 @@ ALTER TABLE projects MODIFY COLUMN moderation_status
 UPDATE projects
 SET moderation_status = CASE
   WHEN visibility = 'public' OR is_published = TRUE THEN 'moderation_pending'
+  WHEN moderation_status IS NULL THEN 'draft'
   WHEN moderation_status IN ('pending', 'approved') THEN 'draft'
   ELSE moderation_status
 END

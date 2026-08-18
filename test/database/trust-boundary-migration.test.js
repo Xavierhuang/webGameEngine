@@ -87,7 +87,14 @@ test('normalizes nullable project statuses before the final non-null enum', () =
   const firstProjectEnum = migration.indexOf('ALTER TABLE projects MODIFY COLUMN moderation_status');
   const finalProjectEnum = migration.lastIndexOf('ALTER TABLE projects MODIFY COLUMN moderation_status');
   assert.ok(firstProjectEnum >= 0 && finalProjectEnum > firstProjectEnum, 'expected interim and final project enums');
-  assert.match(migration.slice(firstProjectEnum, finalProjectEnum), /\bNULL DEFAULT 'draft'/i, 'interim enum must remain nullable');
+  const interimMigration = migration.slice(firstProjectEnum, finalProjectEnum);
+  assert.match(interimMigration, /\bNULL DEFAULT 'draft'/i, 'interim enum must remain nullable');
+  assert.match(interimMigration, /WHEN moderation_status IS NULL THEN 'draft'/i, 'private/shared null status must become draft');
+  assert.ok(
+    interimMigration.indexOf("WHEN visibility = 'public' OR is_published = TRUE THEN 'moderation_pending'") <
+      interimMigration.indexOf("WHEN moderation_status IS NULL THEN 'draft'"),
+    'public null status must remain moderation_pending before the draft fallback'
+  );
   assert.ok(
     migration.indexOf('UPDATE projects') > firstProjectEnum && migration.indexOf('UPDATE projects') < finalProjectEnum,
     'normalization must run before the final NOT NULL enum'
