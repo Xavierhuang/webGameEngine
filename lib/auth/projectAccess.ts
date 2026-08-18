@@ -10,8 +10,6 @@ export interface ProjectRow {
   owner_id: string;
   visibility?: string | null;
   moderation_status?: string | null;
-  /** Resolved by access.ts from the secure actor profile, never from input. */
-  actor_role?: string | null;
 }
 
 export type ProjectAccessReason =
@@ -52,7 +50,11 @@ function hiddenReason(project: ProjectRow): ProjectAccessReason {
 }
 
 /** Only an immutable, published public state is stranger-readable. */
-export function decideAccess(project: ProjectRow, actor: AccessActor): ProjectAccess {
+export function decideAccess(
+  project: ProjectRow,
+  actor: AccessActor,
+  actorRole: string | null = null
+): ProjectAccess {
   const profileId = actor.kind === 'anonymous' ? null : actor.profileId;
   const isOwner = profileId !== null && project.owner_id === profileId;
   if (isOwner) {
@@ -68,7 +70,7 @@ export function decideAccess(project: ProjectRow, actor: AccessActor): ProjectAc
 
   const isModerator =
     actor.kind === 'user' &&
-    (project.actor_role === 'admin' || project.actor_role === 'moderator');
+    (actorRole === 'admin' || actorRole === 'moderator');
   if (isModerator) {
     return {
       canView: true,

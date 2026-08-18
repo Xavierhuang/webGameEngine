@@ -53,35 +53,34 @@ interface AccessDependencies {
 }
 
 const PROJECT_SELECT = `
-  SELECT project.id, project.owner_id, project.visibility, project.moderation_status,
-         (SELECT actor_profile.role FROM profiles actor_profile
-           WHERE actor_profile.id = ? LIMIT 1) AS actor_role
+  SELECT project.id, project.owner_id, project.visibility, project.moderation_status
     FROM projects project
    WHERE project.id = ?`;
+
+const ACTOR_ROLE_SELECT = `
+  SELECT actor_profile.role
+    FROM profiles actor_profile
+   WHERE actor_profile.id = ?
+     AND actor_profile.user_id = ?
+     AND actor_profile.profile_kind = 'user'`;
 
 const RESOURCE_PROJECT_SELECT: Readonly<Record<ResourceType, string>> = Object.freeze({
   scene: `
     SELECT resource.id AS resource_id,
-           project.id, project.owner_id, project.visibility, project.moderation_status,
-           (SELECT actor_profile.role FROM profiles actor_profile
-             WHERE actor_profile.id = ? LIMIT 1) AS actor_role
+           project.id, project.owner_id, project.visibility, project.moderation_status
       FROM scenes resource
       JOIN projects project ON project.id = resource.project_id
      WHERE resource.id = ?`,
   object: `
     SELECT resource.id AS resource_id,
-           project.id, project.owner_id, project.visibility, project.moderation_status,
-           (SELECT actor_profile.role FROM profiles actor_profile
-             WHERE actor_profile.id = ? LIMIT 1) AS actor_role
+           project.id, project.owner_id, project.visibility, project.moderation_status
       FROM game_objects resource
       JOIN scenes resource_scene ON resource_scene.id = resource.scene_id
       JOIN projects project ON project.id = resource_scene.project_id
      WHERE resource.id = ?`,
   'logic-block': `
     SELECT resource.id AS resource_id,
-           project.id, project.owner_id, project.visibility, project.moderation_status,
-           (SELECT actor_profile.role FROM profiles actor_profile
-             WHERE actor_profile.id = ? LIMIT 1) AS actor_role
+           project.id, project.owner_id, project.visibility, project.moderation_status
       FROM logic_blocks resource
       LEFT JOIN game_objects resource_object ON resource_object.id = resource.game_object_id
       LEFT JOIN scenes object_scene ON object_scene.id = resource_object.scene_id
@@ -91,9 +90,7 @@ const RESOURCE_PROJECT_SELECT: Readonly<Record<ResourceType, string>> = Object.f
      WHERE resource.id = ?`,
   asset: `
     SELECT resource.id AS resource_id,
-           project.id, project.owner_id, project.visibility, project.moderation_status,
-           (SELECT actor_profile.role FROM profiles actor_profile
-             WHERE actor_profile.id = ? LIMIT 1) AS actor_role
+           project.id, project.owner_id, project.visibility, project.moderation_status
       FROM assets resource
       JOIN projects project ON project.id = resource.project_id
      WHERE resource.id = ?`,
@@ -107,8 +104,17 @@ function editDenialStatus(actor: Actor, access: ProjectAccess): 403 | 404 {
 }
 
 export function createAccessService(dependencies: AccessDependencies) {
-  async function loadProject(actor: Actor, projectId: string): Promise<ProjectRecord | null> {
-    return dependencies.queryOne<ProjectRecord>(PROJECT_SELECT, [actorProfileId(actor), projectId]);
+  async function loadProject(projectId: string): Promise<ProjectRecord | null> {
+    return dependencies.queryOne<ProjectRecord>(PROJECT_SELECT, [projectId]);
+  }
+
+  async function resolveActorRole(actor: Actor): Promise<string | null> {
+    if (actor.kind !== 'user') return null;
+    const row = await dependencies.queryOne<{ role: string }>(ACTOR_ROLE_SELECT, [
+      actor.profileId,
+      actor.userId,
+    ]);
+    return row?.role ?? null;
   }
 
   async function getProjectAccess(actor: Actor, projectId: string): Promise<ProjectAccess>;
@@ -119,25 +125,35 @@ export function createAccessService(dependencies: AccessDependencies) {
     projectId?: string
   ): Promise<ProjectAccess> {
     if (projectId === undefined) {
-      return decideAccess(actorOrProject as ProjectRow, await dependencies.resolveCurrentActor());
+      const actor = await dependencies.resolveCurrentActor();
+      return decideAccess(actorOrProject as ProjectRow, actor, await resolveActorRole(actor));
     }
     const actor = actorOrProject as Actor;
-    const project = await loadProject(actor, projectId);
-    return project ? decideAccess(project, actor) : MISSING_PROJECT_ACCESS;
+    const [project, actorRole] = await Promise.all([
+      loadProject(projectId),
+      resolveActorRole(actor),
+    ]);
+    return project ? decideAccess(project, actor, actorRole) : MISSING_PROJECT_ACCESS;
   }
 
   async function requireProjectView(actor: Actor, projectId: string): Promise<AuthorizedProject> {
-    const project = await loadProject(actor, projectId);
+    const [project, actorRole] = await Promise.all([
+      loadProject(projectId),
+      resolveActorRole(actor),
+    ]);
     if (!project) throw new AccessError('project_not_found', 404);
-    const access = decideAccess(project, actor);
+    const access = decideAccess(project, actor, actorRole);
     if (!access.canView) throw new AccessError('project_not_viewable', 404);
     return { project, access };
   }
 
   async function requireProjectEdit(actor: Actor, projectId: string): Promise<AuthorizedProject> {
-    const project = await loadProject(actor, projectId);
+    const [project, actorRole] = await Promise.all([
+      loadProject(projectId),
+      resolveActorRole(actor),
+    ]);
     if (!project) throw new AccessError('project_not_found', 404);
-    const access = decideAccess(project, actor);
+    const access = decideAccess(project, actor, actorRole);
     if (!access.canEdit) {
       throw new AccessError('project_edit_forbidden', editDenialStatus(actor, access));
     }
@@ -149,15 +165,17 @@ export function createAccessService(dependencies: AccessDependencies) {
     resourceType: ResourceType,
     resourceId: string
   ): Promise<AuthorizedResource> {
+    if (!Object.prototype.hasOwnProperty.call(RESOURCE_PROJECT_SELECT, resourceType)) {
+      throw new AccessError('resource_type_invalid', 404);
+    }
     const sql = RESOURCE_PROJECT_SELECT[resourceType];
-    if (!sql) throw new AccessError('resource_type_invalid', 404);
 
-    const row = await dependencies.queryOne<ResourceProjectRow>(sql, [
-      actorProfileId(actor),
-      resourceId,
+    const [row, actorRole] = await Promise.all([
+      dependencies.queryOne<ResourceProjectRow>(sql, [resourceId]),
+      resolveActorRole(actor),
     ]);
     if (!row) throw new AccessError('resource_not_found', 404);
-    const access = decideAccess(row, actor);
+    const access = decideAccess(row, actor, actorRole);
     if (!access.canEdit) {
       throw new AccessError('resource_edit_forbidden', editDenialStatus(actor, access));
     }

@@ -15,7 +15,6 @@ const project = (overrides = {}) => ({
   owner_id: 'profile-owner',
   visibility: 'private',
   moderation_status: 'draft',
-  actor_role: null,
   ...overrides,
 });
 
@@ -83,7 +82,7 @@ test('admin and moderator authority can moderate private or pending work without
       project({ visibility: 'public', moderation_status: 'moderation_pending' }),
       project({ visibility: 'public', moderation_status: 'rejected' }),
     ]) {
-      const access = decideAccess({ ...row, actor_role: role }, stranger);
+      const access = decideAccess(row, stranger, role);
       assert.equal(access.canView, true);
       assert.equal(access.canEdit, false);
       assert.equal(access.canPublish, true);
@@ -102,11 +101,15 @@ test('public visibility and missing fields never grant write or legacy approval 
   );
 });
 
-function fakeService(rows) {
+function fakeService(rows, actorRoles = {}) {
   const calls = [];
   const service = createAccessService({
     async queryOne(sql, params) {
       calls.push({ sql, params });
+      if (/FROM profiles actor_profile/i.test(sql)) {
+        const role = actorRoles[`${params[0]}:${params[1]}`];
+        return role ? { role } : null;
+      }
       const id = params.at(-1);
       return rows[id] ?? null;
     },
@@ -199,30 +202,68 @@ test('nested resource types use a closed SQL whitelist keyed by resource ID', as
 });
 
 test('moderators get a 403 when edit is denied on a project they may inspect', async () => {
-  const { service } = fakeService({
-    'private-project': project({ id: 'private-project', actor_role: 'moderator' }),
-  });
+  const { service, calls } = fakeService(
+    { 'private-project': project({ id: 'private-project' }) },
+    { 'profile-other:user-other': 'moderator' }
+  );
 
   await assert.rejects(
     () => service.requireProjectEdit(stranger, 'private-project'),
     (error) => error instanceof AccessError &&
       error.status === 403 && error.code === 'project_edit_forbidden'
   );
+
+  const roleLookup = calls.find((call) => /FROM profiles actor_profile/i.test(call.sql));
+  assert.deepEqual(roleLookup.params, ['profile-other', 'user-other']);
+  assert.match(roleLookup.sql, /profile_kind = 'user'/i);
 });
 
 test('the deprecated row overload resolves a secure current actor', async () => {
   let resolutions = 0;
   const service = createAccessService({
-    async queryOne() { throw new Error('row overload must not query'); },
+    async queryOne(sql, params) {
+      assert.match(sql, /FROM profiles actor_profile/i);
+      assert.deepEqual(params, ['profile-owner', 'user-owner']);
+      return { role: 'child' };
+    },
     async resolveCurrentActor() {
       resolutions += 1;
-      return ownerGuest;
+      return ownerUser;
     },
   });
 
   const access = await service.getProjectAccess(project());
   assert.equal(access.canEdit, true);
   assert.equal(resolutions, 1);
+});
+
+test('the deprecated row overload ignores forged moderator authority on its supplied row', async () => {
+  const service = createAccessService({
+    async queryOne() { return null; },
+    async resolveCurrentActor() { return stranger; },
+  });
+
+  const access = await service.getProjectAccess(
+    project({ actor_role: 'admin', visibility: 'private' })
+  );
+  assert.equal(access.canView, false);
+  assert.equal(access.canPublish, false);
+  assert.equal(access.reason, 'private');
+});
+
+test('inherited object keys are rejected as resource types before querying', async () => {
+  const { service, calls } = fakeService({
+    scene: { resource_id: 'scene', ...project() },
+  });
+
+  for (const inheritedKey of ['constructor', 'toString', '__proto__']) {
+    await assert.rejects(
+      () => service.requireResourceEdit(ownerUser, inheritedKey, 'scene'),
+      (error) => error instanceof AccessError &&
+        error.status === 404 && error.code === 'resource_type_invalid'
+    );
+  }
+  assert.equal(calls.length, 0, 'inherited resource type keys must not reach SQL');
 });
 
 test('public DTO omits internal authority fields', () => {
