@@ -49,7 +49,8 @@ export default async function ParentConsentPage(props: {
         ) : (
           <p className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
             This link is missing its permission code. Please open the full link
-            exactly as your child gave it to you.
+            we emailed you — links expire after 24 hours and can be resent from
+            your child&apos;s pending-approval page.
           </p>
         )}
       </div>

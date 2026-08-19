@@ -1,11 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit, clientKey, retryMessage } from '@/lib/safety/rateLimit';
 import { resolveConsent } from '@/lib/safety/parentalConsent';
 
 /**
  * A parent granting or denying consent for an under-13 account.
- * Single-use token; see lib/safety/parentalConsent.ts.
+ *
+ * Task 5 hardening:
+ *   - Rate-limited per IP so a stolen token cannot be brute-forced by
+ *     hammering the endpoint with variants.
+ *   - Wire contract restricted to `{ decision, state }` on success —
+ *     no echo of the child's identifier, no consent URL, nothing that
+ *     would reveal to the caller more than they already knew.
+ *   - Sibling tokens for the same child are atomically expired inside
+ *     `resolveConsent`; a leaked resend link cannot be replayed.
  */
 export async function POST(request: NextRequest) {
+  const limit = rateLimit(clientKey(request, 'consent'), 30, 60 * 60 * 1000);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: retryMessage(limit.retryAfter) },
+      { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } },
+    );
+  }
+
   try {
     const { token, decision } = await request.json();
 
@@ -27,7 +44,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: messages[outcome.reason] }, { status: 400 });
     }
 
-    return NextResponse.json({ success: true, decision });
+    // Only the decision is echoed. The child's profile id from the outcome
+    // is deliberately not returned — the parent already saw the child's
+    // name on the consent page; the API does not confirm which internal
+    // id it maps to.
+    return NextResponse.json({
+      success: true,
+      state: outcome.decision,
+    });
   } catch (error: any) {
     console.error('Consent error:', error);
     return NextResponse.json({ error: 'Failed to record consent' }, { status: 500 });

@@ -1,10 +1,49 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { Home, Mail } from 'lucide-react';
+import { Home, Mail, RefreshCcw } from 'lucide-react';
 import { AuthShell } from '@/components/common/AuthCard';
 
+/**
+ * Landing page for an under-13 account whose consent is still pending.
+ *
+ * Task 5 replaced the old "here's your consent URL" behavior with a
+ * server-rate-limited resend button. The child never sees the consent
+ * token; the server delivers it to the parent's email address.
+ * `/api/auth/consent/resend` returns only the state and next-eligible
+ * resend time — no URL, no token.
+ */
 export default function PendingApprovalPage() {
+  const [state, setState] = useState<'idle' | 'busy' | 'sent' | 'error'>('idle');
+  const [message, setMessage] = useState<string | null>(null);
+  const [nextResendAt, setNextResendAt] = useState<string | null>(null);
+
+  const resend = async () => {
+    setState('busy');
+    setMessage(null);
+    try {
+      const response = await fetch('/api/auth/consent/resend', { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setState('error');
+        setMessage(data?.message || data?.error || 'Could not resend the email.');
+        if (data?.canResendAt) setNextResendAt(data.canResendAt);
+        return;
+      }
+      setState('sent');
+      setMessage(
+        data.emailSent
+          ? 'A new permission email is on its way.'
+          : 'We tried to resend, but the email did not go through. Please contact support.',
+      );
+      setNextResendAt(data.canResendAt ?? null);
+    } catch {
+      setState('error');
+      setMessage('Could not reach the server. Please try again.');
+    }
+  };
+
   return (
     <AuthShell
       title="Almost there"
@@ -17,8 +56,35 @@ export default function PendingApprovalPage() {
     >
       <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-700">
         <strong className="font-semibold text-slate-900 block mb-1">What happens next?</strong>
-        We&apos;ve emailed your parent. Once they approve, you can start building without limits.
-        Until then, you can still explore the editor.
+        We&apos;ve emailed a permission link to your parent. Once they approve, you can
+        publish games to the community. Until then, you can still build and play
+        your own games privately.
+      </div>
+
+      <div className="mt-4 rounded-xl border border-slate-200 p-4">
+        <p className="text-sm text-slate-700">
+          <strong className="font-semibold text-slate-900">Didn&apos;t get the email?</strong>{' '}
+          Ask them to check spam, then use the button below. We&apos;ll only send a fresh
+          link — never share the link yourself.
+        </p>
+        <button
+          onClick={resend}
+          disabled={state === 'busy'}
+          className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 transition hover:border-slate-400 disabled:opacity-50"
+        >
+          <RefreshCcw className="w-4 h-4" />
+          {state === 'busy' ? 'Sending…' : 'Resend permission email'}
+        </button>
+        {message && (
+          <p className={`mt-3 text-sm ${state === 'error' ? 'text-red-600' : 'text-emerald-700'}`}>
+            {message}
+          </p>
+        )}
+        {nextResendAt && (
+          <p className="mt-2 text-xs text-slate-500">
+            Next resend allowed after {new Date(nextResendAt).toLocaleTimeString()}.
+          </p>
+        )}
       </div>
 
       <div className="mt-6 space-y-2">
@@ -33,7 +99,7 @@ export default function PendingApprovalPage() {
           href="/projects"
           className="w-full inline-flex items-center justify-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 py-3 rounded-full font-semibold transition"
         >
-          Try the editor anyway
+          Keep building privately
         </Link>
       </div>
     </AuthShell>

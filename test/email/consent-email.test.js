@@ -19,6 +19,8 @@ ok(mail.text.includes(url), 'plain text contains the consent link');
 ok(mail.html.includes(url), 'html contains the consent link');
 ok(mail.text.includes('under 13'), 'explains why permission is needed');
 ok(mail.text.includes('expires'), 'states that the link expires');
+ok(/24 hours?/i.test(mail.text), 'states the exact 24-hour expiry window');
+ok(mail.html.includes('24 hours'), 'html body also states the 24-hour expiry');
 ok(mail.text.includes('/privacy'), 'links the privacy policy');
 ok(/ignore this email/i.test(mail.text), 'tells an unexpecting recipient what to do');
 

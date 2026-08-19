@@ -86,7 +86,7 @@ export function parentalConsentEmail(params: {
     'Give or decline permission here:',
     consentUrl,
     '',
-    'This link works once and expires in 14 days.',
+    'This link works once and expires in 24 hours.',
     '',
     'What you would be agreeing to:',
     '  - They can publish games to a public gallery, where others can play and remix them.',
@@ -116,7 +116,7 @@ export function parentalConsentEmail(params: {
           Review and decide
         </a>
       </p>
-      <p style="margin:0 0 12px;color:#475569;font-size:14px">This link works once and expires in 14 days.</p>
+      <p style="margin:0 0 12px;color:#475569;font-size:14px">This link works once and expires in 24 hours.</p>
       <ul style="margin:0 0 12px;padding-left:18px;color:#475569;font-size:14px">
         <li>They can publish games to a public gallery, where others can play and remix them.</li>
         <li>We store their username, age, and the games they make.</li>

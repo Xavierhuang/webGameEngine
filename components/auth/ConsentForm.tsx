@@ -22,7 +22,11 @@ export function ConsentForm({ token }: { token: string }) {
         setState('idle');
         return;
       }
-      setState(decision);
+      // Task 5: the server returns { success, state } — trust the server's
+      // echo rather than our local `decision` so a divergence (e.g. the
+      // token was consumed by a resend in the meantime) is visible.
+      const serverState = data?.state === 'denied' ? 'denied' : 'granted';
+      setState(serverState);
     } catch {
       setError('Could not reach the server. Please try again.');
       setState('idle');

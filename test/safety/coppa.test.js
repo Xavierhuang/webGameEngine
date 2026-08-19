@@ -3,6 +3,7 @@ const {
   ageFromDateOfBirth,
   isValidAge,
   COPPA_AGE,
+  birthMonthFromDateOfBirth,
 } = require('../.build/lib/safety/coppa.js');
 
 let failures = 0;
@@ -13,7 +14,7 @@ function eq(actual, expected, label) {
 }
 
 // --- age band boundaries ----------------------------------------------------
-eq(agePolicy(12).band, 'under-13', '12 is under-13');
+eq(agePolicy(12).band, 'under_13', '12 is under-13');
 eq(agePolicy(13).band, 'teen', '13 is a teen (COPPA boundary)');
 eq(agePolicy(17).band, 'teen', '17 is a teen');
 eq(agePolicy(18).band, 'adult', '18 is an adult');
@@ -27,7 +28,7 @@ eq(agePolicy(14, false).canShare, true, 'teen can share without consent');
 eq(agePolicy(14, false).requiresParentalConsent, false, 'teen needs no consent');
 
 // --- unknown age must degrade to the STRICTEST band, not the loosest -------
-eq(agePolicy(null).band, 'under-13', 'null age is treated as under-13');
+eq(agePolicy(null).band, 'under_13', 'null age is treated as under-13');
 eq(agePolicy(null).canShare, false, 'null age cannot share');
 eq(agePolicy(undefined).requiresParentalConsent, true, 'undefined age requires consent');
 eq(agePolicy(NaN).canShare, false, 'NaN age cannot share');
@@ -53,7 +54,12 @@ eq(ageFromDateOfBirth('not-a-date', now), null, 'garbage input returns null');
 eq(ageFromDateOfBirth('2030-01-01', now), null, 'future date returns null');
 
 // A birthday later this month must NOT round up past the COPPA boundary.
-eq(agePolicy(ageFromDateOfBirth('2013-12-01', now)).band, 'under-13', 'not-yet-13 stays under-13');
+eq(agePolicy(ageFromDateOfBirth('2013-12-01', now)).band, 'under_13', 'not-yet-13 stays under-13');
+
+// --- birth-month conversion (migration 008 replaced raw age with YYYY-MM) ---
+eq(birthMonthFromDateOfBirth('2016-08-14'), '2016-08', 'YYYY-MM extracted from DOB');
+eq(birthMonthFromDateOfBirth('2020-01-01'), '2020-01', 'january pads to two digits');
+eq(birthMonthFromDateOfBirth('bogus'), null, 'garbage DOB returns null birth-month');
 
 if (failures > 0) {
   console.log(`\n${failures} test(s) failed`);
