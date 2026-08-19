@@ -54,7 +54,7 @@ tasks per focused session, so 20–50 sessions of work spread over weeks.
 | trust-boundary | 3 Central authorization | done | 1277edf..8553e6e |
 | trust-boundary | 4 Convert every surface | done (3 fix rounds) | c50d36a..d2b0933 |
 | trust-boundary | 5 Parent consent state machine | **TODO** | — |
-| trust-boundary | 6 Shared quotas + audit | **partial** (audit + featureFlags) | ec4da01, 6064992 |
+| trust-boundary | 6 Shared quotas + audit | done | ec4da01, 6064992, 0a15e8f |
 | trust-boundary | 7 AI-route guard | **TODO** | — |
 | trust-boundary | 8 Publication candidates | **TODO** | — |
 | trust-boundary | 9 CI gate | **TODO** | — |
@@ -99,33 +99,6 @@ Each session should follow the same shape as the prior sessions that shipped
 ## Next tasks in dependency order
 
 Execute in this order. Later tasks depend on earlier ones being present.
-
-### Trust-boundary Task 6 (finish it)
-
-Two of eight files shipped (`audit.ts`, `featureFlags.ts`). Remaining:
-
-- Create `lib/safety/persistentRateLimit.ts` — atomic MySQL bucket via
-  `withTransaction` (already available from `8394b15`). Buckets keyed by
-  HMAC-derived pseudonyms from `lib/safety/audit.ts:pseudonymizeActor`. Store
-  count/window/expiry only.
-- Modify `lib/safety/rateLimit.ts` — route the existing in-memory limiter
-  through the persistent one behind an environment flag so the old in-memory
-  path is still available in tests.
-- Create `test/safety/persistent-limiter.test.js` — assert two limiter
-  instances consume the same DB bucket (needs local MySQL), concurrency leases
-  release on success/failure, untrusted forwarded IPs cannot choose their key.
-- Create `test/api/capability-flags.test.js` — assert disabled flags return
-  503 `feature_unavailable` from a route wired to `readFeatureFlag`.
-- Modify `package.json` — add `test:persistent-limiter`, `test:capability-flags`.
-- Commit as `feat: add shared safety budgets`.
-
-**Reads the plan at:** `docs/superpowers/plans/2026-08-18-lingplay-trust-boundary.md`
-section "Task 6: Shared Quotas, Capability Flags, and Redacted Audit".
-
-**Landmine:** persistent-limiter tests need MySQL running locally against
-`gameengine_test`. See "Known infra" below.
-
----
 
 ### Durable-work Task 3b (finish it)
 
@@ -290,18 +263,21 @@ clean; removing it just re-creates the diff.
 
 The next session should read this section first, then start work.
 
-**Last completed:** `1bdfde6 checkpoint: batch in-progress editor + i18n +
-examples work` (2026-08-19).
+**Last completed:** `0a15e8f feat: add shared safety budgets` (2026-08-19)
+— finished trust-boundary Task 6 with the persistent MySQL rate limiter,
+concurrency lease, trust-hop-aware client key, and the capability-flag
+route contract.
 
-**Next task:** trust-boundary **Task 6 (finish it)**. See "Next tasks in
-dependency order" above for the exact file list and gate commands. Reason:
-`ec4da01` and `6064992` shipped the audit + feature-flag slices, so the
-natural continuation is the persistent MySQL rate limiter that finishes
-Task 6 and unlocks the AI-route guard (Task 7).
+**Next task:** durable-work **Task 3b (finish it)** — the command service
+and revision-pinned play snapshots. See "Next tasks in dependency order"
+above for the exact file list. Reason: the wire schema shipped in
+`657421a` and every remaining trust-boundary task (5 consent, 7 AI-guard,
+8 publication) needs the command service to already exist before its
+own writers can migrate through it.
 
-**Deploy status:** local `1bdfde6` is on `origin/main`; live prod is on
-`657421a`. Run `./deploy.sh` after any commit lands to move prod forward,
-but only when the user asks.
+**Deploy status:** local `0a15e8f` is one commit ahead of `origin/main`
+(needs `git push`); live prod is on `657421a`. Run `./deploy.sh` after
+any commit lands to move prod forward, but only when the user asks.
 
 **When updating this file:** move the completed task from "Next tasks" to
 "Task completion map", write the new SHA, update the "Last completed" line,
