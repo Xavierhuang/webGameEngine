@@ -67,6 +67,82 @@ export function clientKey(request: Request, scope: string): string {
   return `${scope}:${ip}`;
 }
 
+// The subset of Request the trust-hop-aware key extractor actually reads.
+// Accepting a structural type here keeps `clientKeyFromRequest` testable
+// with a plain object whose `headers` is any Map-shaped thing, without
+// having to construct a real `Request` in every unit test.
+export interface HeadersLike {
+  get(name: string): string | null | undefined;
+}
+export interface RequestLike {
+  headers: HeadersLike;
+}
+
+export interface ClientKeyOptions {
+  // Number of proxies the deployment operator has placed in front of this
+  // process. Zero means the process is directly exposed and every
+  // X-Forwarded-For value is attacker-controlled.
+  trustedProxyHops: number;
+}
+
+/**
+ * Trust-hop-aware client key extractor.
+ *
+ * The legacy `clientKey` above unconditionally trusts the leftmost value
+ * of `X-Forwarded-For`, which is whatever the client sent. That is the
+ * exact defect a persistent limiter cannot inherit: an attacker who
+ * chooses the header chooses their bucket. `clientKeyFromRequest` reads
+ * `trustedProxyHops` (from `readSecurityConfig`) and returns a single
+ * `<scope>:untrusted` key whenever the header cannot be trusted, so an
+ * attacker rotating X-Forwarded-For lands in the same bucket every time
+ * instead of spinning up fresh ones.
+ *
+ * With `hops = N` we take the Nth value from the right of X-Forwarded-For:
+ *
+ *   - `hops = 0` — direct exposure. The header is entirely
+ *     attacker-controlled; return the fallback so the limiter groups all
+ *     traffic together.
+ *   - `hops = 1` — one trusted proxy (e.g. nginx with
+ *     `proxy_add_x_forwarded_for`) appended the real peer IP as the last
+ *     value. Take that.
+ *   - `hops = 2` — two trusted proxies each appended the previous peer.
+ *     Take the second-from-right value.
+ *   - If the header is missing values (length < hops), the client sent a
+ *     shorter chain than our topology promises. Do NOT invent a value;
+ *     fall back to the untrusted bucket.
+ */
+export function clientKeyFromRequest(
+  request: RequestLike,
+  scope: string,
+  options: ClientKeyOptions,
+): string {
+  const hops = options.trustedProxyHops;
+  if (!Number.isInteger(hops) || hops < 0) {
+    throw new Error('trustedProxyHops must be a non-negative integer');
+  }
+
+  if (hops === 0) {
+    return `${scope}:untrusted`;
+  }
+
+  const raw = request.headers.get('x-forwarded-for') || '';
+  const list = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const index = list.length - hops;
+  if (index < 0 || index >= list.length) {
+    return `${scope}:untrusted`;
+  }
+
+  const value = list[index];
+  if (!value) {
+    return `${scope}:untrusted`;
+  }
+  return `${scope}:${value}`;
+}
+
 /**
  * A message that tells the truth about how long the wait is.
  *
