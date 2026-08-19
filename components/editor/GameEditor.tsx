@@ -27,6 +27,7 @@ import { useTranslator } from '../common/LocaleProvider';
 import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 import { SceneLights } from '@/components/three/SceneLights';
+import { commandWrite, newEditingSessionId } from '@/lib/editor/commandWrite';
 
 // Blockly needs the DOM — load the block editor client-side only.
 /**
@@ -116,6 +117,12 @@ const FIRST_RUN_KEY = 'lingplay-tutorials-introduced';
 export default function GameEditor({ projectId, initialData }: GameEditorProps) {
   const t = useTranslator();
   const [project, setProject] = useState<any>(initialData);
+  // Task 4 compat: every project-graph write sends `If-Match: "<revision>"`.
+  // useRef gives us the exact `{ current: number }` shape `commandWrite`
+  // expects, and its identity is stable across renders so the ref can be
+  // mutated in place from the server response.
+  const revisionRef = useRef<number>(initialData?.revision ?? 0);
+  const editingSessionIdRef = useRef<string>(newEditingSessionId());
   const [currentScene, setCurrentScene] = useState<any>(null);
   const [selectedObject, setSelectedObject] = useState<any>(null);
   const [editorMode, setEditorMode] = useState<'scene' | 'logic'>('scene');
@@ -299,13 +306,12 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   // API, so projects were permanently single-scene.
   const addScene = async () => {
     try {
-      const response = await fetch('/api/scenes', {
+      const response = await commandWrite({
+        url: '/api/scenes',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          name: `Scene ${(project?.scenes?.length ?? 0) + 1}`,
-        }),
+        body: { projectId, name: `Scene ${(project?.scenes?.length ?? 0) + 1}` },
+        revisionRef,
+        editingSessionId: editingSessionIdRef.current,
       });
       const data = await response.json();
       if (!response.ok || !data?.scene) return;
@@ -332,10 +338,12 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     setCurrentScene((cur: any) => (cur?.id === sceneId ? { ...cur, background_image_url: url } : cur));
 
     try {
-      await fetch(`/api/scenes/${sceneId}`, {
+      await commandWrite({
+        url: `/api/scenes/${sceneId}`,
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ background_image_url: url }),
+        body: { background_image_url: url },
+        revisionRef,
+        editingSessionId: editingSessionIdRef.current,
       });
     } catch (error) {
       console.error('Failed to set backdrop:', error);
@@ -348,10 +356,12 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
       scenes: (prev.scenes ?? []).map((s: any) => (s.id === sceneId ? { ...s, name } : s)),
     }));
     try {
-      await fetch(`/api/scenes/${sceneId}`, {
+      await commandWrite({
+        url: `/api/scenes/${sceneId}`,
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: { name },
+        revisionRef,
+        editingSessionId: editingSessionIdRef.current,
       });
     } catch (error) {
       console.error('Failed to rename scene:', error);
@@ -362,7 +372,12 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     if ((project?.scenes?.length ?? 0) <= 1) return;
     if (!confirm('Delete this scene and everything in it?')) return;
     try {
-      const response = await fetch(`/api/scenes/${sceneId}`, { method: 'DELETE' });
+      const response = await commandWrite({
+        url: `/api/scenes/${sceneId}`,
+        method: 'DELETE',
+        revisionRef,
+        editingSessionId: editingSessionIdRef.current,
+      });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         alert(data?.error || 'Could not delete the scene.');
@@ -427,10 +442,12 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         .find((o: any) => o.name === `${source.name || 'Object'} copy`);
 
       if (copy && Array.isArray(source.logic_blocks) && source.logic_blocks.length > 0) {
-        await fetch(`/api/game-objects/${copy.id}/logic-blocks`, {
+        await commandWrite({
+          url: `/api/game-objects/${copy.id}/logic-blocks`,
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ blocks: source.logic_blocks }),
+          body: { blocks: source.logic_blocks },
+          revisionRef,
+          editingSessionId: editingSessionIdRef.current,
         });
       }
 
@@ -465,10 +482,12 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     setCurrentScene((cur: any) => (cur?.id === sceneId ? { ...cur, game_objects: objects } : cur));
 
     try {
-      await fetch('/api/game-objects/reorder', {
+      await commandWrite({
+        url: '/api/game-objects/reorder',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sceneId, orderedIds: objects.map((o: any) => o.id) }),
+        body: { sceneId, orderedIds: objects.map((o: any) => o.id) },
+        revisionRef,
+        editingSessionId: editingSessionIdRef.current,
       });
     } catch (error) {
       console.error('Failed to persist sprite order:', error);
@@ -530,14 +549,16 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     // meant any failure (401/403/422) was swallowed into a console.log.
     setSaveState('saving');
     try {
-      const response = await fetch(`/api/projects/${projectId}`, {
+      const response = await commandWrite({
+        url: `/api/projects/${projectId}`,
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           title: project.title,
           description: project.description ?? null,
           genre: project.genre ?? null,
-        }),
+        },
+        revisionRef,
+        editingSessionId: editingSessionIdRef.current,
       });
 
       if (!response.ok) {
@@ -1004,10 +1025,10 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                         setSelectedObject(nextSelected);
                       }
 
-                      const response = await fetch(`/api/game-objects/${id}`, {
+                      const response = await commandWrite({
+                        url: `/api/game-objects/${id}`,
                         method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
+                        body: {
                           position_x: Math.round(posPixels.x),
                           position_y: Math.round(posPixels.y),
                           position_z: Math.round(posPixels.z),
@@ -1032,7 +1053,9 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                                 },
                               }
                             : {}),
-                        }),
+                        },
+                        revisionRef,
+                        editingSessionId: editingSessionIdRef.current,
                       });
                       if (response.ok) {
                         const updated = await response.json();
@@ -1080,6 +1103,11 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                       recordedSounds={(project?.assets ?? [])
                         .filter((a: any) => a.asset_type === 'sound' && a.file_url)
                         .map((a: any) => ({ name: a.name, url: a.file_url }))}
+                      writeAdapter={{
+                        projectId,
+                        revisionRef,
+                        editingSessionId: editingSessionIdRef.current,
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-slate-50">
@@ -1152,10 +1180,12 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             onUpdate={async (updates) => {
               // Update object properties
               try {
-                const response = await fetch(`/api/game-objects/${selectedObject.id}`, {
+                const response = await commandWrite({
+                  url: `/api/game-objects/${selectedObject.id}`,
                   method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(updates),
+                  body: updates,
+                  revisionRef,
+                  editingSessionId: editingSessionIdRef.current,
                 });
 
                 if (response.ok) {
@@ -1193,10 +1223,13 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             }}
             onDelete={async () => {
               if (!selectedObject?.id) return;
-              
+
               try {
-                const response = await fetch(`/api/game-objects/${selectedObject.id}`, {
+                const response = await commandWrite({
+                  url: `/api/game-objects/${selectedObject.id}`,
                   method: 'DELETE',
+                  revisionRef,
+                  editingSessionId: editingSessionIdRef.current,
                 });
 
                 if (response.ok) {

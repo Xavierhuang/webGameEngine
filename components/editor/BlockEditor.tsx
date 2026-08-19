@@ -29,6 +29,19 @@ interface BlockEditorProps {
   objectNames?: string[];
   /** Sounds recorded in this project, so `play sound` can offer them. */
   recordedSounds?: Array<{ name: string; url: string }>;
+  /**
+   * Task 4 compat: parent-supplied write helpers. The block editor's
+   * autosave calls the shared `commandWrite` so it participates in the
+   * same revision-fenced idempotency contract as every other editor
+   * write. Missing → autosave falls back to a plain fetch (which will
+   * 428 in production but is convenient for isolated tests that mount
+   * BlockEditor without the surrounding GameEditor).
+   */
+  writeAdapter?: {
+    projectId: string;
+    revisionRef: { current: number };
+    editingSessionId: string;
+  };
 }
 
 /** "My Blocks" flyout: one define block plus a caller per existing definition. */
@@ -103,7 +116,7 @@ function createPreviewContext(): RuntimeContext {
   };
 }
 
-export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames, recordedSounds }: BlockEditorProps) {
+export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames, recordedSounds, writeAdapter }: BlockEditorProps) {
   const locale = useLocale();
   const t = useTranslator();
   const hostRef = useRef<HTMLDivElement>(null);
@@ -191,11 +204,23 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
         setStatus('saving');
         const json = Blockly.serialization.workspaces.save(workspace);
         const blocks = blocklyToLogic(json);
-        const res = await fetch(`/api/game-objects/${objectId}/logic-blocks`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ blocks }),
-        });
+        // Route through the shared `commandWrite` when the parent supplies
+        // an adapter (production path). Fall back to a bare fetch only for
+        // standalone tests that mount BlockEditor outside GameEditor —
+        // that path will 428 in production but is harmless in isolation.
+        const res = writeAdapter
+          ? await (await import('@/lib/editor/commandWrite')).commandWrite({
+              url: `/api/game-objects/${objectId}/logic-blocks`,
+              method: 'PUT',
+              body: { blocks },
+              revisionRef: writeAdapter.revisionRef,
+              editingSessionId: writeAdapter.editingSessionId,
+            })
+          : await fetch(`/api/game-objects/${objectId}/logic-blocks`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ blocks }),
+            });
         setStatus(res.ok ? 'saved' : 'error');
       } catch (e) {
         logger.warn('[BlockEditor] Save failed:', e);

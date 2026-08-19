@@ -32,6 +32,7 @@ export async function GET(
       like_count: number;
       moderation_status: string;
       moderation_notes: string | null;
+      revision: number | string;
     }>('SELECT * FROM projects WHERE id = ?', [id]);
 
     if (!project) {
@@ -145,6 +146,7 @@ export async function GET(
       play_count: project.play_count,
       like_count: project.like_count,
       moderation_status: project.moderation_status,
+      revision: Number(project.revision),
       scenes: scenes.map((scene) => ({
         id: scene.id,
         name: scene.name,
