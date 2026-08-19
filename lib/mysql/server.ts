@@ -5,6 +5,8 @@ import type { GuestSessionRow, GuestSessionStore } from '../auth/guestSession';
 import type { Database } from '../database.types';
 
 export { query, queryOne };
+export { runTransaction, withTransaction } from './transaction';
+export type { TransactionConnection, WithTransactionOptions } from './transaction';
 
 export async function getAuthenticatedUserFromToken(token: string) {
   try {
