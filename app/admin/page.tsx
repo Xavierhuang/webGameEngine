@@ -70,7 +70,8 @@ export default async function AdminPage() {
     `SELECT p.id AS profile_id, u.id AS user_id, u.email, p.display_name, p.username,
             p.role, u.created_at,
             COUNT(pr.id) AS project_count,
-            SUM(CASE WHEN pr.visibility = 'public' THEN 1 ELSE 0 END) AS published_count
+            SUM(CASE WHEN pr.visibility = 'public' AND pr.moderation_status = 'published'
+                     THEN 1 ELSE 0 END) AS published_count
        FROM profiles p
        JOIN users u ON u.id = p.user_id
   LEFT JOIN projects pr ON pr.owner_id = p.id
@@ -95,7 +96,8 @@ export default async function AdminPage() {
 
   const [projectStats] = await query<any>(
     `SELECT COUNT(*) AS total,
-            SUM(CASE WHEN visibility = 'public' THEN 1 ELSE 0 END) AS public_count
+            SUM(CASE WHEN visibility = 'public' AND moderation_status = 'published'
+                     THEN 1 ELSE 0 END) AS public_count
        FROM projects`
   );
   const [openReports] = await query<any>(
@@ -138,7 +140,7 @@ export default async function AdminPage() {
           <Stat
             icon={<Gamepad2 className="h-4 w-4" />}
             value={Number(projectStats?.public_count ?? 0)}
-            label="shared publicly"
+            label="published games"
           />
           <Stat
             icon={<Flag className="h-4 w-4" />}

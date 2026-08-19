@@ -100,8 +100,8 @@ export function ReportQueue({ reports, pending }: ReportQueueProps) {
         </h2>
         {pending.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm text-slate-600">
-            Nothing waiting. Newly shared projects are auto-approved once their
-            text passes moderation; anything that fails lands here.
+            Nothing waiting. Newly shared projects appear here after entering
+            the moderation queue.
           </p>
         ) : (
           <ul className="space-y-2">

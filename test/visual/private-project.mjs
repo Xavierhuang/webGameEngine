@@ -88,9 +88,9 @@ await browser.close();
 
 const problems = [];
 if (ownerReopen.status() !== 200 || !ownerSees) problems.push('the owner can no longer open their own project');
-if (status === 200) problems.push(`/editor returned 200 to a stranger (expected 404)`);
+if (status !== 404) problems.push(`/editor returned ${status} to a stranger (expected exact 404)`);
 if (leaked || inHtml) problems.push('the private title reached a stranger');
-if (api === 200) problems.push('the API served a private project to a stranger');
+if (api !== 404) problems.push(`the API returned ${api} to a stranger (expected exact 404)`);
 
 if (problems.length) {
   console.error(`\nFAIL\n  ${problems.join('\n  ')}`);

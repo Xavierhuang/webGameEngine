@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { requireAdmin, ownerEmails } from '@/lib/auth/admin';
+import { AdminDeletionError, deleteAdminAccount } from '@/lib/auth/adminDeletion';
 import {
   canChangeRole,
-  canDeleteAccount,
   isDisposableAccount,
   isOwner,
 } from '@/lib/auth/adminAccess';
@@ -48,7 +48,8 @@ export async function GET(request: NextRequest) {
               p.role              AS role,
               u.created_at        AS created_at,
               COUNT(pr.id)                                          AS project_count,
-              SUM(CASE WHEN pr.visibility = 'public' THEN 1 ELSE 0 END) AS published_count
+              SUM(CASE WHEN pr.visibility = 'public' AND pr.moderation_status = 'published'
+                       THEN 1 ELSE 0 END) AS published_count
          FROM profiles p
          JOIN users u    ON u.id = p.user_id
     LEFT JOIN projects pr ON pr.owner_id = p.id
@@ -121,34 +122,17 @@ export async function DELETE(request: NextRequest) {
     const { profileId, confirmEmail } = await request.json();
     if (!profileId) return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
 
-    const target = await queryOne<{ id: string; role: string; email: string; user_id: string }>(
-      `SELECT p.id, p.role, p.user_id, u.email
-         FROM profiles p JOIN users u ON u.id = p.user_id WHERE p.id = ?`,
-      [profileId]
-    );
-    if (!target) return NextResponse.json({ error: 'Account not found' }, { status: 404 });
-
-    const decision = canDeleteAccount(admin, target, ownerEmails());
-    if (!decision.ok) return NextResponse.json({ error: decision.reason }, { status: 403 });
-
-    if ((confirmEmail ?? '').trim().toLowerCase() !== target.email.toLowerCase()) {
-      return NextResponse.json(
-        { error: 'Type the account’s email address to confirm deletion.' },
-        { status: 400 }
-      );
-    }
-
-    // Projects first: the FK from projects to profiles is what would otherwise
-    // decide the outcome, and relying on cascade behaviour for a destructive
-    // admin action means the result depends on the schema rather than on this
-    // code saying what it does.
-    await query('DELETE FROM projects WHERE owner_id = ?', [target.id]);
-    await query('DELETE FROM profiles WHERE id = ?', [target.id]);
-    await query('DELETE FROM users WHERE id = ?', [target.user_id]);
-
-    console.warn(`[admin] ${admin.email} deleted account ${target.email}`);
+    const deleted = await deleteAdminAccount(admin, {
+      profileId,
+      confirmEmail,
+      ownerEmails: ownerEmails(),
+    });
+    console.warn(`[admin] ${admin.email} deleted account ${deleted.email}`);
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    if (error instanceof AdminDeletionError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error deleting account:', error);
     return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
   }

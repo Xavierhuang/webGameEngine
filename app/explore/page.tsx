@@ -31,6 +31,14 @@ export default async function ExplorePage(props: {
   const rawQuery = (searchParams?.q ?? '').trim().substring(0, 100);
   const sortKey = searchParams?.sort && SORTS[searchParams.sort] ? searchParams.sort : 'newest';
 
+  // Establish the public-read boundary before any secondary profile query.
+  let projects: any[] = [];
+  try {
+    projects = await listPublicProjects({ search: rawQuery, sort: sortKey, limit: 48 });
+  } catch (error) {
+    console.error('[explore] project query failed:', error);
+  }
+
   let displayName = 'Guest';
   if (actor.kind !== 'anonymous') {
     try {
@@ -42,16 +50,6 @@ export default async function ExplorePage(props: {
     } catch {
       displayName = 'Player';
     }
-  }
-
-  // Unlike the other pages, this one always hits the database — there is no
-  // signed-out short circuit. An unreachable DB used to 500 the whole page
-  // rather than showing the empty state, so a transient blip took Explore down.
-  let projects: any[] = [];
-  try {
-    projects = await listPublicProjects({ search: rawQuery, sort: sortKey, limit: 48 });
-  } catch (error) {
-    console.error('[explore] project query failed:', error);
   }
 
   return (

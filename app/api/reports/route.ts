@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { randomUUID } from 'crypto';
-import { query, queryOne } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
-import { AccessError, requireProjectView } from '@/lib/auth/access';
-import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
-
-const ALLOWED_REASONS = new Set(['inappropriate', 'harassment', 'spam', 'violence', 'other']);
+import { AccessError } from '@/lib/auth/access';
+import { ReportSubmissionError } from '@/lib/safety/reportSubmission';
+import { submitReport } from '@/lib/safety/reportSubmission.server';
 
 /**
  * POST /api/reports
  *
  * Body: { projectId?: string, profileId?: string, reason: 'inappropriate' | ...,
  *         details?: string }
- * At least one of projectId / profileId is required.
+ * Exactly one of projectId / profileId is required.
  *
- * Guests may file reports too (no auth required). Reports go into the `reports`
+ * Signed-in users and secure guests may file reports. Reports go into the `reports`
  * table with status 'open' and are picked up by moderator review flows.
  * Automatic action: if the report content itself contains disallowed language
  * it is refused (reporters cannot use the report field to send abuse of their
@@ -24,55 +21,16 @@ export async function POST(request: NextRequest) {
   try {
     const actor = await resolveActor(request);
     const body = await request.json();
-    const projectId = typeof body.projectId === 'string' ? body.projectId : null;
-    const reportedProfileId = typeof body.profileId === 'string' ? body.profileId : null;
-    const reason = typeof body.reason === 'string' && ALLOWED_REASONS.has(body.reason) ? body.reason : 'other';
-    const details = typeof body.details === 'string' ? sanitizeUserInput(body.details).substring(0, 1000) : '';
-
-    if (!projectId && !reportedProfileId) {
-      return NextResponse.json({ error: 'Must report a project or a profile' }, { status: 400 });
-    }
-
-    // Verify the reported entity exists (avoids junk rows and helps rate limits).
-    if (projectId) {
-      await requireProjectView(actor, projectId);
-    }
-    if (reportedProfileId) {
-      const p = await queryOne<{ id: string }>('SELECT id FROM profiles WHERE id = ?', [reportedProfileId]);
-      if (!p) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-    }
-
-    // Report details go through the same moderation gate — a report field is
-    // not a bypass channel for slurs. Empty details skip the check.
-    if (details) {
-      const modResult = await moderateText(
-        details,
-        actor.kind === 'user' ? actor.userId : null,
-        actor.kind === 'guest' ? actor.profileId : null
-      );
-      if (!modResult.safe) {
-        return NextResponse.json(
-          { error: 'Report details failed moderation', reason: modResult.reason },
-          { status: 422 }
-        );
-      }
-    }
-
-    // Resolve reporter profile id (null for anonymous guests).
-    const reporterProfileId = actor.kind === 'anonymous' ? null : actor.profileId;
-
-    const id = randomUUID();
-    await query(
-      `INSERT INTO reports
-       (id, reporter_profile_id, reported_project_id, reported_profile_id, reason, details)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, reporterProfileId, projectId, reportedProfileId, reason, details || null]
-    );
-
-    return NextResponse.json({ id, status: 'open' });
+    return NextResponse.json(await submitReport(actor, body));
   } catch (error: any) {
     if (error instanceof AccessError) {
       return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
+    if (error instanceof ReportSubmissionError) {
+      const headers = error.status === 429 && error.retryAfter
+        ? { 'Retry-After': String(error.retryAfter) }
+        : undefined;
+      return NextResponse.json({ error: error.message }, { status: error.status, headers });
     }
     console.error('Report creation error:', error);
     return NextResponse.json({ error: error?.message ?? 'Failed to file report' }, { status: 500 });

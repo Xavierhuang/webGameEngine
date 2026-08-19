@@ -6,6 +6,7 @@ import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
 import { ImportButton } from '@/components/projects/ImportButton';
 import { getTranslator } from '@/lib/i18n/server';
+import { getProjectModerationBadge } from '@/lib/auth/publicationState';
 
 export default async function ProjectsPage(props: {
   searchParams?: Promise<{ signup?: string }>;
@@ -193,21 +194,13 @@ function ProjectCard({ project }: { project: any }) {
 }
 
 function ModerationBadge({ status, visibility }: { status?: string; visibility?: string }) {
-  // Private projects don't surface a badge — moderation only matters for
-  // shared/public content. Approved public projects also stay unbadged.
-  if (visibility === 'private') return null;
-  if (status === 'approved') return null;
-
-  const styles: Record<string, { bg: string; label: string }> = {
-    pending: { bg: 'bg-amber-500', label: 'Pending review' },
-    rejected: { bg: 'bg-red-500', label: 'Removed' },
-  };
-  const s = styles[status ?? 'pending'] ?? styles.pending;
+  const badge = getProjectModerationBadge(status, visibility);
+  if (!badge) return null;
   return (
     <span
-      className={`absolute top-3 right-3 ${s.bg} text-white text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-0.5 shadow`}
+      className={`absolute top-3 right-3 ${badge.bg} text-white text-[10px] font-bold uppercase tracking-wider rounded-full px-2.5 py-0.5 shadow`}
     >
-      {s.label}
+      {badge.label}
     </span>
   );
 }

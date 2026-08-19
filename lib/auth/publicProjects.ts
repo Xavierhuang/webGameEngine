@@ -1,5 +1,9 @@
 import { query } from '@/lib/mysql/server';
-import { toPublicProjectDto, type PublicProjectDto } from '@/lib/auth/publicProjectDto';
+import {
+  toPublicProjectListItem,
+  type PublicProjectListItem,
+  type PublicProjectListRow,
+} from '@/lib/auth/publicProjectListItem';
 
 const SORTS = Object.freeze({
   newest: 'p.created_at DESC',
@@ -9,31 +13,6 @@ const SORTS = Object.freeze({
 });
 
 export type PublicProjectSort = keyof typeof SORTS;
-
-export interface PublicProjectListItem extends PublicProjectDto {
-  parent: { id: string; title: string } | null;
-}
-
-interface PublicProjectRow {
-  id: string;
-  title: string;
-  description: string | null;
-  thumbnail_url: string | null;
-  genre: string | null;
-  created_at: Date;
-  updated_at: Date;
-  play_count: number;
-  like_count: number;
-  remix_count: number;
-  remixed_from: string | null;
-  visibility: string;
-  moderation_status: string;
-  author_username: string | null;
-  author_name: string | null;
-  author_avatar_url: string | null;
-  parent_id: string | null;
-  parent_title: string | null;
-}
 
 /** The sole live-graph gallery query: published rows in, allowlisted DTOs out. */
 export async function listPublicProjects(options: {
@@ -60,7 +39,7 @@ export async function listPublicProjects(options: {
     values.push(genre);
   }
 
-  const rows = await query<PublicProjectRow>(
+  const rows = await query<PublicProjectListRow>(
     `SELECT p.id, p.title, p.description, p.thumbnail_url, p.genre,
             p.created_at, p.updated_at, p.play_count, p.like_count,
             p.remix_count, p.remixed_from, p.visibility, p.moderation_status,
@@ -80,14 +59,5 @@ export async function listPublicProjects(options: {
     values
   );
 
-  return rows.map((row) => ({
-    ...toPublicProjectDto(row, {
-      username: row.author_username,
-      display_name: row.author_name,
-      avatar_url: row.author_avatar_url,
-    }),
-    parent: row.parent_id && row.parent_title
-      ? { id: row.parent_id, title: row.parent_title }
-      : null,
-  }));
+  return rows.map(toPublicProjectListItem);
 }

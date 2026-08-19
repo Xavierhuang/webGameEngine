@@ -203,20 +203,18 @@ await expectStatus(stranger, 'establish owned order', '/api/game-objects/reorder
   sceneId: strangerScene.id,
   orderedIds: [strangerObject1.id, strangerObject0.id],
 }, [200]);
-const beforeCrossProject = await json(
-  await stranger.request(`/api/game-objects/${strangerObject0.id}`)
-);
+const beforeCrossProjectOrder = (await loadProject(stranger, strangerProjectId))
+  .scenes[0].game_objects.map((object) => object.id);
 await expectStatus(owner, 'cross-project reorder attempt', '/api/game-objects/reorder', 'POST', {
   sceneId: ownerScene.id,
   orderedIds: [strangerObject0.id],
   projectId: ownerProjectId,
-}, [200]);
-const afterCrossProject = await json(
-  await stranger.request(`/api/game-objects/${strangerObject0.id}`)
-);
-assert.equal(
-  afterCrossProject.order_index,
-  beforeCrossProject.order_index,
+}, [404]);
+const afterCrossProjectOrder = (await loadProject(stranger, strangerProjectId))
+  .scenes[0].game_objects.map((object) => object.id);
+assert.deepEqual(
+  afterCrossProjectOrder,
+  beforeCrossProjectOrder,
   'an object from another project was reordered through an owned scene'
 );
 
@@ -274,7 +272,7 @@ for (const [path, fileField] of [['/api/uploads/audio', 'audio'], ['/api/uploads
 const reportBody = { projectId: ownerProjectId, reason: 'spam', details: 'matrix report' };
 await expectStatus(owner, 'report viewable owned project', '/api/reports', 'POST', reportBody, [200]);
 await expectStatus(stranger, 'report hidden private project', '/api/reports', 'POST', reportBody, [404]);
-await expectStatus(anonymous, 'anonymous report hidden private project', '/api/reports', 'POST', reportBody, [404]);
+await expectStatus(anonymous, 'anonymous reports fail closed until the persistent limiter', '/api/reports', 'POST', reportBody, [401]);
 await expectStatus(guest, 'report guest-owned project', '/api/reports', 'POST', {
   ...reportBody, projectId: guestProjectId,
 }, [200]);

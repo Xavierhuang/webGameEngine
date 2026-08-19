@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { AccessError, requireResourceEdit } from '@/lib/auth/access';
+import { ReorderError, reorderSceneObjects } from '@/lib/auth/reorder';
 
 /**
  * Persist a new sprite order for one scene.
@@ -21,15 +21,13 @@ export async function POST(request: NextRequest) {
     const actor = await resolveActor(request);
     await requireResourceEdit(actor, 'scene', sceneId);
 
-    // Scoped to the scene, so an id from another project can't be renumbered.
-    for (let i = 0; i < orderedIds.length; i++) {
-      const id = orderedIds[i];
-      if (typeof id !== 'string') continue;
-      await query('UPDATE game_objects SET order_index = ? WHERE id = ? AND scene_id = ?', [i, id, sceneId]);
-    }
+    await reorderSceneObjects(sceneId, orderedIds);
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
+    if (error instanceof ReorderError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     if (error instanceof AccessError) {
       return NextResponse.json({ error: 'Scene not found' }, { status: error.status });
     }

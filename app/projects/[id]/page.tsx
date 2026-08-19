@@ -34,7 +34,10 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
             parent.title AS parent_title, parent.id AS parent_id
      FROM projects p
      LEFT JOIN profiles author ON author.id = p.owner_id
-     LEFT JOIN projects parent ON parent.id = p.remixed_from
+     LEFT JOIN projects parent
+       ON parent.id = p.remixed_from
+      AND parent.visibility = 'public'
+      AND parent.moderation_status = 'published'
      WHERE p.id = ?`,
     [id]
   );

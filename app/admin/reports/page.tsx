@@ -43,12 +43,11 @@ export default async function AdminReportsPage() {
      LIMIT 100`
   );
 
-  // Projects awaiting a first review — moderation_status defaults to 'pending'
-  // and nothing used to move it, so these would sit invisible forever.
+  // Projects awaiting review under migration 008's canonical state machine.
   const pending = await query<any>(
     `SELECT id, title, visibility, moderation_status, created_at
      FROM projects
-     WHERE visibility = 'public' AND moderation_status = 'pending'
+     WHERE visibility = 'public' AND moderation_status = 'moderation_pending'
      ORDER BY created_at DESC
      LIMIT 50`
   );

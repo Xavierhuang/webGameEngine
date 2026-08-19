@@ -177,7 +177,7 @@ export function UserTable({ initialUsers }: { initialUsers: AdminUser[] }) {
                 <td className="px-4 py-3 text-slate-700">
                   {u.project_count}
                   {u.published_count > 0 && (
-                    <span className="ml-1 text-xs text-slate-400">({u.published_count} public)</span>
+                    <span className="ml-1 text-xs text-slate-400">({u.published_count} published)</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-500">
