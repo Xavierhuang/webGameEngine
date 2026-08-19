@@ -53,7 +53,7 @@ tasks per focused session, so 20–50 sessions of work spread over weeks.
 | trust-boundary | 2 Opaque guest sessions | done | 47440f3..1dda043 |
 | trust-boundary | 3 Central authorization | done | 1277edf..8553e6e |
 | trust-boundary | 4 Convert every surface | done (3 fix rounds) | c50d36a..d2b0933 |
-| trust-boundary | 5 Parent consent state machine | **TODO** | — |
+| trust-boundary | 5 Parent consent state machine | done | 5de284d |
 | trust-boundary | 6 Shared quotas + audit | done | ec4da01, 6064992, 0a15e8f |
 | trust-boundary | 7 AI-route guard | **TODO** | — |
 | trust-boundary | 8 Publication candidates | **TODO** | — |
@@ -100,30 +100,26 @@ Each session should follow the same shape as the prior sessions that shipped
 
 Execute in this order. Later tasks depend on earlier ones being present.
 
-### Trust-boundary Task 5 — Parent-First Consent State Machine
+### Trust-boundary Task 7 — Guard and Bound Every AI Surface
 
-16 files. Rewrites `lib/safety/parentalConsent.ts` and the child-signup
-flow to move consent authority to the parent-first path. Big; do not
-attempt in one session unless you have deep context budget.
+Wires the audit + feature-flag + rate-limit modules into the five AI
+routes that Task 4 explicitly deferred. Live paths — every fix round
+must include a fail-closed browser fixture.
 
 **Reads the plan at:** `docs/superpowers/plans/2026-08-18-lingplay-trust-boundary.md`
-section "Task 5".
+section "Task 7".
 
-**Landmine:** Task 4 already wrapped `lib/safety/parentalConsent.ts`
-transitions in `withTransaction` and updated the signup flow to
-create-user + create-profile atomically. Task 5's rewrite starts from
-that atomic base; do NOT undo the transactional wrapping while moving
-consent authority.
+**Landmine:** `app/api/ai/apply-update/route.ts` currently returns 503
+`feature_unavailable`. Task 7 replaces it with a strict AI-command
+translator that dispatches through `executeProjectCommand`. The route
+must stay behind `readFeatureFlag('creation_ai')` and `readFeatureFlag
+('ai_mutation')` until Task 7's full pipeline (guard order + browser
+fixture) is green.
 
 ---
 
 ### Then, in this order
 
-9. **trust-boundary Task 7** — Guard and Bound Every AI Surface.
-   Wires the audit + feature-flag + rate-limit modules into the five AI
-   routes that Task 4 explicitly deferred (see `progress.md` note
-   `deferredTo: 'Task 7'`). Live paths — every fix round must include a
-   fail-closed browser fixture.
 10. **trust-boundary Task 8** — Fail-Closed Publication Candidates and
     Snapshot State. Owns immutable publication snapshots and the removed
     `published` state that migration 008 left dormant.
@@ -224,27 +220,26 @@ clean; removing it just re-creates the diff.
 
 The next session should read this section first, then start work.
 
-**Last completed:** `502627c fix: make multi-row writes atomic`
-(2026-08-19) — durable-work Task 4: 5 project-graph routes dispatch
-through the command service with `If-Match` + `Idempotency-Key`
-preconditions (missing → 428); 10 multi-row non-graph writers wrapped
-in `withTransaction`; AI apply-update returns 503 `feature_unavailable`
-pending Task 7; write-boundary allowlist is now a documented map of
-creation/lifecycle/counter/upload bypasses with plan-task successors;
-new integration suite proves rollback + precondition contract.
+**Last completed:** `5de284d feat: enforce parent-first consent`
+(2026-08-19) — trust-boundary Task 5: `capabilitiesFor(...)` deny-by-
+default reducer, `ConsentState` machine with 24-hour purpose-bound
+tokens + atomic sibling invalidation, `birth_month` migration off raw
+age, parent enrollment route (email-verified), pending-approval
+resend button, `isParent` client authority removed. 10 real-MySQL
+consent-flow tests + 10 capability-table tests all green.
 
-**Next task:** trust-boundary **Task 5** — Parent-First Consent State
-Machine. 16 files rewriting `lib/safety/parentalConsent.ts` and the
-child-signup flow. Do not attempt in one session unless you have deep
-context budget — the plan flags this as one of the biggest remaining.
+**Next task:** trust-boundary **Task 7** — Guard and Bound Every AI
+Surface. Wires audit + feature-flag + rate-limit + capabilities into
+the five AI routes (chat, apply-update, generate-character, ask,
+translate). Task 4 disabled apply-update behind the flag; Task 7
+replaces the stub with a strict AI-command translator that dispatches
+through `executeProjectCommand`.
 
-**Deploy status:** local `502627c` is one commit ahead of `origin/main`
-(Task 3b was pushed as `6681e0d`; this Task 4 commit is unpushed).
-Live prod is on `657421a`. Task 4 introduces the `If-Match` +
-`Idempotency-Key` precondition on every project-graph write; deploying
-this will break the existing browser editor until it is updated to
-send those headers. Run `./deploy.sh` only when the editor client is
-ready.
+**Deploy status:** local `5de284d` is unpushed. Prior tasks landed as
+`6681e0d` (Task 3b) and `681f429` (Task 4) on `origin/main`. Live prod
+is on `657421a`. Deploy caveats stack: Task 4 requires `If-Match`
+headers on graph writes, Task 5 breaks the signup checkbox flow. Do
+not `./deploy.sh` until the browser editor + signup UI are updated.
 
 **When updating this file:** move the completed task from "Next tasks" to
 "Task completion map", write the new SHA, update the "Last completed" line,
