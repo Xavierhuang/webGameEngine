@@ -23,6 +23,7 @@
     "test:game-outcome": "tsc lib/runtime/interpreter.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/runtime/game-outcome.test.js",
     "test:scripts-run": "node test/player/scripts-always-run.test.js",
     "test:transactions": "tsc lib/mysql/transaction.ts lib/mysql/client.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/mysql/transaction.test.js",
+    "test:durable-work-schema": "node test/database/durable-work-migration.test.js",
     "test:preview-support": "tsc lib/editor/previewSupport.ts lib/blockly/definitions.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/editor/preview-support.test.js",
     "test:camera-control": "tsc lib/camera/cameraControl.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/camera/camera-control.test.js",
     "test:examples": "tsc lib/examples/catalog.ts lib/blockly/definitions.ts lib/runtime/interpreter.ts lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/examples/catalog.test.js",

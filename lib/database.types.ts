@@ -89,6 +89,7 @@ export interface Database {
           like_count: number;
           moderation_status: ProjectModerationStatus;
           moderation_notes: string | null;
+          revision: number;
         };
         Insert: {
           id?: string;
@@ -101,6 +102,7 @@ export interface Database {
           visibility?: ProjectVisibility;
           genre?: string | null;
           moderation_status?: ProjectModerationStatus;
+          revision?: number;
         };
         Update: {
           title?: string;
@@ -111,6 +113,7 @@ export interface Database {
           genre?: string | null;
           moderation_status?: ProjectModerationStatus;
           moderation_notes?: string | null;
+          revision?: number;
         };
       };
       scenes: {
@@ -567,6 +570,214 @@ export interface Database {
           byte_size: number;
         };
         Update: Record<string, never>;
+      };
+      project_commands: {
+        Row: {
+          id: string;
+          project_id: string;
+          actor_key: string;
+          idempotency_key: string;
+          command_type: string;
+          command_json: unknown;
+          command_sha256: string;
+          inverse_json: unknown | null;
+          result_json: unknown | null;
+          expected_revision: number | null;
+          applied_revision: number | null;
+          status: 'pending' | 'committed' | 'rolled_back' | 'failed';
+          error_message: string | null;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id: string;
+          project_id: string;
+          actor_key: string;
+          idempotency_key: string;
+          command_type: string;
+          command_json: unknown;
+          command_sha256: string;
+          inverse_json?: unknown | null;
+          result_json?: unknown | null;
+          expected_revision?: number | null;
+          applied_revision?: number | null;
+          status?: 'pending' | 'committed' | 'rolled_back' | 'failed';
+          error_message?: string | null;
+          expires_at: string;
+        };
+        Update: {
+          inverse_json?: unknown | null;
+          result_json?: unknown | null;
+          applied_revision?: number | null;
+          status?: 'pending' | 'committed' | 'rolled_back' | 'failed';
+          error_message?: string | null;
+        };
+      };
+      editing_sessions: {
+        Row: {
+          id: string;
+          project_id: string;
+          actor_key: string;
+          undo_group_id: string;
+          command_ids: string[];
+          description: string | null;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id: string;
+          project_id: string;
+          actor_key: string;
+          undo_group_id: string;
+          command_ids: string[];
+          description?: string | null;
+          expires_at: string;
+        };
+        Update: Record<string, never>;
+      };
+      project_play_snapshots: {
+        Row: {
+          id: string;
+          project_id: string;
+          revision: number;
+          snapshot_json: unknown;
+          snapshot_sha256: string;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          project_id: string;
+          revision: number;
+          snapshot_json: unknown;
+          snapshot_sha256: string;
+        };
+        Update: Record<string, never>;
+      };
+      guest_claims: {
+        Row: {
+          id: string;
+          guest_profile_id: string;
+          claimed_by_user_id: string;
+          claim_token_hash: string;
+          status: 'pending' | 'claimed' | 'revoked' | 'expired';
+          created_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id: string;
+          guest_profile_id: string;
+          claimed_by_user_id: string;
+          claim_token_hash: string;
+          status?: 'pending' | 'claimed' | 'revoked' | 'expired';
+        };
+        Update: {
+          status?: 'pending' | 'claimed' | 'revoked' | 'expired';
+          completed_at?: string | null;
+        };
+      };
+      asset_blobs: {
+        Row: {
+          checksum: string;
+          storage_key: string;
+          byte_size: number;
+          content_type: string;
+          refcount: number;
+          created_at: string;
+        };
+        Insert: {
+          checksum: string;
+          storage_key: string;
+          byte_size: number;
+          content_type: string;
+          refcount?: number;
+        };
+        Update: {
+          refcount?: number;
+        };
+      };
+      storage_repair_jobs: {
+        Row: {
+          id: string;
+          job_type: 'refcount_audit' | 'orphan_sweep' | 'checksum_verify';
+          target_checksum: string | null;
+          status: 'pending' | 'in_progress' | 'completed' | 'failed';
+          attempt_count: number;
+          next_attempt_at: string;
+          last_error: string | null;
+          created_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id: string;
+          job_type: 'refcount_audit' | 'orphan_sweep' | 'checksum_verify';
+          target_checksum?: string | null;
+          status?: 'pending' | 'in_progress' | 'completed' | 'failed';
+          attempt_count?: number;
+          next_attempt_at: string;
+        };
+        Update: {
+          status?: 'pending' | 'in_progress' | 'completed' | 'failed';
+          attempt_count?: number;
+          next_attempt_at?: string;
+          last_error?: string | null;
+          completed_at?: string | null;
+        };
+      };
+      deletion_jobs: {
+        Row: {
+          id: string;
+          subject_type: 'project' | 'account';
+          subject_id: string;
+          requested_by: string;
+          status: 'pending' | 'capturing' | 'purging' | 'completed' | 'failed' | 'cancelled';
+          captured_blob_keys: string[] | null;
+          error_message: string | null;
+          created_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id: string;
+          subject_type: 'project' | 'account';
+          subject_id: string;
+          requested_by: string;
+          status?: 'pending' | 'capturing' | 'purging' | 'completed' | 'failed' | 'cancelled';
+        };
+        Update: {
+          status?: 'pending' | 'capturing' | 'purging' | 'completed' | 'failed' | 'cancelled';
+          captured_blob_keys?: string[] | null;
+          error_message?: string | null;
+          completed_at?: string | null;
+        };
+      };
+      backup_runs: {
+        Row: {
+          id: string;
+          retention_class: 'daily' | 'monthly' | 'manual';
+          backup_key_id: string;
+          storage_key: string;
+          archive_sha256: string;
+          byte_size: number;
+          status: 'running' | 'succeeded' | 'failed';
+          started_at: string;
+          completed_at: string | null;
+          verified_at: string | null;
+          error_message: string | null;
+        };
+        Insert: {
+          id: string;
+          retention_class: 'daily' | 'monthly' | 'manual';
+          backup_key_id: string;
+          storage_key: string;
+          archive_sha256: string;
+          byte_size: number;
+          status?: 'running' | 'succeeded' | 'failed';
+        };
+        Update: {
+          status?: 'running' | 'succeeded' | 'failed';
+          completed_at?: string | null;
+          verified_at?: string | null;
+          error_message?: string | null;
+        };
       };
     };
   };

@@ -245,6 +245,14 @@ export interface Project {
   scenes?: Scene[];
   created_at?: string;
   updated_at?: string;
+  /**
+   * Monotonic per-project counter. Every accepted command bumps this by one.
+   * Optimistic locking: writes assert an `expected_revision`; the server
+   * compares under the transaction and rejects with 409 on mismatch.
+   * Play mode pins its snapshot to a specific revision so an in-flight edit
+   * never mutates a running session.
+   */
+  revision?: number;
 }
 
 // Physics
