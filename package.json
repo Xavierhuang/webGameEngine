@@ -26,6 +26,7 @@
     "test:durable-work-schema": "node test/database/durable-work-migration.test.js",
     "test:command-schema": "tsc lib/projects/commandSchema.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/projects/command-schema.test.js",
     "test:audit": "tsc lib/safety/audit.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/safety/audit.test.js",
+    "test:feature-flags": "tsc lib/safety/featureFlags.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node --test test/safety/feature-flags.test.js",
     "test:preview-support": "tsc lib/editor/previewSupport.ts lib/blockly/definitions.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/editor/preview-support.test.js",
     "test:camera-control": "tsc lib/camera/cameraControl.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/camera/camera-control.test.js",
     "test:examples": "tsc lib/examples/catalog.ts lib/blockly/definitions.ts lib/runtime/interpreter.ts lib/prefabs/characters.ts --outDir test/.build --rootDir . --module commonjs --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck && node test/examples/catalog.test.js",
