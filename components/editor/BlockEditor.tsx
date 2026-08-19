@@ -215,6 +215,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
               body: { blocks },
               revisionRef: writeAdapter.revisionRef,
               editingSessionId: writeAdapter.editingSessionId,
+              projectId: writeAdapter.projectId,
             })
           : await fetch(`/api/game-objects/${objectId}/logic-blocks`, {
               method: 'PUT',

@@ -312,6 +312,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         body: { projectId, name: `Scene ${(project?.scenes?.length ?? 0) + 1}` },
         revisionRef,
         editingSessionId: editingSessionIdRef.current,
+        projectId,
       });
       const data = await response.json();
       if (!response.ok || !data?.scene) return;
@@ -344,6 +345,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         body: { background_image_url: url },
         revisionRef,
         editingSessionId: editingSessionIdRef.current,
+        projectId,
       });
     } catch (error) {
       console.error('Failed to set backdrop:', error);
@@ -362,6 +364,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         body: { name },
         revisionRef,
         editingSessionId: editingSessionIdRef.current,
+        projectId,
       });
     } catch (error) {
       console.error('Failed to rename scene:', error);
@@ -377,6 +380,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         method: 'DELETE',
         revisionRef,
         editingSessionId: editingSessionIdRef.current,
+        projectId,
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -448,6 +452,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           body: { blocks: source.logic_blocks },
           revisionRef,
           editingSessionId: editingSessionIdRef.current,
+        projectId,
         });
       }
 
@@ -488,6 +493,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         body: { sceneId, orderedIds: objects.map((o: any) => o.id) },
         revisionRef,
         editingSessionId: editingSessionIdRef.current,
+        projectId,
       });
     } catch (error) {
       console.error('Failed to persist sprite order:', error);
@@ -559,6 +565,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         },
         revisionRef,
         editingSessionId: editingSessionIdRef.current,
+        projectId,
       });
 
       if (!response.ok) {
@@ -1056,6 +1063,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                         },
                         revisionRef,
                         editingSessionId: editingSessionIdRef.current,
+        projectId,
                       });
                       if (response.ok) {
                         const updated = await response.json();
@@ -1186,6 +1194,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                   body: updates,
                   revisionRef,
                   editingSessionId: editingSessionIdRef.current,
+        projectId,
                 });
 
                 if (response.ok) {
@@ -1230,6 +1239,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                   method: 'DELETE',
                   revisionRef,
                   editingSessionId: editingSessionIdRef.current,
+        projectId,
                 });
 
                 if (response.ok) {
