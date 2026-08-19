@@ -197,6 +197,65 @@ test('a straight-line Actor and guard inside an unconditionally entered try bloc
   assert.deepEqual(analyzeSource(source, 'fixture.ts', { GET: 'requireProjectEdit' }), []);
 });
 
+test('boundary calls that are not awaited are rejected', () => {
+  for (const body of [
+    `const subject = await identify(request); authorize(subject, 'project'); return load('SELECT 1');`,
+    `const subject = await identify(request); void authorize(subject, 'project'); return load('SELECT 1');`,
+    `const subject = await identify(request); authorize(subject, 'project').then(() => load('SELECT 1')); return null;`,
+    `const subject = await identify(request); const [_] = await Promise.all([authorize(subject, 'project'), load('SELECT 1')]); return null;`,
+  ]) {
+    const problems = analyzeSource(`${header} export async function GET(request) { ${body} }`, 'fixture.ts', {
+      GET: 'requireProjectEdit',
+    });
+    assert.match(problems.join('\n'), /must be directly awaited/, `fixture unexpectedly passed: ${body}`);
+  }
+});
+
+test('boundary calls chained through .catch or .then before await are rejected', () => {
+  for (const body of [
+    `const subject = await identify(request); const ok = await authorize(subject, 'project').catch(() => null); return load('SELECT 1');`,
+    `const subject = await identify(request); const ok = await authorize(subject, 'project').then((r) => r ?? true); return load('SELECT 1');`,
+  ]) {
+    const problems = analyzeSource(`${header} export async function GET(request) { ${body} }`, 'fixture.ts', {
+      GET: 'requireProjectEdit',
+    });
+    assert.match(problems.join('\n'), /must be directly awaited/, `fixture unexpectedly passed: ${body}`);
+  }
+});
+
+test('assigning await guard(...) to a variable is safe — rejection still propagates', () => {
+  const source = `${header}
+    export async function POST(request) {
+      const subject = await identify(request);
+      const authorized = await authorize(subject, 'project');
+      return load('SELECT 1');
+    }
+  `;
+  assert.deepEqual(analyzeSource(source, 'fixture.ts', { POST: 'requireProjectEdit' }), []);
+});
+
+test('wrapping the guard in a try/catch is not a swallow when caught inside the same try', () => {
+  // The codebase's shared pattern: one try/catch wraps the guard AND the
+  // privileged effect. If the guard throws, the effect never runs — the catch
+  // converts AccessError into a proper HTTP response. This gate does not
+  // second-guess that pattern; it stays focused on the awaited/chained shape.
+  const wholeHandlerInTry = `${header}
+    export async function POST(request) {
+      const subject = await identify(request);
+      try {
+        await authorize(subject, 'project');
+        return load('UPDATE projects SET title = title');
+      } catch (error) {
+        return undefined;
+      }
+    }
+  `;
+  assert.deepEqual(
+    analyzeSource(wholeHandlerInTry, 'fixture.ts', { POST: 'requireProjectEdit' }),
+    [],
+  );
+});
+
 test('an exported const handler is analyzed when it is in the manifest', () => {
   const source = `${header}
     export const GET = async (request) => {

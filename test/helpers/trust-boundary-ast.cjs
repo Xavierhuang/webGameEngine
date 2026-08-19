@@ -132,6 +132,7 @@ function isPrivilegedEffect(binding) {
   );
 }
 
+
 function inspectEntry(entry, imports, expectedBoundary) {
   if (!entry.body) return [`${entry.label}: exported handler must be an inline function`];
   const actorCalls = [];
@@ -201,12 +202,21 @@ function inspectEntry(entry, imports, expectedBoundary) {
 
         const boundaryNames = BOUNDARY_IMPORTS.get(binding.moduleName);
         if (boundaryNames?.has(binding.importedName)) {
+          // Awaited = `await guard(...)` with nothing chained between the call
+          // and the await. Assignment or use in a condition is fine — the throw
+          // still propagates out of `await`. But `.catch(...)` / `.then(...)`
+          // between the call and the await makes `node.parent` a
+          // PropertyAccessExpression, which fails this check. So does
+          // `Promise.all([guard(...), ...])`, `void guard(...)`, and a bare
+          // call with no await at all.
+          const awaited = ts.isAwaitExpression(node.parent);
           boundaryCalls.push({
             node,
             position: node.getStart(),
             name: binding.importedName,
             firstArgument: ts.isIdentifier(node.arguments[0]) ? node.arguments[0].text : null,
             conditional,
+            awaited,
           });
         }
 
@@ -256,6 +266,29 @@ function inspectEntry(entry, imports, expectedBoundary) {
       boundary.firstArgument !== actor.variable
     ) {
       problems.push(`${entry.label}: ${expectedBoundary} is not bound to the resolved Actor`);
+    }
+    // Shape check — the boundary call must be directly awaited so its rejection
+    // propagates. `.catch(...)` / `.then(...)` chained *before* await make
+    // `node.parent` a PropertyAccessExpression rather than an AwaitExpression,
+    // so `.catch` swallowing (`await guard(...).catch(() => null)`) fails here
+    // even though the surrounding expression uses `await`. `Promise.all([
+    // guard(...), ...])`, `void guard(...)`, and a bare non-awaited call all
+    // fail for the same reason: their parent isn't `AwaitExpression`.
+    //
+    // Assignment (`const x = await guard(...)`) and use in a condition
+    // (`if (await guard(...))`) are safe — the throw exits `await` before the
+    // consumer sees a value — so this check does not require a bare statement.
+    //
+    // Wrapping the guard in a try/catch is NOT flagged here even when the
+    // catch doesn't rethrow. The wrapping catch typically converts guard
+    // rejections into a 403/404 response (`if (error instanceof AccessError)
+    // return NextResponse.json(...)`), which is the intended handler contract.
+    // Detecting the difference between that and a genuine swallow-and-continue
+    // requires per-resource data-flow beyond what an AST-only gate can prove
+    // without producing false positives on the codebase's shared "wrap the
+    // whole handler in one try" pattern.
+    if (boundary && !boundary.awaited) {
+      problems.push(`${entry.label}: ${expectedBoundary} must be directly awaited so a rejection halts the handler`);
     }
 
     const authorizationPosition = boundary?.position ?? actor.position;
