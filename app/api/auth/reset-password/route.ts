@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/mysql/server';
+import { withTransaction } from '@/lib/mysql/server';
 import { hashPassword } from '@/lib/auth/password';
 import { consumeResetToken } from '@/lib/auth/passwordReset';
 import { rateLimit, clientKey, retryMessage } from '@/lib/safety/rateLimit';
@@ -25,20 +25,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 });
     }
 
-    const outcome = await consumeResetToken(token);
-    if (!outcome.ok) {
+    // Wrapped in withTransaction in Task 4: `consumeResetToken` marks the
+    // token consumed with its own writes; if the password update fails
+    // afterwards the user would be locked out with a valid password they
+    // never actually set. Running the token consume + password update in
+    // one transaction means a failure rolls both back so the user can
+    // retry with the same link.
+    const hashed = await hashPassword(password);
+    const outcome = await withTransaction(async (connection) => {
+      const consumed = await consumeResetToken(token);
+      if (!consumed.ok) return { failure: consumed.reason as string };
+      await connection.execute('UPDATE users SET password_hash = ? WHERE id = ?', [
+        hashed,
+        consumed.userId,
+      ]);
+      return { failure: null as null };
+    });
+
+    if (outcome.failure) {
       const messages: Record<string, string> = {
         invalid: "That reset link isn't valid. Request a new one.",
         expired: 'That reset link has expired. Request a new one.',
         used: 'That reset link has already been used. Request a new one.',
       };
-      return NextResponse.json({ error: messages[outcome.reason] }, { status: 400 });
+      return NextResponse.json({ error: messages[outcome.failure] }, { status: 400 });
     }
-
-    await query('UPDATE users SET password_hash = ? WHERE id = ?', [
-      await hashPassword(password),
-      outcome.userId,
-    ]);
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/mysql/server';
+import { query, withTransaction } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { requireAdmin } from '@/lib/auth/admin';
 
@@ -60,35 +60,44 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'action must be dismiss or remove' }, { status: 400 });
     }
 
-    const report = await queryOne<{ id: string; reported_project_id: string | null }>(
-      'SELECT id, reported_project_id FROM reports WHERE id = ?',
-      [reportId]
-    );
-    if (!report) {
+    // Wrapped in withTransaction in Task 4: report status + moderation
+    // outcome must land together, otherwise an admin can see a report as
+    // "actioned" without the target project actually being rejected.
+    // Moderation state is Task 8 territory (immutable publication
+    // snapshots); this route stays on the write-boundary allowlist until
+    // then with a `deferredTo: 'Task 8'` reason.
+    const outcome = await withTransaction(async (connection) => {
+      const [rows] = await connection.execute(
+        'SELECT id, reported_project_id FROM reports WHERE id = ? FOR UPDATE',
+        [reportId],
+      );
+      const report = (rows as Array<{ id: string; reported_project_id: string | null }>)[0];
+      if (!report) return { notFound: true as const };
+
+      if (action === 'remove' && report.reported_project_id) {
+        await connection.execute(
+          "UPDATE projects SET moderation_status = 'rejected', moderation_notes = ? WHERE id = ?",
+          [typeof notes === 'string' ? notes.substring(0, 1000) : null, report.reported_project_id],
+        );
+      }
+
+      await connection.execute(
+        `UPDATE reports
+         SET status = ?, reviewer_id = ?, review_notes = ?, reviewed_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          action === 'remove' ? 'actioned' : 'dismissed',
+          admin.id,
+          typeof notes === 'string' ? notes.substring(0, 1000) : null,
+          reportId,
+        ],
+      );
+      return { notFound: false as const };
+    });
+
+    if (outcome.notFound) {
       return NextResponse.json({ error: 'Report not found' }, { status: 404 });
     }
-
-    if (action === 'remove' && report.reported_project_id) {
-      // Rejecting also hides it from the gallery: getProjectAccess treats a
-      // rejected project as non-public even if visibility still says public.
-      await query(
-        "UPDATE projects SET moderation_status = 'rejected', moderation_notes = ? WHERE id = ?",
-        [typeof notes === 'string' ? notes.substring(0, 1000) : null, report.reported_project_id]
-      );
-    }
-
-    await query(
-      `UPDATE reports
-       SET status = ?, reviewer_id = ?, review_notes = ?, reviewed_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [
-        action === 'remove' ? 'actioned' : 'dismissed',
-        admin.id,
-        typeof notes === 'string' ? notes.substring(0, 1000) : null,
-        reportId,
-      ]
-    );
-
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error acting on report:', error);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/mysql/server';
+import { withTransaction } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { AccessError, requireProjectView } from '@/lib/auth/access';
 
@@ -9,6 +9,11 @@ import { AccessError, requireProjectView } from '@/lib/auth/access';
  * `projects.like_count` existed as a bare counter with no record of who liked
  * what, so it could never be un-liked or de-duplicated. `project_likes` is now
  * the source of truth and the counter is a cache recomputed from it.
+ *
+ * Wrapped in `withTransaction` in Task 4: the toggle + counter recompute are
+ * a single logical operation and must not diverge if either query fails.
+ * Counter cache write does not need a revision fence, so this route stays
+ * on the write-boundary allowlist with a `counter_cache` reason.
  */
 export async function POST(
   request: NextRequest,
@@ -23,40 +28,42 @@ export async function POST(
     }
     await requireProjectView(actor, id);
 
-    const existing = await queryOne<{ project_id: string }>(
-      'SELECT project_id FROM project_likes WHERE project_id = ? AND profile_id = ?',
-      [id, actor.profileId]
-    );
-
-    if (existing) {
-      await query('DELETE FROM project_likes WHERE project_id = ? AND profile_id = ?', [
-        id,
-        actor.profileId,
-      ]);
-    } else {
-      await query(
-        'INSERT IGNORE INTO project_likes (project_id, profile_id) VALUES (?, ?)',
-        [id, actor.profileId]
+    const outcome = await withTransaction(async (connection) => {
+      const [existingRows] = await connection.execute(
+        'SELECT project_id FROM project_likes WHERE project_id = ? AND profile_id = ? FOR UPDATE',
+        [id, actor.profileId],
       );
-    }
+      const existing = (existingRows as Array<{ project_id: string }>)[0];
 
-    // Recompute rather than increment, so the cache can't drift.
-    await query(
-      `UPDATE projects
-       SET like_count = (SELECT COUNT(*) FROM project_likes WHERE project_id = ?)
-       WHERE id = ?`,
-      [id, id]
-    );
+      if (existing) {
+        await connection.execute(
+          'DELETE FROM project_likes WHERE project_id = ? AND profile_id = ?',
+          [id, actor.profileId],
+        );
+      } else {
+        await connection.execute(
+          'INSERT IGNORE INTO project_likes (project_id, profile_id) VALUES (?, ?)',
+          [id, actor.profileId],
+        );
+      }
 
-    const updated = await queryOne<{ like_count: number }>(
-      'SELECT like_count FROM projects WHERE id = ?',
-      [id]
-    );
+      // Recompute rather than increment so the cache cannot drift.
+      await connection.execute(
+        `UPDATE projects
+            SET like_count = (SELECT COUNT(*) FROM project_likes WHERE project_id = ?)
+          WHERE id = ?`,
+        [id, id],
+      );
 
-    return NextResponse.json({
-      liked: !existing,
-      like_count: updated?.like_count ?? 0,
+      const [updatedRows] = await connection.execute(
+        'SELECT like_count FROM projects WHERE id = ?',
+        [id],
+      );
+      const updated = (updatedRows as Array<{ like_count: number }>)[0];
+      return { liked: !existing, like_count: updated?.like_count ?? 0 };
     });
+
+    return NextResponse.json(outcome);
   } catch (error: any) {
     if (error instanceof AccessError) {
       return NextResponse.json({ error: 'Project not found' }, { status: error.status });

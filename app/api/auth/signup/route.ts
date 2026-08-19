@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, clientKey, retryMessage } from '@/lib/safety/rateLimit';
 import { query, queryOne } from '@/lib/mysql/client';
+import { withTransaction } from '@/lib/mysql/transaction';
 import { hashPassword } from '@/lib/auth/password';
 import { generateToken } from '@/lib/auth/jwt';
 import { randomUUID } from 'crypto';
@@ -94,53 +95,47 @@ async function handlePost(request: NextRequest) {
     // Hash password
     const passwordHash = await hashPassword(password);
 
-    // Create user
+    // Create user + profile atomically. The prior code had two separate
+    // writes: if the profile INSERT failed for any reason (dup email
+    // collision on the profile trigger, foreign-key race, DB blip), the
+    // caller ended up with a users row and no profile — the same broken
+    // state the "after_user_insert" trigger was supposed to prevent.
+    // Task 4 wraps both in one transaction so either both land or neither.
     const userId = randomUUID();
-    await query(
-      'INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)',
-      [userId, email, passwordHash]
-    );
-
-    // Create the profile explicitly rather than relying on the
-    // `after_user_insert` trigger from migration 001.
-    //
-    // That trigger does not exist in production — it cannot be created on a
-    // MySQL where the app user lacks SUPER and binary logging is on (ERROR
-    // 1419). The old code did a bare UPDATE, which silently matched zero rows,
-    // so every registered signup produced a user with NO profile: no age, no
-    // permissions, and nothing to own their projects. Secure guest profiles
-    // are created separately by the dedicated guest-session endpoint.
-    //
-    // ON DUPLICATE KEY UPDATE keeps this correct on databases where the
-    // trigger *does* exist and has already inserted a row.
     const profileName = username || `user_${userId.substring(0, 8)}`;
-    await query(
-      `INSERT INTO profiles
-         (id, user_id, username, display_name, role, age,
-          parental_approval, content_filter_level, can_share, can_publish)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         username = VALUES(username),
-         display_name = VALUES(display_name),
-         role = VALUES(role),
-         age = VALUES(age),
-         parental_approval = VALUES(parental_approval),
-         content_filter_level = VALUES(content_filter_level),
-         can_share = VALUES(can_share),
-         can_publish = VALUES(can_publish)`,
-      [
-        randomUUID(),
-        userId,
-        profileName,
-        profileName,
-        isParent ? 'parent' : 'child',
-        isParent ? null : age,
-        isParent ? true : false, // Parents auto-approve themselves
-        policy.contentFilterLevel,
-        policy.canShare,
-        policy.canShare,
-      ]
-    );
+    await withTransaction(async (connection) => {
+      await connection.execute(
+        'INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)',
+        [userId, email, passwordHash],
+      );
+      await connection.execute(
+        `INSERT INTO profiles
+           (id, user_id, username, display_name, role, age,
+            parental_approval, content_filter_level, can_share, can_publish)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           username = VALUES(username),
+           display_name = VALUES(display_name),
+           role = VALUES(role),
+           age = VALUES(age),
+           parental_approval = VALUES(parental_approval),
+           content_filter_level = VALUES(content_filter_level),
+           can_share = VALUES(can_share),
+           can_publish = VALUES(can_publish)`,
+        [
+          randomUUID(),
+          userId,
+          profileName,
+          profileName,
+          isParent ? 'parent' : 'child',
+          isParent ? null : age,
+          isParent ? true : false,
+          policy.contentFilterLevel,
+          policy.canShare,
+          policy.canShare,
+        ],
+      );
+    });
 
     // Link the child to a parent profile so consent can be requested. If the
     // parent already has an account we attach immediately; otherwise we record

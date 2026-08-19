@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/mysql/server';
+import { query, queryOne, withTransaction } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { AccessError, requireProjectEdit, requireProjectView } from '@/lib/auth/access';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
+import { dispatchCompatCommand, toCommandActor } from '@/lib/projects/commandRouteHelper';
 
 export async function GET(
   request: NextRequest,
@@ -213,6 +214,19 @@ export async function GET(
   }
 }
 
+/**
+ * PATCH migrated in Task 4.
+ *
+ * Metadata updates (title/description/thumbnail_url/genre/visibility) route
+ * through the command service via `project.updateMetadata`. Preconditions
+ * (`Idempotency-Key`, `If-Match: "<revision>"`) are required — missing
+ * returns 428.
+ *
+ * `is_published` is no longer accepted here: publication is a separate
+ * immutable-snapshot workflow owned by Task 8. Setting `visibility=public`
+ * still runs moderation and the parental-consent gate; the actual
+ * publication flip happens through the publish route Task 8 will add.
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -220,30 +234,36 @@ export async function PATCH(
   try {
     const { id } = await params;
     const actor = await resolveActor(request);
+    if (actor.kind === 'anonymous') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const authorized = await requireProjectEdit(actor, id);
     const actorProfileId = authorized.project.owner_id;
 
     const body = await request.json();
 
-    // Only allow updating known project columns (keys are interpolated into SQL)
-    const ALLOWED_FIELDS = new Set([
-      'title',
-      'description',
-      'thumbnail_url',
-      'is_published',
-      'visibility',
-      'genre',
-    ]);
+    if (body.is_published !== undefined) {
+      return NextResponse.json(
+        {
+          error: 'publication_moved',
+          message:
+            'is_published is no longer settable here; use the publication candidate endpoint (Task 8).',
+        },
+        { status: 501 },
+      );
+    }
 
-    // Sanitize + moderate any user-visible text before persisting.
     const sanitizedTitle = typeof body.title === 'string' ? sanitizeUserInput(body.title) : undefined;
-    const sanitizedDescription = typeof body.description === 'string' ? sanitizeUserInput(body.description) : undefined;
+    const sanitizedDescription = typeof body.description === 'string'
+      ? sanitizeUserInput(body.description)
+      : undefined;
+
     const textToCheck = [sanitizedTitle, sanitizedDescription].filter(Boolean).join('\n');
     if (textToCheck) {
       const modResult = await moderateText(
         textToCheck,
         actor.kind === 'user' ? actor.userId : null,
-        actor.kind === 'guest' ? actor.profileId : null
+        actor.kind === 'guest' ? actor.profileId : null,
       );
       if (!modResult.safe) {
         return NextResponse.json(
@@ -252,39 +272,16 @@ export async function PATCH(
             reason: modResult.reason ?? 'Contains disallowed content',
             categories: modResult.categories,
           },
-          { status: 422 }
+          { status: 422 },
         );
       }
     }
 
-    // Build update query dynamically
-    const updateFields: string[] = [];
-    const updateValues: any[] = [];
-
-    Object.keys(body).forEach((key) => {
-      if (!ALLOWED_FIELDS.has(key) || body[key] === undefined) return;
-      let value = body[key];
-      if (key === 'title') value = sanitizedTitle;
-      else if (key === 'description') value = sanitizedDescription;
-      updateFields.push(`${key} = ?`);
-      updateValues.push(value);
-    });
-
-    // Publishing runs the project's text through moderation and records the
-    // verdict, so the gallery can filter on moderation_status. Nothing used to
-    // ever set this away from its 'pending' default.
-    // Under-13 accounts can't publish until a parent has granted consent.
-    // `can_share` was selected in the UI but never used in any conditional.
-    if (body.visibility === 'public' || body.is_published === true) {
-      const sharer = await queryOne<{ role: string; can_share: number | boolean; age: number | null }>(
-        'SELECT role, can_share, age FROM profiles WHERE id = ?',
-        [actorProfileId]
+    if (body.visibility === 'public') {
+      const sharer = await queryOne<{ role: string; can_share: number | boolean }>(
+        'SELECT role, can_share FROM profiles WHERE id = ?',
+        [actorProfileId],
       );
-
-      // Guests have no account and no recorded age, so we can't establish
-      // whether a parent needs to consent. Publishing requires an account —
-      // the same rule Scratch applies — and says so plainly rather than
-      // showing a parental-permission message to someone who never gave an age.
       if (actor.kind !== 'user') {
         return NextResponse.json(
           {
@@ -292,11 +289,9 @@ export async function PATCH(
             reason:
               'Create a free account to share your game. You can keep building and playing as a guest.',
           },
-          { status: 403 }
+          { status: 403 },
         );
       }
-
-      // A registered under-13 needs a parent to consent first.
       if (sharer && sharer.role === 'child' && !sharer.can_share) {
         return NextResponse.json(
           {
@@ -304,81 +299,34 @@ export async function PATCH(
             reason:
               "Because you're under 13, a parent or guardian needs to give permission before you can share games publicly.",
           },
-          { status: 403 }
+          { status: 403 },
         );
       }
     }
 
-    if (body.visibility === 'public' || body.is_published === true) {
-      // Fall back to the stored text so toggling "share" on an existing project
-      // still moderates what is actually about to become public.
-      const stored = await queryOne<{ title: string; description: string | null }>(
-        'SELECT title, description FROM projects WHERE id = ?',
-        [id]
-      );
-      const publishText = [
-        sanitizedTitle ?? stored?.title ?? '',
-        sanitizedDescription ?? stored?.description ?? '',
-      ].filter(Boolean).join('\n');
-      const verdict = publishText
-        ? await moderateText(
-            publishText,
-            actor.kind === 'user' ? actor.userId : null,
-            actor.kind === 'guest' ? actor.profileId : null
-          )
-        : { safe: true as const };
-      updateFields.push('moderation_status = ?');
-      // Migration 008 removed the legacy mutable-graph "approved" state.
-      // Safe content enters the review queue; Task 8 alone may publish an
-      // immutable approved snapshot.
-      updateValues.push(verdict.safe ? 'moderation_pending' : 'rejected');
-    }
+    const command: Record<string, any> = { type: 'project.updateMetadata' };
+    if (sanitizedTitle !== undefined) command.title = sanitizedTitle;
+    if (sanitizedDescription !== undefined) command.description = sanitizedDescription;
+    if (body.thumbnail_url !== undefined) command.thumbnailUrl = body.thumbnail_url;
+    if (body.genre !== undefined) command.genre = body.genre;
+    if (body.visibility !== undefined) command.visibility = body.visibility;
 
-    if (updateFields.length === 0) {
+    if (Object.keys(command).length === 1) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
-    updateValues.push(id, actorProfileId);
-
-    await query(
-      `UPDATE projects SET ${updateFields.join(', ')} WHERE id = ? AND owner_id = ?`,
-      updateValues
-    );
-
-    // Fetch updated project
-    const project = await queryOne<{
-      id: string;
-      owner_id: string;
-      title: string;
-      description: string | null;
-      thumbnail_url: string | null;
-      is_published: boolean;
-      is_template: boolean;
-      visibility: string;
-      genre: string | null;
-      created_at: Date;
-      updated_at: Date;
-      last_played_at: Date | null;
-      play_count: number;
-      like_count: number;
-      moderation_status: string;
-      moderation_notes: string | null;
-    }>('SELECT * FROM projects WHERE id = ?', [id]);
-
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ project });
+    return dispatchCompatCommand({
+      request,
+      actor: toCommandActor(actor),
+      projectId: id,
+      command: command as any,
+    });
   } catch (error: any) {
     if (error instanceof AccessError) {
       return NextResponse.json({ error: 'Project not found' }, { status: error.status });
     }
     console.error('Error updating project:', error);
-    return NextResponse.json(
-      { error: 'Failed to update project' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
   }
 }
 
@@ -391,27 +339,31 @@ export async function DELETE(
     const actor = await resolveActor(request);
     const authorized = await requireProjectEdit(actor, id);
 
-    // Delete project (cascade will handle related records). Scoped to the owner,
-    // so a non-owner deletes nothing rather than erroring.
-    const result = await query('DELETE FROM projects WHERE id = ? AND owner_id = ?', [
-      id,
-      authorized.project.owner_id,
-    ]);
+    // Wrapped in withTransaction in Task 4 so a failure mid-purge cannot leave
+    // orphan rows in scenes/game_objects/logic_blocks. The full deletion
+    // pipeline (S3 blob refcount decrements, storage GC) is Task 7 of the
+    // durable-work plan; this route remains on the write-boundary allowlist
+    // until then.
+    const affected = await withTransaction(async (connection) => {
+      await connection.execute('DELETE FROM project_commands WHERE project_id = ?', [id]);
+      await connection.execute('DELETE FROM project_play_snapshots WHERE project_id = ?', [id]);
+      await connection.execute('DELETE FROM logic_blocks WHERE project_id = ?', [id]);
+      await connection.execute(
+        'DELETE FROM game_objects WHERE scene_id IN (SELECT id FROM scenes WHERE project_id = ?)',
+        [id],
+      );
+      await connection.execute('DELETE FROM scenes WHERE project_id = ?', [id]);
+      await connection.execute('DELETE FROM assets WHERE project_id = ?', [id]);
+      const [result] = await connection.execute(
+        'DELETE FROM projects WHERE id = ? AND owner_id = ?',
+        [id, authorized.project.owner_id],
+      );
+      return (result as { affectedRows?: number }).affectedRows ?? 0;
+    });
 
-    /*
-     * Say so when nothing was deleted.
-     *
-     * The owner scoping above is what actually protects the data, and it works
-     * — but the route replied `{ success: true }` with a 200 either way, so a
-     * stranger's delete looked to them (and to any test) exactly like a
-     * successful one. An API that reports success for a request it refused is
-     * how a real authorization bug hides in plain sight.
-     */
-    const affected = (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
     if (affected === 0) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-
     return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error instanceof AccessError) {

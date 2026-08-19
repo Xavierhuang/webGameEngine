@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { AccessError, requireResourceEdit } from '@/lib/auth/access';
-import { ReorderError, reorderSceneObjects } from '@/lib/auth/reorder';
+import { dispatchCompatCommand, toCommandActor } from '@/lib/projects/commandRouteHelper';
 
 /**
  * Persist a new sprite order for one scene.
  *
- * Body: { sceneId, orderedIds } — index in the array becomes order_index.
- * game_objects previously had no ordering column, so the sprite list rendered
- * in arbitrary database order and could not be rearranged.
+ * Migrated in Task 4: raw UPDATE against `game_objects` is gone. The
+ * command service enforces the "must include every existing object"
+ * invariant. Preconditions (`Idempotency-Key`, `If-Match`) required.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -19,15 +19,18 @@ export async function POST(request: NextRequest) {
     }
 
     const actor = await resolveActor(request);
-    await requireResourceEdit(actor, 'scene', sceneId);
-
-    await reorderSceneObjects(sceneId, orderedIds);
-
-    return NextResponse.json({ ok: true });
-  } catch (error: any) {
-    if (error instanceof ReorderError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+    if (actor.kind === 'anonymous') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const authorized = await requireResourceEdit(actor, 'scene', sceneId);
+
+    return dispatchCompatCommand({
+      request,
+      actor: toCommandActor(actor),
+      projectId: authorized.project.id,
+      command: { type: 'object.reorder', sceneId, objectIds: orderedIds as string[] },
+    });
+  } catch (error: any) {
     if (error instanceof AccessError) {
       return NextResponse.json({ error: 'Scene not found' }, { status: error.status });
     }

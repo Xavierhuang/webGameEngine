@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query, queryOne } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { AccessError, requireResourceEdit } from '@/lib/auth/access';
 import { sanitizeUserInput } from '@/lib/safety/moderation';
+import { dispatchCompatCommand, toCommandActor } from '@/lib/projects/commandRouteHelper';
 
-const ALLOWED_FIELDS = new Set([
-  'name',
-  'background_color',
-  'background_image_url',
-  'physics_enabled',
-  'gravity_y',
-  'order_index',
-]);
+/**
+ * Scene update / delete.
+ *
+ * Migrated in Task 4. Raw SQL against `scenes` is gone; both writes flow
+ * through the command service. `Idempotency-Key` + `If-Match: "<revision>"`
+ * are required — missing preconditions return 428.
+ */
 
 export async function PATCH(
   request: NextRequest,
@@ -20,29 +19,29 @@ export async function PATCH(
   try {
     const { id } = await params;
     const actor = await resolveActor(request);
-    await requireResourceEdit(actor, 'scene', id);
+    if (actor.kind === 'anonymous') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const authorized = await requireResourceEdit(actor, 'scene', id);
 
     const body = await request.json();
-    const updateFields: string[] = [];
-    const updateValues: any[] = [];
+    const updates: Record<string, unknown> = {};
+    if (typeof body.name === 'string') updates.name = sanitizeUserInput(body.name).substring(0, 120);
+    if (typeof body.background_color === 'string') updates.backgroundColor = body.background_color;
+    if (body.background_image_url === null || typeof body.background_image_url === 'string') {
+      updates.backgroundImageUrl = body.background_image_url;
+    }
 
-    Object.keys(body).forEach((key) => {
-      if (!ALLOWED_FIELDS.has(key) || body[key] === undefined) return;
-      let value = body[key];
-      if (key === 'name') value = sanitizeUserInput(String(value)).substring(0, 255);
-      updateFields.push(`${key} = ?`);
-      updateValues.push(value);
-    });
-
-    if (updateFields.length === 0) {
+    if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
-    updateValues.push(id);
-    await query(`UPDATE scenes SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
-
-    const scene = await queryOne<any>('SELECT * FROM scenes WHERE id = ?', [id]);
-    return NextResponse.json({ scene });
+    return dispatchCompatCommand({
+      request,
+      actor: toCommandActor(actor),
+      projectId: authorized.project.id,
+      command: { type: 'scene.update', sceneId: id, ...updates } as any,
+    });
   } catch (error: any) {
     if (error instanceof AccessError) {
       return NextResponse.json({ error: 'Scene not found' }, { status: error.status });
@@ -59,23 +58,17 @@ export async function DELETE(
   try {
     const { id } = await params;
     const actor = await resolveActor(request);
+    if (actor.kind === 'anonymous') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const authorized = await requireResourceEdit(actor, 'scene', id);
 
-    // A project must always have at least one scene, or the editor and player
-    // have nothing to render.
-    const siblings = await queryOne<{ count: number }>(
-      'SELECT COUNT(*) AS count FROM scenes WHERE project_id = ?',
-      [authorized.project.id]
-    );
-    if ((siblings?.count ?? 0) <= 1) {
-      return NextResponse.json(
-        { error: "A project needs at least one scene — you can't delete the last one." },
-        { status: 400 }
-      );
-    }
-
-    await query('DELETE FROM scenes WHERE id = ?', [id]);
-    return NextResponse.json({ success: true });
+    return dispatchCompatCommand({
+      request,
+      actor: toCommandActor(actor),
+      projectId: authorized.project.id,
+      command: { type: 'scene.delete', sceneId: id },
+    });
   } catch (error: any) {
     if (error instanceof AccessError) {
       return NextResponse.json({ error: 'Scene not found' }, { status: error.status });

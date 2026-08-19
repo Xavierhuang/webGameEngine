@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/mysql/server';
+import { query, withTransaction } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
@@ -80,52 +80,36 @@ export async function POST(request: NextRequest) {
 
     const { randomUUID } = await import('crypto');
     const projectId = randomUUID();
-
-    // Insert project
-    await query(
-      `INSERT INTO projects (id, owner_id, title, description, genre)
-       VALUES (?, ?, ?, ?, ?)`,
-      [
-        projectId,
-        actor.profileId,
-        rawTitle,
-        rawDescription ? rawDescription.substring(0, 500) : null,
-        genre,
-      ]
-    );
-
-    // Fetch created project
-    const project = await query<{
-      id: string;
-      owner_id: string;
-      title: string;
-      description: string | null;
-      thumbnail_url: string | null;
-      is_published: boolean;
-      is_template: boolean;
-      visibility: string;
-      genre: string | null;
-      created_at: Date;
-      updated_at: Date;
-      last_played_at: Date | null;
-      play_count: number;
-      like_count: number;
-      moderation_status: string;
-      moderation_notes: string | null;
-    }>('SELECT * FROM projects WHERE id = ?', [projectId]);
-
-    if (!project || project.length === 0) {
-      throw new Error('Failed to create project');
-    }
-
-    // Create default scene
     const sceneId = randomUUID();
-    await query(
-      'INSERT INTO scenes (id, project_id, name, order_index) VALUES (?, ?, ?, ?)',
-      [sceneId, projectId, 'Main Scene', 0]
-    );
 
-    return NextResponse.json({ project: project[0] });
+    // Wrapped in withTransaction in Task 4: project + default scene are the
+    // shape every editor client expects; a failure between the two would
+    // leave a project with no scene at all and the editor with nothing to
+    // render. Creation-time write, so it stays on the write-boundary
+    // allowlist (no prior revision to fence against).
+    const project = await withTransaction(async (connection) => {
+      await connection.execute(
+        `INSERT INTO projects (id, owner_id, title, description, genre)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          projectId,
+          actor.profileId,
+          rawTitle,
+          rawDescription ? rawDescription.substring(0, 500) : null,
+          genre,
+        ],
+      );
+      await connection.execute(
+        'INSERT INTO scenes (id, project_id, name, order_index) VALUES (?, ?, ?, ?)',
+        [sceneId, projectId, 'Main Scene', 0],
+      );
+      const [rows] = await connection.execute('SELECT * FROM projects WHERE id = ?', [projectId]);
+      const list = rows as Array<Record<string, unknown>>;
+      if (list.length === 0) throw new Error('Failed to create project');
+      return list[0];
+    });
+
+    return NextResponse.json({ project });
   } catch (error: any) {
     console.error('Error creating project:', error);
     return NextResponse.json(

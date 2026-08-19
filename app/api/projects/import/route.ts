@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import { query } from '@/lib/mysql/server';
+import { withTransaction } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
 
@@ -62,86 +62,94 @@ export async function POST(request: NextRequest) {
     }
 
     const projectId = randomUUID();
-    await query(
-      `INSERT INTO projects (id, owner_id, title, description, genre, visibility, moderation_status)
-       VALUES (?, ?, ?, ?, ?, 'private', 'draft')`,
-      [projectId, actor.profileId, title, description, payload.project?.genre ?? null]
-    );
 
-    const sceneIdMap = new Map<string, string>();
-    for (const [index, scene] of scenes.entries()) {
-      const newId = randomUUID();
-      sceneIdMap.set(String(scene.id), newId);
-      await query(
-        `INSERT INTO scenes
-           (id, project_id, name, order_index, background_color, background_image_url, physics_enabled, gravity_y)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          newId,
-          projectId,
-          sanitizeUserInput(String(scene.name ?? `Scene ${index + 1}`)).substring(0, 255),
-          Number(scene.order_index) || index,
-          scene.background_color ?? '#87CEEB',
-          scene.background_image_url ?? null,
-          scene.physics_enabled !== false,
-          Number(scene.gravity_y) || 9.8,
-        ]
+    // Wrapped in withTransaction in Task 4: an import writes the whole
+    // subtree (project + scenes + objects + blocks) in one shot. A failure
+    // mid-write must not leave a half-imported project. Creation-time
+    // write, so it stays on the write-boundary allowlist (no prior
+    // revision to fence against).
+    await withTransaction(async (connection) => {
+      await connection.execute(
+        `INSERT INTO projects (id, owner_id, title, description, genre, visibility, moderation_status)
+         VALUES (?, ?, ?, ?, ?, 'private', 'draft')`,
+        [projectId, actor.profileId, title, description, payload.project?.genre ?? null],
       );
-    }
 
-    const objectIdMap = new Map<string, string>();
-    for (const obj of objects) {
-      const sceneId = sceneIdMap.get(String(obj.scene_id));
-      if (!sceneId) continue; // object referencing a scene not in the file
-      const newId = randomUUID();
-      objectIdMap.set(String(obj.id), newId);
-      await query(
-        `INSERT INTO game_objects
-           (id, scene_id, type, name, position_x, position_y, position_z, rotation,
-            scale_x, scale_y, sprite_url, color, width, height,
-            has_physics, is_static, mass, properties)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          newId,
-          sceneId,
-          String(obj.type ?? 'sprite').substring(0, 100),
-          sanitizeUserInput(String(obj.name ?? 'Object')).substring(0, 255),
-          Number(obj.position_x) || 0,
-          Number(obj.position_y) || 0,
-          Number(obj.position_z) || 0,
-          Number(obj.rotation) || 0,
-          Number(obj.scale_x) || 1,
-          Number(obj.scale_y) || 1,
-          obj.sprite_url ?? null,
-          obj.color ?? null,
-          obj.width ?? null,
-          obj.height ?? null,
-          Boolean(obj.has_physics),
-          Boolean(obj.is_static),
-          Number(obj.mass) || 1,
-          JSON.stringify(obj.properties ?? {}),
-        ]
-      );
-    }
+      const sceneIdMap = new Map<string, string>();
+      for (const [index, scene] of scenes.entries()) {
+        const newId = randomUUID();
+        sceneIdMap.set(String(scene.id), newId);
+        await connection.execute(
+          `INSERT INTO scenes
+             (id, project_id, name, order_index, background_color, background_image_url, physics_enabled, gravity_y)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newId,
+            projectId,
+            sanitizeUserInput(String(scene.name ?? `Scene ${index + 1}`)).substring(0, 255),
+            Number(scene.order_index) || index,
+            scene.background_color ?? '#87CEEB',
+            scene.background_image_url ?? null,
+            scene.physics_enabled !== false,
+            Number(scene.gravity_y) || 9.8,
+          ],
+        );
+      }
 
-    for (const block of blocks) {
-      const objectId = objectIdMap.get(String(block.game_object_id));
-      if (!objectId || !block.block_type) continue;
-      await query(
-        `INSERT INTO logic_blocks
-           (id, game_object_id, project_id, block_type, category, order_index, block_data)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          randomUUID(),
-          objectId,
-          projectId,
-          String(block.block_type).substring(0, 100),
-          String(block.category ?? 'action').substring(0, 100),
-          Number(block.order_index) || 0,
-          JSON.stringify(block.block_data ?? {}),
-        ]
-      );
-    }
+      const objectIdMap = new Map<string, string>();
+      for (const obj of objects) {
+        const sceneId = sceneIdMap.get(String(obj.scene_id));
+        if (!sceneId) continue;
+        const newId = randomUUID();
+        objectIdMap.set(String(obj.id), newId);
+        await connection.execute(
+          `INSERT INTO game_objects
+             (id, scene_id, type, name, position_x, position_y, position_z, rotation,
+              scale_x, scale_y, sprite_url, color, width, height,
+              has_physics, is_static, mass, properties)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newId,
+            sceneId,
+            String(obj.type ?? 'sprite').substring(0, 100),
+            sanitizeUserInput(String(obj.name ?? 'Object')).substring(0, 255),
+            Number(obj.position_x) || 0,
+            Number(obj.position_y) || 0,
+            Number(obj.position_z) || 0,
+            Number(obj.rotation) || 0,
+            Number(obj.scale_x) || 1,
+            Number(obj.scale_y) || 1,
+            obj.sprite_url ?? null,
+            obj.color ?? null,
+            obj.width ?? null,
+            obj.height ?? null,
+            Boolean(obj.has_physics),
+            Boolean(obj.is_static),
+            Number(obj.mass) || 1,
+            JSON.stringify(obj.properties ?? {}),
+          ],
+        );
+      }
+
+      for (const block of blocks) {
+        const objectId = objectIdMap.get(String(block.game_object_id));
+        if (!objectId || !block.block_type) continue;
+        await connection.execute(
+          `INSERT INTO logic_blocks
+             (id, game_object_id, project_id, block_type, category, order_index, block_data)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            randomUUID(),
+            objectId,
+            projectId,
+            String(block.block_type).substring(0, 100),
+            String(block.category ?? 'action').substring(0, 100),
+            Number(block.order_index) || 0,
+            JSON.stringify(block.block_data ?? {}),
+          ],
+        );
+      }
+    });
 
     return NextResponse.json({ project: { id: projectId, title } });
   } catch (error: any) {

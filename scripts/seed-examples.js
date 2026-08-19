@@ -12,6 +12,12 @@
  * The block content is validated separately by `npm run test:examples`, against
  * the real palette — this script only moves it into the database.
  *
+ * Task 4: each example is seeded inside a single transaction so a failure
+ * midway through the object/block writes cannot leave a project row visible
+ * in the gallery with a half-populated scene. Deploy runs this after
+ * migrations; a partial seed would previously ship a listing whose
+ * "Remix" link produced a broken clone.
+ *
  * Usage: node scripts/seed-examples.js
  */
 
@@ -32,6 +38,18 @@ function stableId(key) {
           h.slice(20, 32)].join('-');
 }
 
+async function withTx(db, fn) {
+  await db.beginTransaction();
+  try {
+    const result = await fn(db);
+    await db.commit();
+    return result;
+  } catch (error) {
+    try { await db.rollback(); } catch { /* fall through to rethrow */ }
+    throw error;
+  }
+}
+
 async function main() {
   const db = await mysql.createConnection({
     host: process.env.MYSQL_HOST || 'localhost',
@@ -43,38 +61,34 @@ async function main() {
   });
 
   try {
-    // A system account owns the examples. Created once, never signed into: the
-    // password hash is deliberately a value no password can produce.
+    // System account creation is one transaction on its own so a partial
+    // insert cannot leave a users row without its profile — the exact
+    // failure mode migration 001's trigger was supposed to handle but
+    // does not, on hosts where the app user lacks SUPER.
     const userId = stableId('examples-owner');
-    await db.execute(
-      `INSERT INTO users (id, email, password_hash, created_at)
-       VALUES (?, ?, ?, NOW())
-       ON DUPLICATE KEY UPDATE email = VALUES(email)`,
-      [userId, SYSTEM_EMAIL, 'x-no-login-system-account']
-    );
-    // profiles.id and profiles.user_id are distinct columns, and `role` is an
-    // enum of child/parent/admin — 'admin' is right for an account that owns
-    // published examples and can never be signed into.
-    /*
-     * The profile is created by an `after_user_insert` trigger with an id it
-     * generates itself, so inserting one with a chosen id loses on the
-     * user_id unique key and the trigger's row is what actually exists.
-     * Look it up rather than assume — that mismatch is what made the
-     * projects foreign key fail.
-     */
-    await db.execute(
-      `INSERT INTO profiles (id, user_id, username, display_name, role, can_publish, created_at)
-       VALUES (?, ?, ?, ?, 'admin', 1, NOW())
-       ON DUPLICATE KEY UPDATE
-         username = VALUES(username), display_name = VALUES(display_name),
-         role = 'admin', can_publish = 1`,
-      [stableId('examples-profile'), userId, SYSTEM_USERNAME, 'lingplay examples']
-    );
-    const [profileRows] = await db.execute(
-      `SELECT id FROM profiles WHERE user_id = ? LIMIT 1`, [userId]
-    );
-    const profileId = profileRows[0]?.id;
-    if (!profileId) throw new Error('no profile for the examples account');
+    const profileId = await withTx(db, async (conn) => {
+      await conn.execute(
+        `INSERT INTO users (id, email, password_hash, created_at)
+         VALUES (?, ?, ?, NOW())
+         ON DUPLICATE KEY UPDATE email = VALUES(email)`,
+        [userId, SYSTEM_EMAIL, 'x-no-login-system-account'],
+      );
+      await conn.execute(
+        `INSERT INTO profiles (id, user_id, username, display_name, role, can_publish, created_at)
+         VALUES (?, ?, ?, ?, 'admin', 1, NOW())
+         ON DUPLICATE KEY UPDATE
+           username = VALUES(username), display_name = VALUES(display_name),
+           role = 'admin', can_publish = 1`,
+        [stableId('examples-profile'), userId, SYSTEM_USERNAME, 'lingplay examples'],
+      );
+      const [profileRows] = await conn.execute(
+        `SELECT id FROM profiles WHERE user_id = ? LIMIT 1`,
+        [userId],
+      );
+      const id = profileRows[0]?.id;
+      if (!id) throw new Error('no profile for the examples account');
+      return id;
+    });
 
     const starters = new Map(CHARACTER_TEMPLATES.map((c) => [c.id, c]));
     let seeded = 0;
@@ -83,84 +97,78 @@ async function main() {
       const projectId = stableId(`example:${game.id}`);
       const sceneId = stableId(`example:${game.id}:scene`);
 
-      await db.execute(
-        `INSERT INTO projects
-           (id, owner_id, title, description, genre, visibility, is_published,
-            is_template, moderation_status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'example', 'public', 1, 1, 'approved', NOW(), NOW())
-         ON DUPLICATE KEY UPDATE
-           title = VALUES(title), description = VALUES(description),
-           visibility = 'public', is_published = 1, moderation_status = 'approved',
-           updated_at = NOW()`,
-        // owner_id references profiles(id), not users(id) — the two are
-        // separate rows here and mixing them up fails the foreign key.
-        [projectId, profileId, game.title, game.description]
-      );
-
-      await db.execute(
-        `INSERT INTO scenes (id, project_id, name, order_index, created_at)
-         VALUES (?, ?, 'Main Scene', 0, NOW())
-         ON DUPLICATE KEY UPDATE name = VALUES(name)`,
-        [sceneId, projectId]
-      );
-
-      // Replace the scene's contents so a re-seed cannot accumulate duplicates.
-      await db.execute(
-        `DELETE FROM logic_blocks WHERE project_id = ?`, [projectId]
-      );
-      await db.execute(
-        `DELETE FROM game_objects WHERE scene_id = ?`, [sceneId]
-      );
-
-      let order = 0;
-      for (const obj of game.objects) {
-        const objectId = stableId(`example:${game.id}:${obj.name}`);
-        const starter = obj.starter ? starters.get(obj.starter) : null;
-        const properties = starter
-          ? {
-              shape: 'model',
-              model_url: starter.model_url,
-              model_bounds: starter.model_bounds,
-              model_origin_offset: starter.model_origin_offset,
-              size: starter.size,
-              color: starter.color,
-              characterType: starter.id,
-            }
-          : { shape: obj.shape || 'box', color: obj.color || '#60A5FA', size: 100 };
-
-        await db.execute(
-          `INSERT INTO game_objects
-             (id, scene_id, type, name, position_x, position_y, position_z,
-              color, properties, order_index, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-          [
-            objectId, sceneId, obj.type, obj.name,
-            obj.position[0], obj.position[1], obj.position[2],
-            properties.color || '#60A5FA', JSON.stringify(properties), order++,
-          ]
+      // Whole game (project + scene + purge + repopulate) runs in one
+      // transaction. A crash midway used to leave the gallery showing a
+      // published example whose Remix produced an empty scene.
+      await withTx(db, async (conn) => {
+        await conn.execute(
+          `INSERT INTO projects
+             (id, owner_id, title, description, genre, visibility, is_published,
+              is_template, moderation_status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'example', 'public', 1, 1, 'approved', NOW(), NOW())
+           ON DUPLICATE KEY UPDATE
+             title = VALUES(title), description = VALUES(description),
+             visibility = 'public', is_published = 1, moderation_status = 'approved',
+             updated_at = NOW()`,
+          [projectId, profileId, game.title, game.description],
         );
 
-        // Scripts are stored as one row per top-level block, in order — the
-        // shape the player already reads.
-        let blockOrder = 0;
-        for (const block of obj.blocks) {
-          await db.execute(
-            `INSERT INTO logic_blocks
-               (id, game_object_id, project_id, scene_id, block_type, category,
-                order_index, block_data, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        await conn.execute(
+          `INSERT INTO scenes (id, project_id, name, order_index, created_at)
+           VALUES (?, ?, 'Main Scene', 0, NOW())
+           ON DUPLICATE KEY UPDATE name = VALUES(name)`,
+          [sceneId, projectId],
+        );
+
+        await conn.execute('DELETE FROM logic_blocks WHERE project_id = ?', [projectId]);
+        await conn.execute('DELETE FROM game_objects WHERE scene_id = ?', [sceneId]);
+
+        let order = 0;
+        for (const obj of game.objects) {
+          const objectId = stableId(`example:${game.id}:${obj.name}`);
+          const starter = obj.starter ? starters.get(obj.starter) : null;
+          const properties = starter
+            ? {
+                shape: 'model',
+                model_url: starter.model_url,
+                model_bounds: starter.model_bounds,
+                model_origin_offset: starter.model_origin_offset,
+                size: starter.size,
+                color: starter.color,
+                characterType: starter.id,
+              }
+            : { shape: obj.shape || 'box', color: obj.color || '#60A5FA', size: 100 };
+
+          await conn.execute(
+            `INSERT INTO game_objects
+               (id, scene_id, type, name, position_x, position_y, position_z,
+                color, properties, order_index, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
             [
-              stableId(`example:${game.id}:${obj.name}:${blockOrder}`),
-              objectId, projectId, sceneId, block.block_type,
-              // `category` has no default in the schema. The player never reads
-              // it; the editor uses it for grouping.
-              'action',
-              blockOrder++,
-              JSON.stringify({ ...(block.inputs ?? {}), ...(block.children ? { children: block.children } : {}) }),
-            ]
+              objectId, sceneId, obj.type, obj.name,
+              obj.position[0], obj.position[1], obj.position[2],
+              properties.color || '#60A5FA', JSON.stringify(properties), order++,
+            ],
           );
+
+          let blockOrder = 0;
+          for (const block of obj.blocks) {
+            await conn.execute(
+              `INSERT INTO logic_blocks
+                 (id, game_object_id, project_id, scene_id, block_type, category,
+                  order_index, block_data, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+              [
+                stableId(`example:${game.id}:${obj.name}:${blockOrder}`),
+                objectId, projectId, sceneId, block.block_type,
+                'action',
+                blockOrder++,
+                JSON.stringify({ ...(block.inputs ?? {}), ...(block.children ? { children: block.children } : {}) }),
+              ],
+            );
+          }
         }
-      }
+      });
 
       seeded++;
       console.log(`  seeded ${game.title} (${game.objects.length} objects)`);
