@@ -60,7 +60,7 @@ tasks per focused session, so 20–50 sessions of work spread over weeks.
 | trust-boundary | 9 CI gate | **TODO** | — |
 | durable-work | 1 Transaction primitive | done | 8394b15 |
 | durable-work | 2 Migration 009 schema | done | 933716c |
-| durable-work | 3 Command service + snapshots | **partial** (schema only, no service/routes/guard) | 657421a |
+| durable-work | 3 Command service + snapshots | done | 657421a, b431008 |
 | durable-work | 4 Multi-row + compat writers | **TODO** | — |
 | durable-work | 5 Guest project claiming | **TODO** | — |
 | durable-work | 6 S3 asset store | **TODO** | — |
@@ -100,60 +100,28 @@ Each session should follow the same shape as the prior sessions that shipped
 
 Execute in this order. Later tasks depend on earlier ones being present.
 
-### Durable-work Task 3b (finish it)
+### Durable-work Task 4 — Convert Multi-Row and Compatibility Writers
 
-The wire schema shipped (`657421a`). Remaining (this is the biggest single
-task in the remaining plan):
-
-- Create `lib/projects/projectSnapshot.ts` — canonical project loader
-  (SELECT everything under the project) + SHA-256 of canonical JSON. Used by
-  play-snapshot and by the deletion job.
-- Create `lib/projects/commandHandlers.ts` — one function per command type
-  from `commandSchema.ts`. Each handler receives `(connection, actor,
-  project, command)` and returns `{ inverse, result }`. Server-computed
-  inverse only — never trust a client inverse.
-- Create `lib/projects/commandService.ts` — orchestrator. Under one
-  `withTransaction`: `SELECT ... FOR UPDATE` on projects row (lock), replay
-  idempotency (return stored `result_json` if key matches),
-  compare `expected_revision` against current, dispatch to handler, store
-  inverse+result in `project_commands`, increment `projects.revision`, commit.
-- Create `app/api/projects/[id]/commands/route.ts` — POST endpoint that
-  parses `ProjectCommandEnvelopeSchema`, calls `commandService.execute`,
-  returns `{ commandId, revision, result }` or 409
-  `{ error: 'revision_conflict', currentRevision }`.
-- Create `app/api/projects/[id]/play-snapshot/route.ts` — POST endpoint that
-  takes `{ expectedRevision }`, asserts it matches current, loads the
-  canonical snapshot inside the transaction, writes to
-  `project_play_snapshots`, returns `{ revision, snapshotId }`.
-- Create `test/projects/command-schema.test.js` — extend the existing tests
-  with service-level assertions (idempotency replay, revision conflict).
-- Create `test/projects/command-service.integration.mjs` — Playwright/node
-  test against local MySQL that runs concurrent commands and asserts the
-  409 branch fires exactly once.
-- Create `test/api/project-write-boundary.test.js` — **source guard** that
-  greps the codebase for any `INSERT|UPDATE|DELETE FROM projects|scenes|
-  game_objects|assets` statement that appears outside
-  `lib/projects/commandService.ts`, `lib/projects/commandHandlers.ts`, or
-  migration files. Fails if a bypass exists.
-- Modify `package.json` — add `test:commands`.
-- Commit as `feat: add revisioned project commands`.
+Migrates every existing writer into the command service so the
+`test/api/project-write-boundary.test.js` allowlist shrinks to zero. The
+current allowlist enumerates the exact 18 files that still bypass the
+command service — each one either moves its writes into a new command
+handler or is deleted. Compat HTTP routes that keep a REST shape must
+require `Idempotency-Key` + `If-Match: "<revision>"` and return 428 on
+missing preconditions.
 
 **Reads the plan at:** `docs/superpowers/plans/2026-08-18-lingplay-durable-work.md`
-section "Task 3: Typed Command Service and Revision-Pinned Play Snapshots".
+section "Task 4: Convert Multi-Row and Compatibility Writers".
 
-**Landmine:** every existing writer to projects/scenes/game_objects/assets
-will fail the source guard once it lands. Task 4 (Convert Multi-Row and
-Compatibility Writers) exists specifically to migrate them; do NOT bypass
-the guard, migrate the callers instead. See ordering below.
+**Landmine:** the new `/api/projects/[id]/commands` route is the sole
+writer entry point — do NOT invent parallel writers. The service enforces
+idempotency, revision fence, and audit; wrappers only bind existing REST
+inputs to a `ProjectCommandEnvelope`.
 
 ---
 
 ### Then, in this order
 
-7. **durable-work Task 4** — Convert Multi-Row and Compatibility Writers.
-   Migrates every existing writer into the command service so the write-
-   boundary guard from Task 3b turns green across the whole codebase.
-   Compat routes without idempotency key + expected revision return 428.
 8. **trust-boundary Task 5** — Parent-First Consent State Machine.
    16 files. Rewrites `lib/safety/parentalConsent.ts` and the child-signup
    flow to move consent authority to the parent-first path. Big; do not
@@ -263,21 +231,24 @@ clean; removing it just re-creates the diff.
 
 The next session should read this section first, then start work.
 
-**Last completed:** `0a15e8f feat: add shared safety budgets` (2026-08-19)
-— finished trust-boundary Task 6 with the persistent MySQL rate limiter,
-concurrency lease, trust-hop-aware client key, and the capability-flag
-route contract.
+**Last completed:** `b431008 feat: add revisioned project commands`
+(2026-08-19) — durable-work Task 3b: canonical project snapshot loader,
+10 command handlers, transactional service (idempotency + optimistic
+revision fence), commands + play-snapshot routes, real-MySQL integration
+suite, and the write-boundary source guard with the Task-4 deferred
+allowlist.
 
-**Next task:** durable-work **Task 3b (finish it)** — the command service
-and revision-pinned play snapshots. See "Next tasks in dependency order"
-above for the exact file list. Reason: the wire schema shipped in
-`657421a` and every remaining trust-boundary task (5 consent, 7 AI-guard,
-8 publication) needs the command service to already exist before its
-own writers can migrate through it.
+**Next task:** durable-work **Task 4** — Convert Multi-Row and
+Compatibility Writers. See "Next tasks in dependency order" above.
+Reason: every trust-boundary task past 5 needs a single writer entry
+point; Task 4 turns the write-boundary allowlist to zero by migrating
+every existing writer through `executeProjectCommand`.
 
-**Deploy status:** local `0a15e8f` is one commit ahead of `origin/main`
-(needs `git push`); live prod is on `657421a`. Run `./deploy.sh` after
-any commit lands to move prod forward, but only when the user asks.
+**Deploy status:** local `b431008` is two commits ahead of
+`origin/main` (Task 6 finish `0a15e8f` was pushed as `1f7098f`; this
+Task 3b commit is unpushed). Live prod is on `657421a`. Run
+`./deploy.sh` after any commit lands to move prod forward, but only
+when the user asks.
 
 **When updating this file:** move the completed task from "Next tasks" to
 "Task completion map", write the new SHA, update the "Last completed" line,
