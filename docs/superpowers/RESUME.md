@@ -61,7 +61,7 @@ tasks per focused session, so 20–50 sessions of work spread over weeks.
 | durable-work | 1 Transaction primitive | done | 8394b15 |
 | durable-work | 2 Migration 009 schema | done | 933716c |
 | durable-work | 3 Command service + snapshots | done | 657421a, b431008 |
-| durable-work | 4 Multi-row + compat writers | **TODO** | — |
+| durable-work | 4 Multi-row + compat writers | done | 502627c |
 | durable-work | 5 Guest project claiming | **TODO** | — |
 | durable-work | 6 S3 asset store | **TODO** | — |
 | durable-work | 7 Deletion pipeline | **TODO** | — |
@@ -100,32 +100,25 @@ Each session should follow the same shape as the prior sessions that shipped
 
 Execute in this order. Later tasks depend on earlier ones being present.
 
-### Durable-work Task 4 — Convert Multi-Row and Compatibility Writers
+### Trust-boundary Task 5 — Parent-First Consent State Machine
 
-Migrates every existing writer into the command service so the
-`test/api/project-write-boundary.test.js` allowlist shrinks to zero. The
-current allowlist enumerates the exact 18 files that still bypass the
-command service — each one either moves its writes into a new command
-handler or is deleted. Compat HTTP routes that keep a REST shape must
-require `Idempotency-Key` + `If-Match: "<revision>"` and return 428 on
-missing preconditions.
+16 files. Rewrites `lib/safety/parentalConsent.ts` and the child-signup
+flow to move consent authority to the parent-first path. Big; do not
+attempt in one session unless you have deep context budget.
 
-**Reads the plan at:** `docs/superpowers/plans/2026-08-18-lingplay-durable-work.md`
-section "Task 4: Convert Multi-Row and Compatibility Writers".
+**Reads the plan at:** `docs/superpowers/plans/2026-08-18-lingplay-trust-boundary.md`
+section "Task 5".
 
-**Landmine:** the new `/api/projects/[id]/commands` route is the sole
-writer entry point — do NOT invent parallel writers. The service enforces
-idempotency, revision fence, and audit; wrappers only bind existing REST
-inputs to a `ProjectCommandEnvelope`.
+**Landmine:** Task 4 already wrapped `lib/safety/parentalConsent.ts`
+transitions in `withTransaction` and updated the signup flow to
+create-user + create-profile atomically. Task 5's rewrite starts from
+that atomic base; do NOT undo the transactional wrapping while moving
+consent authority.
 
 ---
 
 ### Then, in this order
 
-8. **trust-boundary Task 5** — Parent-First Consent State Machine.
-   16 files. Rewrites `lib/safety/parentalConsent.ts` and the child-signup
-   flow to move consent authority to the parent-first path. Big; do not
-   attempt in one session unless you have deep context budget.
 9. **trust-boundary Task 7** — Guard and Bound Every AI Surface.
    Wires the audit + feature-flag + rate-limit modules into the five AI
    routes that Task 4 explicitly deferred (see `progress.md` note
@@ -231,24 +224,27 @@ clean; removing it just re-creates the diff.
 
 The next session should read this section first, then start work.
 
-**Last completed:** `b431008 feat: add revisioned project commands`
-(2026-08-19) — durable-work Task 3b: canonical project snapshot loader,
-10 command handlers, transactional service (idempotency + optimistic
-revision fence), commands + play-snapshot routes, real-MySQL integration
-suite, and the write-boundary source guard with the Task-4 deferred
-allowlist.
+**Last completed:** `502627c fix: make multi-row writes atomic`
+(2026-08-19) — durable-work Task 4: 5 project-graph routes dispatch
+through the command service with `If-Match` + `Idempotency-Key`
+preconditions (missing → 428); 10 multi-row non-graph writers wrapped
+in `withTransaction`; AI apply-update returns 503 `feature_unavailable`
+pending Task 7; write-boundary allowlist is now a documented map of
+creation/lifecycle/counter/upload bypasses with plan-task successors;
+new integration suite proves rollback + precondition contract.
 
-**Next task:** durable-work **Task 4** — Convert Multi-Row and
-Compatibility Writers. See "Next tasks in dependency order" above.
-Reason: every trust-boundary task past 5 needs a single writer entry
-point; Task 4 turns the write-boundary allowlist to zero by migrating
-every existing writer through `executeProjectCommand`.
+**Next task:** trust-boundary **Task 5** — Parent-First Consent State
+Machine. 16 files rewriting `lib/safety/parentalConsent.ts` and the
+child-signup flow. Do not attempt in one session unless you have deep
+context budget — the plan flags this as one of the biggest remaining.
 
-**Deploy status:** local `b431008` is two commits ahead of
-`origin/main` (Task 6 finish `0a15e8f` was pushed as `1f7098f`; this
-Task 3b commit is unpushed). Live prod is on `657421a`. Run
-`./deploy.sh` after any commit lands to move prod forward, but only
-when the user asks.
+**Deploy status:** local `502627c` is one commit ahead of `origin/main`
+(Task 3b was pushed as `6681e0d`; this Task 4 commit is unpushed).
+Live prod is on `657421a`. Task 4 introduces the `If-Match` +
+`Idempotency-Key` precondition on every project-graph write; deploying
+this will break the existing browser editor until it is updated to
+send those headers. Run `./deploy.sh` only when the editor client is
+ready.
 
 **When updating this file:** move the completed task from "Next tasks" to
 "Task completion map", write the new SHA, update the "Last completed" line,
