@@ -24,6 +24,7 @@
  */
 
 import type { Locale } from './messages';
+import { EXTRA_BLOCKS, EXTRA_CATEGORIES, EXTRA_DROPDOWNS } from './locales';
 
 /** Block type -> label, for locales other than English. */
 export type BlockMessages = Record<string, string>;
@@ -467,7 +468,7 @@ const ja: BlockMessages = {
 };
 
 /** Toolbox category names, which a child reads before any block. */
-export const CATEGORY_MESSAGES: Record<string, Record<string, string>> = {
+const INLINE_CATEGORY_MESSAGES: Record<string, Record<string, string>> = {
   zh: { Motion: '运动', Looks: '外观', Sound: '声音', Events: '事件', Control: '控制', AI: 'AI', Variables: '变量', Lists: '列表', Clones: '克隆', Operators: '运算', Sensing: '侦测', Music: '音乐', Pen: '画笔', 'My Blocks': '自制积木' },
   es: { Motion: 'Movimiento', Looks: 'Apariencia', Sound: 'Sonido', Events: 'Eventos', Control: 'Control', AI: 'IA', Variables: 'Variables', Lists: 'Listas', Clones: 'Clones', Operators: 'Operadores', Sensing: 'Sensores', Music: 'Música', Pen: 'Lápiz', 'My Blocks': 'Mis bloques' },
   fr: { Motion: 'Mouvement', Looks: 'Apparence', Sound: 'Son', Events: 'Événements', Control: 'Contrôle', AI: 'IA', Variables: 'Variables', Lists: 'Listes', Clones: 'Clones', Operators: 'Opérateurs', Sensing: 'Capteurs', Music: 'Musique', Pen: 'Stylo', 'My Blocks': 'Mes blocs' },
@@ -477,7 +478,7 @@ export const CATEGORY_MESSAGES: Record<string, Record<string, string>> = {
 };
 
 /** Every non-English locale. English lives in the block definitions. */
-export const BLOCK_MESSAGES: Record<string, BlockMessages> = { zh, es, fr, pt, de, ja };
+const INLINE_BLOCK_MESSAGES: Record<string, BlockMessages> = { zh, es, fr, pt, de, ja };
 
 /** The translated label for a block, falling back to the English original. */
 export function blockLabel(type: string, english: string, locale: Locale | string): string {
@@ -496,7 +497,7 @@ export function blockLabel(type: string, english: string, locale: Locale | strin
  * Single letters (w, a, s, d) are keyboard keys, not words, and stay as they
  * are in every language.
  */
-export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
+const INLINE_DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
   zh: {
     'sparkles': '闪光',
     'smoke': '烟雾',
@@ -519,7 +520,7 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     piano: '钢琴', organ: '风琴', guitar: '吉他', marimba: '马林巴琴', synth: '合成器',
     English: '英语', Chinese: '中文', Spanish: '西班牙语', French: '法语', Portuguese: '葡萄牙语',
     German: '德语', Japanese: '日语', Korean: '韩语', Italian: '意大利语', Dutch: '荷兰语',
-    Polish: '波兰语', Russian: '俄语', Arabic: '阿拉伯语', Hindi: '印地语', Turkish: '土耳其语', Swedish: '瑞典语',
+    Polish: '波兰语', Russian: '俄语', Arabic: '阿拉伯语', Hindi: '印地语', Turkish: '土耳其语', Swedish: '瑞典语', Indonesian: '印尼语', Vietnamese: '越南语', Ukrainian: '乌克兰语',
   },
   es: {
     'sparkles': 'destellos',
@@ -544,7 +545,7 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     piano: 'piano', organ: 'órgano', guitar: 'guitarra', marimba: 'marimba', synth: 'sintetizador',
     English: 'inglés', Chinese: 'chino', Spanish: 'español', French: 'francés', Portuguese: 'portugués',
     German: 'alemán', Japanese: 'japonés', Korean: 'coreano', Italian: 'italiano', Dutch: 'neerlandés',
-    Polish: 'polaco', Russian: 'ruso', Arabic: 'árabe', Hindi: 'hindi', Turkish: 'turco', Swedish: 'sueco',
+    Polish: 'polaco', Russian: 'ruso', Arabic: 'árabe', Hindi: 'hindi', Turkish: 'turco', Swedish: 'sueco', Indonesian: 'Indonesio', Vietnamese: 'Vietnamita', Ukrainian: 'Ucraniano',
   },
   fr: {
     'sparkles': 'étincelles',
@@ -570,7 +571,7 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     piano: 'piano', organ: 'orgue', guitar: 'guitare', marimba: 'marimba', synth: 'synthé',
     English: 'anglais', Chinese: 'chinois', Spanish: 'espagnol', French: 'français', Portuguese: 'portugais',
     German: 'allemand', Japanese: 'japonais', Korean: 'coréen', Italian: 'italien', Dutch: 'néerlandais',
-    Polish: 'polonais', Russian: 'russe', Arabic: 'arabe', Hindi: 'hindi', Turkish: 'turc', Swedish: 'suédois',
+    Polish: 'polonais', Russian: 'russe', Arabic: 'arabe', Hindi: 'hindi', Turkish: 'turc', Swedish: 'suédois', Indonesian: 'Indonésien', Vietnamese: 'Vietnamien', Ukrainian: 'Ukrainien',
   },
   pt: {
     'sparkles': 'brilhos',
@@ -595,7 +596,7 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     piano: 'piano', organ: 'órgão', guitar: 'guitarra', marimba: 'marimba', synth: 'sintetizador',
     English: 'inglês', Chinese: 'chinês', Spanish: 'espanhol', French: 'francês', Portuguese: 'português',
     German: 'alemão', Japanese: 'japonês', Korean: 'coreano', Italian: 'italiano', Dutch: 'holandês',
-    Polish: 'polonês', Russian: 'russo', Arabic: 'árabe', Hindi: 'híndi', Turkish: 'turco', Swedish: 'sueco',
+    Polish: 'polonês', Russian: 'russo', Arabic: 'árabe', Hindi: 'híndi', Turkish: 'turco', Swedish: 'sueco', Indonesian: 'Indonésio', Vietnamese: 'Vietnamita', Ukrainian: 'Ucraniano',
   },
   de: {
     'sparkles': 'Funken',
@@ -620,7 +621,7 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     piano: 'Klavier', organ: 'Orgel', guitar: 'Gitarre', marimba: 'Marimba', synth: 'Synthesizer',
     English: 'Englisch', Chinese: 'Chinesisch', Spanish: 'Spanisch', French: 'Französisch', Portuguese: 'Portugiesisch',
     German: 'Deutsch', Japanese: 'Japanisch', Korean: 'Koreanisch', Italian: 'Italienisch', Dutch: 'Niederländisch',
-    Polish: 'Polnisch', Russian: 'Russisch', Arabic: 'Arabisch', Hindi: 'Hindi', Turkish: 'Türkisch', Swedish: 'Schwedisch',
+    Polish: 'Polnisch', Russian: 'Russisch', Arabic: 'Arabisch', Hindi: 'Hindi', Turkish: 'Türkisch', Swedish: 'Schwedisch', Indonesian: 'Indonesisch', Vietnamese: 'Vietnamesisch', Ukrainian: 'Ukrainisch',
   },
   ja: {
     'sparkles': 'キラキラ',
@@ -646,7 +647,7 @@ export const DROPDOWN_MESSAGES: Record<string, Record<string, string>> = {
     piano: 'ピアノ', organ: 'オルガン', guitar: 'ギター', marimba: 'マリンバ', synth: 'シンセサイザー',
     English: '英語', Chinese: '中国語', Spanish: 'スペイン語', French: 'フランス語', Portuguese: 'ポルトガル語',
     German: 'ドイツ語', Japanese: '日本語', Korean: '韓国語', Italian: 'イタリア語', Dutch: 'オランダ語',
-    Polish: 'ポーランド語', Russian: 'ロシア語', Arabic: 'アラビア語', Hindi: 'ヒンディー語', Turkish: 'トルコ語', Swedish: 'スウェーデン語',
+    Polish: 'ポーランド語', Russian: 'ロシア語', Arabic: 'アラビア語', Hindi: 'ヒンディー語', Turkish: 'トルコ語', Swedish: 'スウェーデン語', Indonesian: 'インドネシア語', Vietnamese: 'ベトナム語', Ukrainian: 'ウクライナ語',
   },
 };
 
@@ -659,3 +660,14 @@ export function dropdownLabel(english: string, locale: Locale | string): string 
 export function categoryLabel(name: string, locale: Locale | string): string {
   return CATEGORY_MESSAGES[locale]?.[name] ?? name;
 }
+
+/*
+ * The inline seven, merged with one entry per file in `./locales`. Block
+ * labels fall back per key, so a locale may translate the chrome first and
+ * fill blocks in later — but a child reads the blocks far more than the
+ * chrome, so a half-done language is a poor one.
+ */
+type Table = Record<string, string>;
+export const BLOCK_MESSAGES: Record<string, Table> = { ...INLINE_BLOCK_MESSAGES, ...EXTRA_BLOCKS };
+export const CATEGORY_MESSAGES: Record<string, Table> = { ...INLINE_CATEGORY_MESSAGES, ...EXTRA_CATEGORIES };
+export const DROPDOWN_MESSAGES: Record<string, Table> = { ...INLINE_DROPDOWN_MESSAGES, ...EXTRA_DROPDOWNS };

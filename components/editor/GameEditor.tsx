@@ -29,6 +29,20 @@ import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 import { SceneLights } from '@/components/three/SceneLights';
 
 // Blockly needs the DOM — load the block editor client-side only.
+/**
+ * The stage shown beside the blocks. Loaded on demand and never on the server:
+ * it is the full 3D player, and the Scene tab should not pay for it.
+ */
+const StagePreview = dynamic(
+  () => import('../player/GamePlayer').then((m) => {
+    const Player = m.default;
+    const Compact = (props: any) => <Player {...props} compact />;
+    Compact.displayName = 'StagePreview';
+    return Compact;
+  }),
+  { ssr: false, loading: () => <div className="h-full w-full bg-slate-900" /> }
+);
+
 const BlockEditor = dynamic(() => import('./BlockEditor'), {
   ssr: false,
   loading: () => (
@@ -105,6 +119,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [currentScene, setCurrentScene] = useState<any>(null);
   const [selectedObject, setSelectedObject] = useState<any>(null);
   const [editorMode, setEditorMode] = useState<'scene' | 'logic'>('scene');
+  /** Bumping this remounts the stage, which is how Restart works there. */
+  const [stageNonce, setStageNonce] = useState(0);
   const [objectHistory, setObjectHistory] = useState<Array<{ id: string; objectId: string; action: string; payload: any; at: number }>>([]);
   const [history, setHistory] = useState<{ past: any[]; future: any[] }>({ past: [], future: [] });
   const [showAIAssistant, setShowAIAssistant] = useState(false);
@@ -595,7 +611,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           <LogoMark size="sm" />
           <div className="min-w-0">
             <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none">
-              Editing
+              {t('editor.editing')}
             </div>
             <h1 className="text-base font-bold text-slate-900 truncate max-w-[280px]">
               {project?.title || 'My Game'}
@@ -604,10 +620,10 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           {/* Scene / Logic mode toggle */}
           <div className="ml-4 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
             <ModeButton active={editorMode === 'scene'} onClick={() => setEditorMode('scene')}>
-              Scene
+              {t('editor.scene')}
             </ModeButton>
             <ModeButton active={editorMode === 'logic'} onClick={() => setEditorMode('logic')}>
-              Logic
+              {t('editor.logic')}
             </ModeButton>
           </div>
         </div>
@@ -632,7 +648,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 title="Move (W)"
               >
                 <Move3D className="w-3.5 h-3.5" />
-                Move
+                {t('editor.move')}
               </TransformButton>
               <TransformButton
                 active={transformMode === 'scale'}
@@ -640,7 +656,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 title="Scale (E)"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
-                Scale
+                {t('editor.scale')}
               </TransformButton>
               <TransformButton
                 active={transformMode === 'rotate'}
@@ -648,7 +664,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 title="Rotate (R)"
               >
                 <RotateCw className="w-3.5 h-3.5" />
-                Rotate
+                {t('editor.rotate')}
               </TransformButton>
             </div>
           )}
@@ -1050,30 +1066,66 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             <ErrorBoundary
               fallback={<EditorErrorPanel title="Logic editor error" body="Something went wrong loading the block editor." />}
             >
-              {selectedObject ? (
-                <BlockEditor
-                  key={selectedObject.id}
-                  objectId={selectedObject.id}
-                  objectName={selectedObject.name}
-                  initialBlocks={selectedObject.logic_blocks ?? []}
-            objectNames={((currentScene as any)?.game_objects ?? []).map((o: any) => o.name).filter(Boolean)}
-            recordedSounds={(project?.assets ?? [])
-              .filter((a: any) => a.asset_type === 'sound' && a.file_url)
-              .map((a: any) => ({ name: a.name, url: a.file_url }))}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-slate-50">
-                  <div className="text-center max-w-xs">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white border border-slate-200 mb-3">
-                      <span className="text-2xl">🧩</span>
+              <div className="flex h-full min-h-0">
+                <div className="min-w-0 flex-1">
+                  {selectedObject ? (
+                    <BlockEditor
+                      key={selectedObject.id}
+                      objectId={selectedObject.id}
+                      objectName={selectedObject.name}
+                      initialBlocks={selectedObject.logic_blocks ?? []}
+                      objectNames={((currentScene as any)?.game_objects ?? [])
+                        .map((o: any) => o.name)
+                        .filter(Boolean)}
+                      recordedSounds={(project?.assets ?? [])
+                        .filter((a: any) => a.asset_type === 'sound' && a.file_url)
+                        .map((a: any) => ({ name: a.name, url: a.file_url }))}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                      <div className="text-center max-w-xs">
+                        <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white border border-slate-200 mb-3">
+                          <span className="text-2xl">🧩</span>
+                        </div>
+                        <p className="font-semibold text-slate-900">No object selected</p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Pick an object in the scene (or add one from the left) to write its logic.
+                        </p>
+                      </div>
                     </div>
-                    <p className="font-semibold text-slate-900">No object selected</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Pick an object in the scene (or add one from the left) to write its logic.
-                    </p>
+                  )}
+                </div>
+                {/*
+                  The stage, beside the blocks — the thing the Logic tab has
+                  never had. Preview could not preview because there was
+                  nowhere for a result to appear, which is the root of every
+                  "where should I see it" question in this project. Scratch
+                  has always shown the stage next to the scripts.
+
+                  Outside the selected-object branch on purpose: the stage is
+                  the whole project, not one sprite's, and Scratch never hides
+                  it. It also used to be the only thing on this tab, so an
+                  empty selection replaced the stage with an apology.
+                */}
+                <div
+                  data-stage-panel
+                  className="hidden w-[460px] shrink-0 flex-col border-l border-slate-200 bg-slate-950 xl:flex"
+                >
+                  <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <span>{t('editor.stage')}</span>
+                    <button
+                      type="button"
+                      onClick={() => setStageNonce((n) => n + 1)}
+                      className="rounded-full border border-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 transition hover:border-slate-500"
+                    >
+                      {t('player.restart')}
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1">
+                    <StagePreview key={stageNonce} project={project} />
                   </div>
                 </div>
-              )}
+              </div>
             </ErrorBoundary>
           )}
         </div>

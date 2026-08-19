@@ -32,7 +32,20 @@ const GAME_OBJECTS: ToolbarItem[] = [
 /**
  * Toolbar labels are translated at render time — GAME_OBJECTS is module-level
  * data, so it can't call a hook itself.
+ *
+ * The `description` strings above are the English fallback. They were the only
+ * part of this panel left untranslated, so a Korean child read 캐릭터 with
+ * "A hero, enemy, or NPC" underneath it.
  */
+const TOOLBAR_DESCRIPTIONS: Record<string, any> = {
+  character: 'toolbar.desc.character',
+  platform: 'toolbar.desc.platform',
+  collectible: 'toolbar.desc.collectible',
+  obstacle: 'toolbar.desc.obstacle',
+  particles: 'toolbar.desc.particles',
+  sound: 'toolbar.desc.sound',
+};
+
 const TOOLBAR_LABELS: Record<string, any> = {
   character: 'toolbar.character',
   platform: 'toolbar.platform',
@@ -47,7 +60,7 @@ export default function Toolbar({ onAddObject, onOpenAI }: ToolbarProps) {
   return (
     <div className="p-4">
       <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-        Add to scene
+        {t('toolbar.addToScene')}
       </div>
       <div className="space-y-1.5">
         {GAME_OBJECTS.map((obj) => {
@@ -69,7 +82,7 @@ export default function Toolbar({ onAddObject, onOpenAI }: ToolbarProps) {
                   {TOOLBAR_LABELS[obj.type] ? t(TOOLBAR_LABELS[obj.type]) : obj.name}
                 </span>
                 <span className="block text-[11px] text-slate-500 truncate">
-                  {obj.description}
+                  {TOOLBAR_DESCRIPTIONS[obj.type] ? t(TOOLBAR_DESCRIPTIONS[obj.type]) : obj.description}
                 </span>
               </span>
               <Plus className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700 transition" />
@@ -81,7 +94,7 @@ export default function Toolbar({ onAddObject, onOpenAI }: ToolbarProps) {
       {onOpenAI && (
         <div className="mt-6 pt-6 border-t border-slate-200">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-            Or describe it
+            {t('toolbar.orDescribe')}
           </div>
           <button
             onClick={onOpenAI}
@@ -91,10 +104,10 @@ export default function Toolbar({ onAddObject, onOpenAI }: ToolbarProps) {
             }}
           >
             <Sparkles className="w-4 h-4" />
-            Ask AI to build it
+            {t('toolbar.askAI')}
           </button>
           <p className="mt-2 text-[11px] text-slate-500 leading-snug">
-            Describe the world you want and lingplay will scaffold objects, blocks, and behaviors.
+            {t('toolbar.askAIHint')}
           </p>
         </div>
       )}

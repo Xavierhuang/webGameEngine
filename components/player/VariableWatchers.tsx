@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { VariableStore, WatcherSnapshot } from '../../lib/runtime/interpreter';
+import { formatWatcherValue } from '../../lib/runtime/watcherFormat';
 
 const EMPTY: WatcherSnapshot[] = [];
 
@@ -31,14 +32,14 @@ export default function VariableWatchers({ vars }: { vars: VariableStore }) {
                 w.items.map((item, i) => (
                   <div key={i} className="flex gap-2">
                     <span className="text-gray-400">{i + 1}.</span>
-                    <span>{String(item)}</span>
+                    <span>{formatWatcherValue(item)}</span>
                   </div>
                 ))
               )}
             </div>
           ) : (
             <>
-              {w.label}: {String(w.value)}
+              {w.label}: {formatWatcherValue(w.value)}
             </>
           )}
         </div>

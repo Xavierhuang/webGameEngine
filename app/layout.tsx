@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { getLocale } from '@/lib/i18n/server';
+import { directionFor } from '@/lib/i18n/direction';
 import { LocaleProvider } from '@/components/common/LocaleProvider';
 import { ErrorReporter } from '@/components/common/ErrorReporter';
 
@@ -19,8 +20,16 @@ export default async function RootLayout({
   // explicit choice via cookie, else Accept-Language.
   const locale = await getLocale();
 
+  /*
+   * `dir` matters as much as `lang` for Arabic, Hebrew, Persian and Urdu.
+   * Without it the text renders right-to-left inside a left-to-right layout:
+   * punctuation lands on the wrong side of a sentence, the toolbar sits away
+   * from the reading eye, and every "next" arrow points backwards. Translating
+   * the strings without this produces a page that is technically in the
+   * language and unusable in it.
+   */
   return (
-    <html lang={locale}>
+    <html lang={locale} dir={directionFor(locale)}>
       <body className="antialiased">
         <ErrorReporter />
         <LocaleProvider locale={locale}>{children}</LocaleProvider>

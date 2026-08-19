@@ -128,7 +128,7 @@ export default function SceneTabs({
             className="h-6 w-9 shrink-0 rounded border border-slate-200 bg-slate-100 bg-cover bg-center"
             style={currentBackdropUrl ? { backgroundImage: `url(${currentBackdropUrl})` } : undefined}
           />
-          {currentBackdropUrl ? 'Change backdrop' : 'Add a backdrop'}
+          {currentBackdropUrl ? t('editor.changeBackdrop') : t('editor.addBackdrop')}
         </button>
       )}
     </div>

@@ -98,7 +98,7 @@ export default async function ExplorePage(props: {
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {projects.map((project) => (
-              <ExploreCard key={project.id} project={project} />
+              <ExploreCard key={project.id} project={project} t={t} />
             ))}
           </div>
         )}
@@ -107,7 +107,14 @@ export default async function ExplorePage(props: {
   );
 }
 
-function ExploreCard({ project }: { project: any }) {
+/*
+ * `t` is threaded in rather than read from a hook: this is a server component,
+ * and the card was the one piece of Explore that never got it — so the card's
+ * "Play", "by" and "remix of" stayed English inside an otherwise translated
+ * page. Visible immediately in Arabic, where three English words sit in the
+ * middle of a right-to-left card.
+ */
+function ExploreCard({ project, t }: { project: any; t: (k: any) => string }) {
   return (
     <div className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:border-slate-300 hover:shadow-xl">
       <Link href={`/projects/${project.id}`} className="block">
@@ -137,13 +144,13 @@ function ExploreCard({ project }: { project: any }) {
           <h2 className="truncate font-bold text-slate-900 hover:underline">{project.title}</h2>
         </Link>
         <p className="mt-0.5 truncate text-xs text-slate-500">
-          by {project.author.display_name || project.author.username || 'Someone'}
+          {t('project.by')} {project.author.display_name || project.author.username || 'Someone'}
         </p>
 
         {project.parent && (
           <p className="mt-1.5 truncate text-xs text-slate-400">
             <GitFork className="mr-1 inline h-3 w-3" />
-            remix of {project.parent.title}
+            {t('project.remixedFrom')} {project.parent.title}
           </p>
         )}
 
@@ -167,7 +174,7 @@ function ExploreCard({ project }: { project: any }) {
           className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
         >
           <Play className="h-3.5 w-3.5" />
-          Play
+          {t('project.play')}
         </Link>
       </div>
     </div>

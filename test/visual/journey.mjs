@@ -282,6 +282,16 @@ await step('the project can be remixed', async () => {
   void before;
 });
 
+await step('clean up the published project', async () => {
+  // The journey shares its project publicly, against the live gallery. Without
+  // this, every run leaves a "Journey 189164208" behind for children to find.
+  const status = await page.evaluate(
+    async (id) => (await fetch(`/api/projects/${id}`, { method: 'DELETE' })).status,
+    projectId
+  );
+  if (status >= 400) throw new Error(`cleanup delete returned ${status}`);
+});
+
 await step('no uncaught errors during the journey', async () => {
   if (consoleErrors.length) {
     throw new Error(`${consoleErrors.length} console error(s): ${consoleErrors.slice(0, 3).join(' | ')}`);

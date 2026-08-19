@@ -53,7 +53,7 @@ export default function PropertiesPanel({
     <div className="p-5">
       <div className="mb-4">
         <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-          Properties
+          {t('editor.properties')}
         </div>
         <h2 className="text-lg font-bold text-slate-900 truncate">
           {selectedObject.name || 'Object'}
@@ -66,13 +66,13 @@ export default function PropertiesPanel({
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                History
+                {t('editor.history')}
               </span>
               <button
                 onClick={() => onClearHistoryForObject && onClearHistoryForObject(selectedObject.id)}
                 className="text-xs font-medium text-slate-600 hover:text-slate-900"
               >
-                Clear
+                {t('editor.clear')}
               </button>
             </div>
             <div className="space-y-1.5 max-h-40 overflow-auto pr-1">
@@ -222,7 +222,7 @@ export default function PropertiesPanel({
           </div>
         )}
         {/* Name */}
-        <PPField label="Name">
+        <PPField label={t('editor.name')}>
           <input
             type="text"
             value={selectedObject.name || ''}
@@ -232,7 +232,7 @@ export default function PropertiesPanel({
         </PPField>
 
         {/* Type */}
-        <PPField label="Type">
+        <PPField label={t('editor.type')}>
           <input
             type="text"
             value={selectedObject.type || ''}
@@ -242,7 +242,7 @@ export default function PropertiesPanel({
         </PPField>
 
         {/* Position */}
-        <PPField label="Position (x, y, z)">
+        <PPField label={t('editor.position')}>
           <div className="grid grid-cols-3 gap-2">
             <PPNumField
               label="X"
@@ -265,7 +265,7 @@ export default function PropertiesPanel({
         {/* Scale/Size */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Size
+            {t('editor.size')}
           </label>
           {(() => {
             // Parse properties
@@ -374,7 +374,7 @@ export default function PropertiesPanel({
         {/* Rotation */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Rotation (degrees)
+            {t('editor.rotation')}
           </label>
           <div className="grid grid-cols-3 gap-2">
             <div>
@@ -464,7 +464,7 @@ export default function PropertiesPanel({
         {/* Color */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Color
+            {t('editor.color')}
           </label>
           <input
             type="color"
@@ -514,7 +514,7 @@ export default function PropertiesPanel({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-sm font-medium text-gray-700">
-                  Costumes
+                  {t('editor.costumes')}
                 </label>
                 <button
                   onClick={() => {

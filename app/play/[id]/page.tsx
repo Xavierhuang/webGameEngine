@@ -117,8 +117,15 @@ export default async function PlayPage({ params }: PlayPageProps) {
         order_index: number;
         block_data: any;
       }>(
+        // ORDER BY is load-bearing, not tidiness. A script is a flat ordered
+        // array — a hat block owns the blocks that follow it — so unordered
+        // rows are a shuffled program. MySQL returned them in roughly primary
+        // key order, which for a UUID key is arbitrary, so every published
+        // game and every project opened in the editor ran its blocks in a
+        // random order. It looked like a working game that behaved oddly.
         `SELECT id, game_object_id, block_type, category, order_index, block_data
-           FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})`,
+           FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})
+         ORDER BY game_object_id, order_index`,
         gameObjectIds
       )
     : [];

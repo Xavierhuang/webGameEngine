@@ -97,7 +97,14 @@ export async function GET(
           created_at: Date;
           updated_at: Date;
         }>(
-          `SELECT * FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})`,
+          // ORDER BY is load-bearing, not tidiness. A script is a flat ordered
+          // array — a hat block owns the blocks that follow it — so unordered
+          // rows are a shuffled program. MySQL returned them in roughly primary
+          // key order, which for a UUID key is arbitrary, so every published
+          // game and every project opened in the editor ran its blocks in a
+          // random order. It looked like a working game that behaved oddly.
+          `SELECT * FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})
+           ORDER BY game_object_id, order_index`,
           gameObjectIds
         )
       : [];
@@ -386,10 +393,24 @@ export async function DELETE(
 
     // Delete project (cascade will handle related records). Scoped to the owner,
     // so a non-owner deletes nothing rather than erroring.
-    await query('DELETE FROM projects WHERE id = ? AND owner_id = ?', [
+    const result = await query('DELETE FROM projects WHERE id = ? AND owner_id = ?', [
       id,
       authorized.project.owner_id,
     ]);
+
+    /*
+     * Say so when nothing was deleted.
+     *
+     * The owner scoping above is what actually protects the data, and it works
+     * — but the route replied `{ success: true }` with a 200 either way, so a
+     * stranger's delete looked to them (and to any test) exactly like a
+     * successful one. An API that reports success for a request it refused is
+     * how a real authorization bug hides in plain sight.
+     */
+    const affected = (result as unknown as { affectedRows?: number }).affectedRows ?? 0;
+    if (affected === 0) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

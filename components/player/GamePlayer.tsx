@@ -108,9 +108,18 @@ function ExtensionModel({ ext, ...rest }: ExtModelProps & { ext: string }) {
 
 interface GamePlayerProps {
   project: Project;
+  /**
+   * Renders as a small stage that fits beside the block editor rather than a
+   * full page: no dark surround, no title, no keyboard hints.
+   *
+   * The Logic tab had no stage at all, which is why Preview could not preview
+   * anything and every "where should I see it" question had the same root.
+   * Scratch has always shown the stage next to the blocks; this is that.
+   */
+  compact?: boolean;
 }
 
-export default function GamePlayer({ project }: GamePlayerProps) {
+export default function GamePlayer({ project, compact = false }: GamePlayerProps) {
   // Prime AudioManager eagerly so its user-gesture unlock listener is armed
   // before the first click in the play window. Without this the very first
   // click that fires `on_start` → play_sound races the AudioContext resume
@@ -142,11 +151,21 @@ export default function GamePlayer({ project }: GamePlayerProps) {
     // Gate the game loop until the click-to-start splash unlocks audio.
     // Without this, on_start { play sound } fires into a suspended
     // AudioContext (browser autoplay policy) and never plays.
-    worldRef.current.started = false;
+    //
+    // The compact stage has no splash, so nothing would ever ungate it — it
+    // rendered the scene, ran no scripts, and looked exactly like a working
+    // stage with an empty project. Audio simply stays locked until the child
+    // clicks something, which the browser enforces anyway.
+    worldRef.current.started = compact;
   }
   const world = worldRef.current;
   const vars = world.vars;
-  const [showStartSplash, setShowStartSplash] = useState(true);
+  /*
+   * The splash exists to unlock audio with a user gesture. Inside the editor
+   * the child has already clicked plenty, and a stage that needs clicking
+   * before it shows anything is the same friction this panel exists to remove.
+   */
+  const [showStartSplash, setShowStartSplash] = useState(!compact);
   /**
    * Bumping this remounts every scene object, which is exactly what "restart"
    * means here — fresh runtimes, fresh positions. Variables live on the world,
@@ -349,18 +368,26 @@ export default function GamePlayer({ project }: GamePlayerProps) {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-2 p-4">
-        <div className="mb-4 text-white">
-          <h1 className="text-2xl font-bold">{project.title || 'My Game'}</h1>
-          {project.description && (
-            <p className="text-gray-400 text-sm mt-1">{project.description}</p>
-          )}
-        </div>
+      <div className={compact
+        ? 'h-full w-full bg-slate-900 flex flex-col items-center justify-center gap-2 p-2'
+        : 'min-h-screen bg-gray-900 flex flex-col items-center justify-center gap-2 p-4'}>
+        {/* The stage beside the blocks is small; a title and description would
+            take more of it than the game. */}
+        {!compact && (
+          <div className="mb-4 text-white">
+            <h1 className="text-2xl font-bold">{project.title || 'My Game'}</h1>
+            {project.description && (
+              <p className="text-gray-400 text-sm mt-1">{project.description}</p>
+            )}
+          </div>
+        )}
         {/* Responsive stage: keeps the 4:3 play area but shrinks to fit a
             tablet or phone instead of overflowing at a fixed 800x600. */}
         <div
           ref={stageRef}
-          className="relative w-full max-w-[800px] aspect-[4/3] rounded-lg shadow-2xl overflow-hidden touch-none"
+          className={`relative w-full aspect-[4/3] overflow-hidden touch-none ${
+            compact ? 'max-w-[420px] rounded-md shadow-lg' : 'max-w-[800px] rounded-lg shadow-2xl'
+          }`}
           style={{ backgroundColor: SCENE.DEFAULT_BACKGROUND_COLOR }}
         >
           <FPSCounter position="top-right" />
@@ -524,8 +551,9 @@ export default function GamePlayer({ project }: GamePlayerProps) {
         </div>
 
         {/* Stage controls. Before this there was no way to stop or restart a
-            running game — you had to reload the page. */}
-        <div className="mt-4 flex items-center justify-center gap-2">
+            running game — you had to reload the page. The editor stage has its
+            own Restart in the panel header, so these would be a second copy. */}
+        <div className={`mt-4 items-center justify-center gap-2 ${compact ? 'hidden' : 'flex'}`}>
           <button
             type="button"
             onClick={restartRun}

@@ -81,4 +81,26 @@ test('culling never unmounts an object that has scripts', () => {
   );
 });
 
+test('the compact stage ungates its own run loop', () => {
+  // The Logic tab's stage renders the player with `compact`, which hides the
+  // click-to-start splash. That splash was the only thing that ever set
+  // `world.started = true`, so the compact stage drew the scene, ran no
+  // scripts, and looked exactly like a working stage on an empty project —
+  // no error, nothing in the console.
+  assert.ok(
+    /worldRef\.current\.started = compact;/.test(player),
+    'the run gate no longer opens for the compact stage — the Logic tab stage ' +
+      'would render but never run a single block'
+  );
+});
+
+test('the compact stage hides the splash', () => {
+  // The other half of the same invariant: if the splash comes back for compact
+  // the gate above is redundant, and if it does not the gate is load-bearing.
+  assert.ok(
+    /useState\(!compact\)/.test(player),
+    'the start splash no longer keys off `compact` — re-check the run gate'
+  );
+});
+
 console.log(`\nscripts always run: ${passed} checks passed`);

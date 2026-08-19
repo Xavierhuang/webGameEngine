@@ -735,8 +735,16 @@ export class RuntimeWorld {
     return this.outcome;
   }
 
-  /** On-screen text. `seconds` of 0 or less means until something clears it. */
-  showMessage(text: string, seconds: number, now: number) {
+  /**
+   * On-screen text. `seconds` of 0 or less means until something clears it.
+   *
+   * Both the stamp and the check default to the same wall clock. They used to
+   * differ: the interpreter passed R3F's elapsed time, which starts at zero,
+   * while the overlay polled performance.now(), which is in the thousands — so
+   * every banner was already expired the instant it was set, and none ever
+   * appeared. Tests still inject a clock explicitly.
+   */
+  showMessage(text: string, seconds: number, now: number = performance.now() / 1000) {
     this.banner = { text, until: seconds > 0 ? now + seconds : Infinity };
   }
 
@@ -745,7 +753,7 @@ export class RuntimeWorld {
   }
 
   /** The banner if it is still due, else null. */
-  currentMessage(now: number): string | null {
+  currentMessage(now: number = performance.now() / 1000): string | null {
     if (!this.banner) return null;
     if (now >= this.banner.until) return null;
     return this.banner.text;
@@ -1325,10 +1333,10 @@ export class ObjectRuntime {
           throw STOP_SCRIPT;
         }
         case 'show_message':
+          // No clock passed: the world and the overlay must share one.
           this.world?.showMessage(
             String(getInput(block, 'text', env, '')),
-            toNumber(getInput(block, 'seconds', env, 2)),
-            time
+            toNumber(getInput(block, 'seconds', env, 2))
           );
           return;
         case 'clear_message':

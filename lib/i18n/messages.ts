@@ -6,16 +6,25 @@
  * inline in JSX, no i18n library). This is the extraction layer that was
  * missing; EN and 中文 match what the rest of LingCode ships.
  *
- * Adding a locale: add the code to `LOCALES`, add a block to `MESSAGES`, and
- * `npm run test:i18n` will fail until every key is translated.
+ * Adding a locale: create a file in `./locales` and register it there — see
+ * that directory's index for the four steps. `npm run test:i18n` fails until
+ * every key is translated.
+ *
+ * The seven original locales are still inline below. Everything added since
+ * lives one-per-file, because a single catalog holding thirty languages is
+ * unreviewable and makes every translator edit the same file.
  */
 
-export const LOCALES = ['en', 'zh', 'es', 'fr', 'pt', 'de', 'ja'] as const;
-export type Locale = (typeof LOCALES)[number];
+import { EXTRA_LOCALES, EXTRA_UI, NATIVE_NAMES } from './locales';
+
+const BUILT_IN_LOCALES = ['en', 'zh', 'es', 'fr', 'pt', 'de', 'ja'] as const;
+
+export const LOCALES: string[] = [...BUILT_IN_LOCALES, ...EXTRA_LOCALES];
+export type Locale = string;
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
-export const LOCALE_NAMES: Record<Locale, string> = {
+export const LOCALE_NAMES: Record<string, string> = {
   en: 'English',
   zh: '中文',
   es: 'Español',
@@ -23,11 +32,27 @@ export const LOCALE_NAMES: Record<Locale, string> = {
   pt: 'Português',
   de: 'Deutsch',
   ja: '日本語',
+  ...NATIVE_NAMES,
 };
 
 /** Keys are dot-namespaced by surface: nav, explore, share, player, … */
-export const MESSAGES = {
+const INLINE_MESSAGES: Record<string, Record<string, string>> = {
   en: {
+    'editor.move': 'Move',
+    'editor.scale': 'Scale',
+    'editor.rotate': 'Rotate',
+    'toolbar.orDescribe': 'Or describe it',
+    'toolbar.askAIHint': 'Describe the world you want and lingplay will scaffold objects, blocks, and behaviors.',
+    'editor.addBackdrop': 'Add a backdrop',
+    'editor.changeBackdrop': 'Change backdrop',
+    'editor.stage': 'Stage',
+    'toolbar.addToScene': 'Add to scene',
+    'toolbar.desc.character': 'A hero, enemy, or NPC',
+    'toolbar.desc.platform': 'Ground, walls, and terrain',
+    'toolbar.desc.collectible': 'Coins, stars, keys',
+    'toolbar.desc.obstacle': 'Hazards to avoid',
+    'toolbar.desc.particles': 'Sparkles, fire, smoke',
+    'toolbar.desc.sound': 'Music and sound effects',
     'toolbar.particles': 'Effect',
     'editor.editDrawing': 'Edit drawing',
     'editor.learn': 'Learn',
@@ -170,6 +195,21 @@ export const MESSAGES = {
   },
 
   zh: {
+    'editor.move': '移动',
+    'editor.scale': '缩放',
+    'editor.rotate': '旋转',
+    'toolbar.orDescribe': '或者描述它',
+    'toolbar.askAIHint': '描述你想要的世界，lingplay 会为你搭建物体、积木和行为。',
+    'editor.addBackdrop': '添加背景',
+    'editor.changeBackdrop': '更换背景',
+    'editor.stage': '舞台',
+    'toolbar.addToScene': '添加到场景',
+    'toolbar.desc.character': '主角、敌人或路人',
+    'toolbar.desc.platform': '地面、墙壁和地形',
+    'toolbar.desc.collectible': '金币、星星、钥匙',
+    'toolbar.desc.obstacle': '需要躲开的危险',
+    'toolbar.desc.particles': '闪光、火焰、烟雾',
+    'toolbar.desc.sound': '音乐和音效',
     'toolbar.particles': '特效',
     'editor.editDrawing': '编辑图画',
     'editor.learn': '学习',
@@ -311,6 +351,21 @@ export const MESSAGES = {
     'common.tryAgain': '连不上服务器，请再试一次。',
   },
   es: {
+    'editor.move': 'Mover',
+    'editor.scale': 'Escalar',
+    'editor.rotate': 'Rotar',
+    'toolbar.orDescribe': 'O descríbelo',
+    'toolbar.askAIHint': 'Describe el mundo que quieres y lingplay creará objetos, bloques y comportamientos.',
+    'editor.addBackdrop': 'Añadir un fondo',
+    'editor.changeBackdrop': 'Cambiar el fondo',
+    'editor.stage': 'Escenario',
+    'toolbar.addToScene': 'Añadir a la escena',
+    'toolbar.desc.character': 'Un héroe, enemigo o personaje',
+    'toolbar.desc.platform': 'Suelo, paredes y terreno',
+    'toolbar.desc.collectible': 'Monedas, estrellas, llaves',
+    'toolbar.desc.obstacle': 'Peligros que esquivar',
+    'toolbar.desc.particles': 'Destellos, fuego, humo',
+    'toolbar.desc.sound': 'Música y efectos de sonido',
     'toolbar.particles': 'Efecto',
     'editor.editDrawing': 'Editar dibujo',
     'editor.learn': 'Aprender',
@@ -442,6 +497,21 @@ export const MESSAGES = {
   },
 
   fr: {
+    'editor.move': 'Déplacer',
+    'editor.scale': 'Redimensionner',
+    'editor.rotate': 'Pivoter',
+    'toolbar.orDescribe': 'Ou décris-le',
+    'toolbar.askAIHint': 'Décris le monde que tu veux et lingplay créera les objets, les blocs et les comportements.',
+    'editor.addBackdrop': 'Ajouter un arrière-plan',
+    'editor.changeBackdrop': 'Changer d\'arrière-plan',
+    'editor.stage': 'Scène',
+    'toolbar.addToScene': 'Ajouter à la scène',
+    'toolbar.desc.character': 'Un héros, un ennemi ou un personnage',
+    'toolbar.desc.platform': 'Sol, murs et terrain',
+    'toolbar.desc.collectible': 'Pièces, étoiles, clés',
+    'toolbar.desc.obstacle': 'Dangers à éviter',
+    'toolbar.desc.particles': 'Étincelles, feu, fumée',
+    'toolbar.desc.sound': 'Musique et effets sonores',
     'toolbar.particles': 'Effet',
     'editor.editDrawing': 'Modifier le dessin',
     'editor.learn': 'Apprendre',
@@ -573,6 +643,21 @@ export const MESSAGES = {
   },
 
   pt: {
+    'editor.move': 'Mover',
+    'editor.scale': 'Redimensionar',
+    'editor.rotate': 'Girar',
+    'toolbar.orDescribe': 'Ou descreva',
+    'toolbar.askAIHint': 'Descreva o mundo que você quer e o lingplay criará objetos, blocos e comportamentos.',
+    'editor.addBackdrop': 'Adicionar um cenário',
+    'editor.changeBackdrop': 'Trocar o cenário',
+    'editor.stage': 'Palco',
+    'toolbar.addToScene': 'Adicionar à cena',
+    'toolbar.desc.character': 'Um herói, inimigo ou personagem',
+    'toolbar.desc.platform': 'Chão, paredes e terreno',
+    'toolbar.desc.collectible': 'Moedas, estrelas, chaves',
+    'toolbar.desc.obstacle': 'Perigos a evitar',
+    'toolbar.desc.particles': 'Brilhos, fogo, fumaça',
+    'toolbar.desc.sound': 'Música e efeitos sonoros',
     'toolbar.particles': 'Efeito',
     'editor.editDrawing': 'Editar desenho',
     'editor.learn': 'Aprender',
@@ -704,6 +789,21 @@ export const MESSAGES = {
   },
 
   de: {
+    'editor.move': 'Bewegen',
+    'editor.scale': 'Skalieren',
+    'editor.rotate': 'Drehen',
+    'toolbar.orDescribe': 'Oder beschreibe es',
+    'toolbar.askAIHint': 'Beschreibe die Welt, die du willst, und lingplay erstellt Objekte, Blöcke und Verhalten.',
+    'editor.addBackdrop': 'Hintergrund hinzufügen',
+    'editor.changeBackdrop': 'Hintergrund wechseln',
+    'editor.stage': 'Bühne',
+    'toolbar.addToScene': 'Zur Szene hinzufügen',
+    'toolbar.desc.character': 'Ein Held, Gegner oder NPC',
+    'toolbar.desc.platform': 'Boden, Wände und Gelände',
+    'toolbar.desc.collectible': 'Münzen, Sterne, Schlüssel',
+    'toolbar.desc.obstacle': 'Gefahren zum Ausweichen',
+    'toolbar.desc.particles': 'Funken, Feuer, Rauch',
+    'toolbar.desc.sound': 'Musik und Klangeffekte',
     'toolbar.particles': 'Effekt',
     'editor.editDrawing': 'Zeichnung bearbeiten',
     'editor.learn': 'Lernen',
@@ -835,6 +935,21 @@ export const MESSAGES = {
   },
 
   ja: {
+    'editor.move': '移動',
+    'editor.scale': '拡大縮小',
+    'editor.rotate': '回転',
+    'toolbar.orDescribe': 'または説明する',
+    'toolbar.askAIHint': 'つくりたい世界を説明すると、lingplay がオブジェクト・ブロック・動きを組み立てます。',
+    'editor.addBackdrop': '背景を追加',
+    'editor.changeBackdrop': '背景を変更',
+    'editor.stage': 'ステージ',
+    'toolbar.addToScene': 'シーンに追加',
+    'toolbar.desc.character': 'ヒーロー、敵、NPC',
+    'toolbar.desc.platform': '地面・壁・地形',
+    'toolbar.desc.collectible': 'コイン、星、かぎ',
+    'toolbar.desc.obstacle': 'よけるべき危険',
+    'toolbar.desc.particles': 'きらめき、炎、けむり',
+    'toolbar.desc.sound': '音楽と効果音',
     'toolbar.particles': 'エフェクト',
     'editor.editDrawing': '絵を編集',
     'editor.learn': '学ぶ',
@@ -966,7 +1081,17 @@ export const MESSAGES = {
   },
 } satisfies Record<Locale, Record<string, string>>;
 
-export type MessageKey = keyof (typeof MESSAGES)['en'];
+export type MessageKey = keyof (typeof INLINE_MESSAGES)['en'];
+
+/**
+ * Every locale's catalog: the seven inline above, plus one entry per file in
+ * `./locales`. Merged here rather than in each consumer so `translate` and the
+ * completeness test see exactly the same table.
+ */
+export const MESSAGES: Record<string, Record<string, string>> = {
+  ...INLINE_MESSAGES,
+  ...EXTRA_UI,
+};
 
 /** Look up a message, falling back to English and then to the key itself. */
 export function translate(locale: Locale, key: MessageKey): string {

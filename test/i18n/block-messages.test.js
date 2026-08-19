@@ -18,6 +18,9 @@ const {
   categoryLabel,
   dropdownLabel,
 } = require('../.build/lib/i18n/blockMessages');
+// The locales the app actually offers, which is what the block catalogs must
+// keep up with.
+const { LOCALES: SHIPPED_LOCALES } = require('../.build/lib/i18n/messages');
 const { BLOCK_DEFINITIONS, TOOLBOX, localizedBlockDefinitions, localizedToolbox } =
   require('../.build/lib/blockly/definitions');
 
@@ -45,8 +48,25 @@ const english = Object.fromEntries(
 /** `%1`, `%2`, … and `%%`, sorted — order may change, the set may not. */
 const placeholders = (s) => (s.match(/%\d+|%%/g) || []).sort();
 
-test('the locales under test are the ones the app ships', () => {
-  assert.deepStrictEqual(LOCALES.sort(), ['de', 'es', 'fr', 'ja', 'pt', 'zh']);
+test('every language the app offers has translated blocks', () => {
+  /*
+   * This used to assert against a frozen list of six locale codes, which meant
+   * adding a language broke the test for the wrong reason and taught whoever
+   * hit it to edit the literal.
+   *
+   * The guarantee worth having is the one this module's own header argues for:
+   * translated chrome wrapped around an English programming language is the
+   * wrong half done. So every locale the app *ships* — every entry in LOCALES
+   * bar English — must have a block catalog. Adding a language to the picker
+   * without translating its blocks now fails here.
+   */
+  const shipped = SHIPPED_LOCALES.filter((l) => l !== 'en');
+  const untranslated = shipped.filter((l) => !LOCALES.includes(l));
+  assert.deepStrictEqual(
+    untranslated,
+    [],
+    `these locales are offered to children with English blocks: ${untranslated.join(', ')}`
+  );
   assert.ok(Object.keys(english).length > 100, `only ${Object.keys(english).length} English labels found`);
 });
 

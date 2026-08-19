@@ -45,6 +45,17 @@ const SAME_AS_ENGLISH = new Set([
   'fr:editor.costumes',    // "Costumes" is the same word in French
   'de:editor.name',        // "Name" is the same word in German
   'de:editor.position',    // "Position (X, Y, Z)" is identical in German
+  'id:project.remix',      // "Remix" is used as-is in Indonesian
+  'id:auth.email',         // "Email" is used as-is in Indonesian
+  'id:toolbar.platform',   // "Platform" is used as-is in Indonesian
+  'vi:editor.logic',       // "Logic" is used as-is in Vietnamese
+  'vi:auth.email',         // "Email" is used as-is in Vietnamese
+  'tr:toolbar.platform',   // "Platform" is used as-is in Turkish
+  'it:auth.email',         // "Email" is used as-is in Italian
+  'it:auth.password',      // "Password" is used as-is in Italian
+  'nl:toolbar.particles',  // "Effect" is the same word in Dutch
+  'nl:toolbar.platform',   // "Platform" is the same word in Dutch
+  'sv:editor.position',    // "Position (X, Y, Z)" is identical in Swedish
 ]);
 
 // No locale may simply echo the English string — that is what a half-finished

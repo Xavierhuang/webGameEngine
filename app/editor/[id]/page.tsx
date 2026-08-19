@@ -104,7 +104,14 @@ export default async function EditorPage({ params }: EditorPageProps) {
         created_at: Date;
         updated_at: Date;
       }>(
-        `SELECT * FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})`,
+        // ORDER BY is load-bearing, not tidiness. A script is a flat ordered
+        // array — a hat block owns the blocks that follow it — so unordered
+        // rows are a shuffled program. MySQL returned them in roughly primary
+        // key order, which for a UUID key is arbitrary, so every published
+        // game and every project opened in the editor ran its blocks in a
+        // random order. It looked like a working game that behaved oddly.
+        `SELECT * FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})
+         ORDER BY game_object_id, order_index`,
         gameObjectIds
       )
     : [];

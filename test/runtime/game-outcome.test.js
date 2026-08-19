@@ -107,7 +107,11 @@ test('show message reaches the world from a block', () => {
     { block_type: 'on_start' },
     { block_type: 'show_message', block_data: { text: 'Go!', seconds: 5 } },
   ]);
-  assert.strictEqual(world.currentMessage(0.1), 'Go!');
+  // No clock argument: the block and the overlay must agree on one, and they
+  // did not — the interpreter stamped R3F elapsed time (starting at zero)
+  // while the overlay read performance.now() (in the thousands), so every
+  // banner was expired before it was drawn.
+  assert.strictEqual(world.currentMessage(), 'Go!');
 });
 
 console.log(`\ngame outcome: ${passed} checks passed`);

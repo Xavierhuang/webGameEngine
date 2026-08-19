@@ -13,6 +13,9 @@ export const TRANSLATE_LANGUAGES: Record<string, string> = {
   pt: 'Portuguese', de: 'German', ja: 'Japanese', ko: 'Korean',
   it: 'Italian', nl: 'Dutch', pl: 'Polish', ru: 'Russian',
   ar: 'Arabic', hi: 'Hindi', tr: 'Turkish', sv: 'Swedish',
+  // Every UI locale must also be a translate target, or a child could read
+  // the interface in a language the `translate to` block cannot produce.
+  id: 'Indonesian', vi: 'Vietnamese', uk: 'Ukrainian',
 };
 
 /** Full names for the model prompt; the dropdown shows these too. */
