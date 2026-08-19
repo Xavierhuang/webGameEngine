@@ -19,7 +19,9 @@ test('stranger-write setup is guarded, non-AI, and test-database-only', () => {
   const source = read('test/visual/stranger-write.mjs');
   assert.doesNotMatch(source, /\/api\/ai\//);
   assert.match(source, /\/api\/projects\/import/);
-  assert.match(source, /withLocalTestDatabase/);
+  assert.match(source, /publishProjectForLocalTest/);
+  assert.match(source, /cleanupSecurityFixturesForLocalTest/);
+  assert.doesNotMatch(source, /withLocalTestDatabase|deleteProjectForTest|publishProjectForTest/);
   assert.match(source, /moderation_status[^\n]*published|status[^\n]*published/);
   assert.match(source, /try\s*\{[\s\S]*finally\s*\{/);
 });
@@ -38,4 +40,16 @@ test('stranger-write proves exact denials and complete state preservation', () =
     assert.match(source, new RegExp(evidence), `missing ${evidence} assertion evidence`);
   }
   assert.match(source, /public page[\s\S]*200/i);
+  assert.match(source, /normalizeProjectGraph/);
+  assert.match(source, /assert\.deepEqual\(normalizeProjectGraph\(final\), baselineGraph\)/);
+  assert.match(source, /emails:\s*Object\.values\(FIXTURE_EMAILS\)/);
+  assert.match(
+    source,
+    /finally\s*\{[\s\S]*cleanupSecurityFixturesForLocalTest[\s\S]*finally\s*\{[\s\S]*browser\?\.close/
+  );
+  assert.doesNotMatch(
+    source,
+    /api\(owner\.page,[^\n]*DELETE/,
+    'cleanup must not trust an HTTP 200 response'
+  );
 });

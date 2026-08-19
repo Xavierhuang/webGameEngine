@@ -10,14 +10,17 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { assertLocalBaseUrl } from '../helpers/local-base-url.mjs';
 import {
-  deleteProjectForTest,
-  publishProjectForTest,
-  withLocalTestDatabase,
+  cleanupSecurityFixturesForLocalTest,
+  publishProjectForLocalTest,
 } from '../helpers/local-test-database.mjs';
 
 const BASE = assertLocalBaseUrl(process.argv[2] || 'http://localhost:3100');
 const STAMP = Date.now().toString(36);
 const PASSWORD = 'Stranger!2345';
+const FIXTURE_EMAILS = {
+  owner: `owner${STAMP}@example.com`,
+  stranger: `stranger${STAMP}@example.com`,
+};
 const ORIGINAL = {
   title: `Owned ${STAMP}`,
   color: '#6366f1',
@@ -40,7 +43,7 @@ async function signUp(tag) {
   const page = await context.newPage({ viewport: { width: 1440, height: 900 } });
   const response = await page.request.post(`${BASE}/api/auth/signup`, {
     data: {
-      email: `${tag}${STAMP}@example.com`,
+      email: FIXTURE_EMAILS[tag],
       password: PASSWORD,
       displayName: `${tag}${STAMP}`.slice(0, 18),
       dateOfBirth: '2013-04-04',
@@ -79,10 +82,15 @@ async function importProject(page) {
       game_object_id: objectId,
     })),
   });
-  assert.equal(response.status(), 200, `import must return exact 200: ${await response.text()}`);
   const payload = await response.json();
-  assert.match(payload?.project?.id || '', /^[0-9a-f-]{36}$/i, 'import must return a project ID');
-  return payload.project.id;
+  projectId = payload?.project?.id || projectId;
+  assert.equal(
+    response.status(),
+    200,
+    `import must return exact 200: ${JSON.stringify(payload)}`
+  );
+  assert.match(projectId || '', /^[0-9a-f-]{36}$/i, 'import must return a project ID');
+  return projectId;
 }
 
 async function readProject(page, id) {
@@ -117,27 +125,48 @@ async function attack(page, expectedStatus) {
   }
 }
 
+function normalizeProjectGraph(project) {
+  const byStableIdentity = (left, right) =>
+    String(left.id ?? left.order_index ?? '').localeCompare(String(right.id ?? right.order_index ?? ''));
+  return {
+    ...project,
+    scenes: [...(project.scenes || [])]
+      .map((scene) => ({
+        ...scene,
+        game_objects: [...(scene.game_objects || [])]
+          .map((object) => ({
+            ...object,
+            logic_blocks: [...(object.logic_blocks || [])].sort(byStableIdentity),
+          }))
+          .sort(byStableIdentity),
+      }))
+      .sort(byStableIdentity),
+    assets: [...(project.assets || [])].sort(byStableIdentity),
+  };
+}
+
 try {
   browser = await chromium.launch({
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'],
   });
   owner = await signUp('owner');
-  projectId = await importProject(owner.page);
+  await importProject(owner.page);
 
   const imported = await readProject(owner.page, projectId);
   const objectId = imported.scenes[0]?.game_objects[0]?.id;
   assert.ok(objectId, 'imported object ID must exist');
-  const baselineObject = imported.scenes[0].game_objects[0];
-  assert.equal(baselineObject.color, ORIGINAL.color);
-  assert.equal(baselineObject.logic_blocks.length, 1);
-  assert.equal(baselineObject.logic_blocks[0].block_type, ORIGINAL.logicBlocks[0].block_type);
-  assert.equal(baselineObject.logic_blocks[0].category, ORIGINAL.logicBlocks[0].category);
-  assert.equal(baselineObject.logic_blocks[0].order_index, ORIGINAL.logicBlocks[0].order_index);
+  const importedObject = imported.scenes[0].game_objects[0];
+  assert.equal(importedObject.color, ORIGINAL.color);
+  assert.equal(importedObject.logic_blocks.length, 1);
+  assert.equal(importedObject.logic_blocks[0].block_type, ORIGINAL.logicBlocks[0].block_type);
+  assert.equal(importedObject.logic_blocks[0].category, ORIGINAL.logicBlocks[0].category);
+  assert.equal(importedObject.logic_blocks[0].order_index, ORIGINAL.logicBlocks[0].order_index);
 
-  await withLocalTestDatabase(BASE, (connection) => publishProjectForTest(connection, projectId));
+  await publishProjectForLocalTest(BASE, projectId);
   const published = await readProject(owner.page, projectId);
   assert.equal(published.visibility, 'public');
   assert.equal(published.moderation_status, 'published');
+  const baselineGraph = normalizeProjectGraph(published);
 
   const anonymousContext = await browser.newContext();
   const anonymous = await anonymousContext.newPage();
@@ -157,29 +186,16 @@ try {
   await attack(stranger.page, 403);
 
   const final = await readProject(owner.page, projectId);
-  assert.equal(final.title, ORIGINAL.title);
-  assert.equal(final.visibility, 'public');
-  assert.equal(final.moderation_status, 'published');
-  const finalObject = final.scenes[0]?.game_objects.find((object) => object.id === objectId);
-  assert.ok(finalObject, 'object must still exist');
-  assert.equal(finalObject.color, ORIGINAL.color);
-  assert.deepEqual(finalObject.logic_blocks, baselineObject.logic_blocks);
+  assert.deepEqual(normalizeProjectGraph(final), baselineGraph);
 
   console.log('anonymous and authenticated stranger writes were denied; state is unchanged');
 } finally {
-  if (projectId) {
-    let deleted = false;
-    if (owner?.page) {
-      try {
-        const response = await api(owner.page, `/api/projects/${projectId}`, 'DELETE');
-        deleted = response.status() === 200;
-      } catch {
-        // Fall through to the local test-database cleanup.
-      }
-    }
-    if (!deleted) {
-      await withLocalTestDatabase(BASE, (connection) => deleteProjectForTest(connection, projectId));
-    }
+  try {
+    await cleanupSecurityFixturesForLocalTest(BASE, {
+      projectId,
+      emails: Object.values(FIXTURE_EMAILS),
+    });
+  } finally {
+    await browser?.close();
   }
-  await browser?.close();
 }

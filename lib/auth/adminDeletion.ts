@@ -6,6 +6,7 @@ interface AdminDeletionConnection {
   execute(sql: string, values?: unknown[]): Promise<[unknown, ...unknown[]]>;
   commit(): Promise<void>;
   rollback(): Promise<void>;
+  destroy(): void;
   release(): void;
 }
 
@@ -46,6 +47,7 @@ export async function deleteAdminAccount(
   dependencies: AdminDeletionDependencies = defaultDependencies
 ): Promise<{ email: string }> {
   const connection = await dependencies.getConnection();
+  let connectionIsReusable = true;
   try {
     await connection.beginTransaction();
 
@@ -96,9 +98,18 @@ export async function deleteAdminAccount(
     await connection.commit();
     return { email: target.email };
   } catch (error) {
-    await connection.rollback();
+    try {
+      await connection.rollback();
+    } catch {
+      connectionIsReusable = false;
+      try {
+        connection.destroy();
+      } catch {
+        // Preserve the original domain failure even if disposal also fails.
+      }
+    }
     throw error;
   } finally {
-    connection.release();
+    if (connectionIsReusable) connection.release();
   }
 }

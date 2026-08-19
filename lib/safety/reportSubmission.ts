@@ -1,6 +1,7 @@
 const ALLOWED_REASONS = new Set(['inappropriate', 'harassment', 'spam', 'violence', 'other']);
 const REPORT_LIMIT = 5;
 const REPORT_WINDOW_MS = 60 * 60 * 1000;
+const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface ReportInput {
   projectId?: unknown;
@@ -54,7 +55,7 @@ export class ReportSubmissionError extends Error {
 }
 
 function suppliedId(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+  return typeof value === 'string' && CANONICAL_UUID.test(value) ? value : null;
 }
 
 function actorLimitKey(actor: Exclude<ReportActor, { kind: 'anonymous' }>): string {

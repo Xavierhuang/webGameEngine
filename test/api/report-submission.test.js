@@ -4,6 +4,8 @@ const test = require('node:test');
 const USER = { kind: 'user', userId: 'user-1', profileId: 'profile-user' };
 const GUEST = { kind: 'guest', sessionId: 'session-1', profileId: 'profile-guest' };
 const ANONYMOUS = { kind: 'anonymous' };
+const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
+const PROFILE_ID = '22222222-2222-4222-8222-222222222222';
 
 function loadService() {
   return require('../.build/lib/safety/reportSubmission');
@@ -31,8 +33,8 @@ test('exactly one projectId or profileId is required before any write', async ()
   const { createReportSubmissionService, ReportSubmissionError } = loadService();
   for (const input of [
     { reason: 'spam' },
-    { projectId: 'project-1', profileId: 'profile-1', reason: 'spam' },
-    { projectId: 'project-1', profileId: '', reason: 'spam' },
+    { projectId: PROJECT_ID, profileId: PROFILE_ID, reason: 'spam' },
+    { projectId: PROJECT_ID, profileId: '', reason: 'spam' },
     { projectId: 42, reason: 'spam' },
   ]) {
     const setup = fixture();
@@ -46,12 +48,32 @@ test('exactly one projectId or profileId is required before any write', async ()
   }
 });
 
+test('target IDs must be canonical UUIDs before limiting or target access', async () => {
+  const { createReportSubmissionService, ReportSubmissionError } = loadService();
+  for (const input of [
+    { projectId: 'project-1', reason: 'spam' },
+    { profileId: '22222222222242228222222222222222', reason: 'spam' },
+    { projectId: ` ${PROJECT_ID}`, reason: 'spam' },
+    { profileId: '00000000-0000-0000-0000-000000000000', reason: 'spam' },
+  ]) {
+    const setup = fixture();
+    await assert.rejects(
+      createReportSubmissionService(setup.dependencies).submit(USER, input),
+      (error) => error instanceof ReportSubmissionError && error.status === 400
+    );
+    assert.deepEqual(setup.calls.rateKeys, []);
+    assert.deepEqual(setup.calls.projects, []);
+    assert.deepEqual(setup.calls.profiles, []);
+    assert.deepEqual(setup.calls.inserts, []);
+  }
+});
+
 test('anonymous reports fail 401 before limiting, target access, or insertion', async () => {
   const { createReportSubmissionService, ReportSubmissionError } = loadService();
   const setup = fixture();
   await assert.rejects(
     createReportSubmissionService(setup.dependencies).submit(ANONYMOUS, {
-      projectId: 'project-1',
+      projectId: PROJECT_ID,
       reason: 'spam',
     }),
     (error) => error instanceof ReportSubmissionError && error.status === 401
@@ -71,12 +93,12 @@ test('a project the actor cannot view is rejected without inserting', async () =
   });
   await assert.rejects(
     createReportSubmissionService(setup.dependencies).submit(USER, {
-      projectId: 'unrelated-project',
+      projectId: PROJECT_ID,
       reason: 'spam',
     }),
     /project_not_viewable/
   );
-  assert.deepEqual(setup.calls.projects, ['unrelated-project']);
+  assert.deepEqual(setup.calls.projects, [PROJECT_ID]);
   assert.deepEqual(setup.calls.inserts, []);
 });
 
@@ -85,7 +107,7 @@ test('missing reported profiles are rejected without inserting', async () => {
   const setup = fixture({ findProfile: async () => null });
   await assert.rejects(
     createReportSubmissionService(setup.dependencies).submit(USER, {
-      profileId: 'missing-profile',
+      profileId: PROFILE_ID,
       reason: 'spam',
     }),
     (error) => error instanceof ReportSubmissionError && error.status === 404
@@ -107,7 +129,7 @@ test('the interim limiter uses only actor-derived user and guest identities', as
     });
     await assert.rejects(
       createReportSubmissionService(setup.dependencies).submit(actor, {
-        profileId: 'profile-target',
+        profileId: PROFILE_ID,
         reason: 'spam',
         clientKey: 'forwarded:attacker-controlled',
       }),
@@ -123,7 +145,7 @@ test('a successful report binds the reporter profile to the Actor', async () => 
   const { createReportSubmissionService } = loadService();
   const setup = fixture();
   const result = await createReportSubmissionService(setup.dependencies).submit(USER, {
-    profileId: 'profile-target',
+    profileId: PROFILE_ID,
     reporterProfileId: 'spoofed-profile',
     reason: 'harassment',
     details: '  details  ',
@@ -135,7 +157,7 @@ test('a successful report binds the reporter profile to the Actor', async () => 
       id: 'report-1',
       reporterProfileId: USER.profileId,
       reportedProjectId: null,
-      reportedProfileId: 'profile-target',
+      reportedProfileId: PROFILE_ID,
       reason: 'harassment',
       details: 'details',
     },

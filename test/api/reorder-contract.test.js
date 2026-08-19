@@ -7,7 +7,7 @@ function loadContract() {
   return require('../.build/lib/auth/reorder');
 }
 
-function fakeDatabase({ rows = [], updateError = null } = {}) {
+function fakeDatabase({ rows = [], updateError = null, rollbackError = null } = {}) {
   const events = [];
   const connection = {
     async beginTransaction() { events.push('begin'); },
@@ -18,7 +18,11 @@ function fakeDatabase({ rows = [], updateError = null } = {}) {
       return [{ affectedRows: rows.length }];
     },
     async commit() { events.push('commit'); },
-    async rollback() { events.push('rollback'); },
+    async rollback() {
+      events.push('rollback');
+      if (rollbackError) throw rollbackError;
+    },
+    destroy() { events.push('destroy'); },
     release() { events.push('release'); },
   };
   let connections = 0;
@@ -84,6 +88,25 @@ test('an update failure rolls back and always releases the connection', async ()
   assert.deepEqual(db.events.filter((event) => typeof event === 'string'), [
     'begin', 'rollback', 'release',
   ]);
+});
+
+test('rollback failure preserves the write error and destroys the poisoned connection', async () => {
+  const { reorderSceneObjects } = loadContract();
+  const writeError = new Error('original write failure');
+  const db = fakeDatabase({
+    rows: [{ id: 'one' }],
+    updateError: writeError,
+    rollbackError: new Error('rollback failed'),
+  });
+
+  await assert.rejects(
+    reorderSceneObjects('scene-a', ['one'], db.dependencies),
+    (error) => error === writeError
+  );
+  assert.deepEqual(
+    db.events.filter((event) => typeof event === 'string'),
+    ['begin', 'rollback', 'destroy']
+  );
 });
 
 test('the live matrix compares the complete ordered ID state after a rejected attack', () => {

@@ -15,6 +15,7 @@ interface ReorderConnection {
   execute(sql: string, params?: unknown[]): Promise<[unknown, unknown?]>;
   commit(): Promise<void>;
   rollback(): Promise<void>;
+  destroy(): void;
   release(): void;
 }
 
@@ -42,6 +43,7 @@ export async function reorderSceneObjects(
 
   const ids = orderedIds as string[];
   const connection = await dependencies.getConnection();
+  let connectionIsReusable = true;
   try {
     await connection.beginTransaction();
     const placeholders = ids.map(() => '?').join(', ');
@@ -67,9 +69,18 @@ export async function reorderSceneObjects(
     );
     await connection.commit();
   } catch (error) {
-    await connection.rollback();
+    try {
+      await connection.rollback();
+    } catch {
+      connectionIsReusable = false;
+      try {
+        connection.destroy();
+      } catch {
+        // Preserve the original domain failure even if disposal also fails.
+      }
+    }
     throw error;
   } finally {
-    connection.release();
+    if (connectionIsReusable) connection.release();
   }
 }

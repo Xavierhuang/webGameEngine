@@ -13,12 +13,21 @@ function loadService() {
   return require('../.build/lib/auth/adminDeletion');
 }
 
-function fakeDatabase({ target = TARGET, failStage = null } = {}) {
+function fakeDatabase({
+  target = TARGET,
+  failStage = null,
+  failureError = new Error('user delete failed'),
+  rollbackError = null,
+} = {}) {
   const events = [];
   const connection = {
     async beginTransaction() { events.push('begin'); },
     async commit() { events.push('commit'); },
-    async rollback() { events.push('rollback'); },
+    async rollback() {
+      events.push('rollback');
+      if (rollbackError) throw rollbackError;
+    },
+    destroy() { events.push('destroy'); },
     release() { events.push('release'); },
     async execute(sql) {
       const normalized = sql.replace(/\s+/g, ' ').trim();
@@ -40,7 +49,7 @@ function fakeDatabase({ target = TARGET, failStage = null } = {}) {
         return [{ affectedRows: 1 }];
       }
       if (/DELETE FROM users/.test(normalized)) {
-        if (failStage === 'user') throw new Error('user delete failed');
+        if (failStage === 'user') throw failureError;
         return [{ affectedRows: 1 }];
       }
       throw new Error(`Unexpected SQL: ${normalized}`);
@@ -110,4 +119,25 @@ test('email confirmation is rechecked against the locked row', async () => {
   );
   assert.equal(database.events.some((event) => /^DELETE FROM /.test(event)), false);
   assert.deepEqual(database.events.slice(-2), ['rollback', 'release']);
+});
+
+test('rollback failure preserves the domain error and destroys the poisoned connection', async () => {
+  const { deleteAdminAccount } = loadService();
+  const domainError = new Error('original delete failure');
+  const database = fakeDatabase({
+    failStage: 'user',
+    failureError: domainError,
+    rollbackError: new Error('rollback failed'),
+  });
+
+  await assert.rejects(
+    deleteAdminAccount(
+      ADMIN,
+      { profileId: TARGET.id, confirmEmail: TARGET.email, ownerEmails: [] },
+      database.deps
+    ),
+    (error) => error === domainError
+  );
+  assert.deepEqual(database.events.slice(-2), ['rollback', 'destroy']);
+  assert.equal(database.events.includes('release'), false);
 });

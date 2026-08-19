@@ -1,6 +1,6 @@
 const ts = require('typescript');
 
-const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const HTTP_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']);
 const ACTOR_IMPORT = '@/lib/auth/actor';
 const ACTOR_NAMES = new Set(['resolveActor', 'resolveCurrentActor']);
 const BOUNDARY_IMPORTS = new Map([
@@ -16,6 +16,10 @@ const BOUNDARY_IMPORTS = new Map([
 ]);
 const MYSQL_IMPORTS = new Set(['@/lib/mysql/server', '@/lib/mysql/client']);
 const FILESYSTEM_IMPORTS = new Set(['fs', 'fs/promises', 'node:fs', 'node:fs/promises']);
+const PRE_AUTH_SAFE_IMPORTS = new Map([
+  ['@/lib/i18n/server', new Set(['getTranslator'])],
+  ['@/lib/safety/rateLimit', new Set(['clientKey', 'rateLimit'])],
+]);
 
 function importsByLocalName(sourceFile) {
   const imports = new Map();
@@ -47,14 +51,35 @@ function hasModifier(node, kind) {
 function entryPoints(sourceFile) {
   const entries = [];
   for (const statement of sourceFile.statements) {
-    if (!ts.isFunctionDeclaration(statement) || !statement.body) continue;
-    if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) continue;
-    if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) {
-      entries.push({ label: 'default', body: statement.body });
-      continue;
+    if (ts.isFunctionDeclaration(statement) && statement.body) {
+      if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) continue;
+      if (hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) {
+        entries.push({ label: 'default', body: statement.body });
+        continue;
+      }
+      const name = statement.name?.text;
+      if (name && HTTP_METHODS.has(name)) entries.push({ label: name, body: statement.body });
+    } else if (
+      ts.isVariableStatement(statement) &&
+      hasModifier(statement, ts.SyntaxKind.ExportKeyword)
+    ) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || !HTTP_METHODS.has(declaration.name.text)) continue;
+        let initializer = declaration.initializer;
+        while (initializer && ts.isParenthesizedExpression(initializer)) {
+          initializer = initializer.expression;
+        }
+        if (
+          initializer &&
+          (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) &&
+          ts.isBlock(initializer.body)
+        ) {
+          entries.push({ label: declaration.name.text, body: initializer.body });
+        } else {
+          entries.push({ label: declaration.name.text, body: null });
+        }
+      }
     }
-    const name = statement.name?.text;
-    if (name && HTTP_METHODS.has(name)) entries.push({ label: name, body: statement.body });
   }
   return entries;
 }
@@ -83,65 +108,123 @@ function actorVariable(call) {
     : null;
 }
 
+function isCanonicalActor(binding) {
+  return binding.moduleName === ACTOR_IMPORT && ACTOR_NAMES.has(binding.importedName);
+}
+
+function isCanonicalBoundary(binding) {
+  return Boolean(BOUNDARY_IMPORTS.get(binding.moduleName)?.has(binding.importedName));
+}
+
+function isPreAuthorizationSafe(binding) {
+  return Boolean(PRE_AUTH_SAFE_IMPORTS.get(binding.moduleName)?.has(binding.importedName));
+}
+
+function isPrivilegedEffect(binding) {
+  if (isCanonicalActor(binding) || isCanonicalBoundary(binding) || isPreAuthorizationSafe(binding)) {
+    return false;
+  }
+  return (
+    binding.moduleName.startsWith('@/') ||
+    MYSQL_IMPORTS.has(binding.moduleName) ||
+    FILESYSTEM_IMPORTS.has(binding.moduleName) ||
+    (binding.moduleName === '@/lib/safety/moderation' && binding.importedName === 'moderateText')
+  );
+}
+
 function inspectEntry(entry, imports, expectedBoundary) {
+  if (!entry.body) return [`${entry.label}: exported handler must be an inline function`];
   const actorCalls = [];
   const boundaryCalls = [];
   const effects = [];
 
-  function visit(node, nestedFunctionDepth = 0) {
+  function visit(node, conditional = false) {
     if (ts.isIfStatement(node)) {
       const known = literalBoolean(node.expression);
       if (known === false) {
-        if (node.elseStatement) visit(node.elseStatement, nestedFunctionDepth);
+        if (node.elseStatement) visit(node.elseStatement, conditional);
         return;
       }
       if (known === true) {
-        visit(node.thenStatement, nestedFunctionDepth);
+        visit(node.thenStatement, conditional);
         return;
       }
+      visit(node.expression, conditional);
+      visit(node.thenStatement, true);
+      if (node.elseStatement) visit(node.elseStatement, true);
+      return;
     }
 
-    let childDepth = nestedFunctionDepth;
-    if (node !== entry.body && ts.isFunctionLike(node)) childDepth += 1;
+    if (
+      ts.isConditionalExpression(node) ||
+      (
+        ts.isBinaryExpression(node) &&
+        [
+          ts.SyntaxKind.AmpersandAmpersandToken,
+          ts.SyntaxKind.BarBarToken,
+          ts.SyntaxKind.QuestionQuestionToken,
+        ].includes(node.operatorToken.kind)
+      ) ||
+      ts.isForStatement(node) ||
+      ts.isForInStatement(node) ||
+      ts.isForOfStatement(node) ||
+      ts.isWhileStatement(node) ||
+      ts.isDoStatement(node) ||
+      ts.isSwitchStatement(node) ||
+      ts.isCaseClause(node) ||
+      ts.isDefaultClause(node) ||
+      ts.isCatchClause(node) ||
+      (node !== entry.body && ts.isFunctionLike(node))
+    ) {
+      ts.forEachChild(node, (child) => visit(child, true));
+      return;
+    }
+
+    if (ts.isTryStatement(node)) {
+      visit(node.tryBlock, conditional);
+      if (node.catchClause) visit(node.catchClause, true);
+      if (node.finallyBlock) visit(node.finallyBlock, true);
+      return;
+    }
 
     if (ts.isCallExpression(node)) {
       const binding = calledImport(node.expression, imports);
       if (binding) {
-        if (
-          childDepth === 0 &&
-          binding.moduleName === ACTOR_IMPORT &&
-          ACTOR_NAMES.has(binding.importedName)
-        ) {
-          actorCalls.push({ node, position: node.getStart(), variable: actorVariable(node) });
+        if (isCanonicalActor(binding)) {
+          actorCalls.push({
+            node,
+            position: node.getStart(),
+            variable: actorVariable(node),
+            conditional,
+          });
         }
 
         const boundaryNames = BOUNDARY_IMPORTS.get(binding.moduleName);
-        if (childDepth === 0 && boundaryNames?.has(binding.importedName)) {
+        if (boundaryNames?.has(binding.importedName)) {
           boundaryCalls.push({
             node,
             position: node.getStart(),
             name: binding.importedName,
             firstArgument: ts.isIdentifier(node.arguments[0]) ? node.arguments[0].text : null,
+            conditional,
           });
         }
 
-        if (
-          MYSQL_IMPORTS.has(binding.moduleName) ||
-          FILESYSTEM_IMPORTS.has(binding.moduleName) ||
-          (binding.moduleName === '@/lib/safety/moderation' && binding.importedName === 'moderateText')
-        ) {
+        if (isPrivilegedEffect(binding)) {
           effects.push({ position: node.getStart(), moduleName: binding.moduleName });
         }
       }
     }
 
-    ts.forEachChild(node, (child) => visit(child, childDepth));
+    ts.forEachChild(node, (child) => visit(child, conditional));
   }
 
   visit(entry.body);
   const problems = [];
   if (actorCalls.length !== 1) {
     problems.push(`${entry.label}: expected exactly one canonical actor call, found ${actorCalls.length}`);
+  } else if (actorCalls[0].conditional) {
+    problems.push(`${entry.label}: canonical actor call is conditional and does not dominate privileged effects`);
   }
 
   const expectedCalls = boundaryCalls.filter((call) => call.name === expectedBoundary);
@@ -152,6 +235,8 @@ function inspectEntry(entry, imports, expectedBoundary) {
   } else {
     if (expectedCalls.length !== 1) {
       problems.push(`${entry.label}: expected exactly one ${expectedBoundary} call, found ${expectedCalls.length}`);
+    } else if (expectedCalls[0].conditional) {
+      problems.push(`${entry.label}: ${expectedBoundary} call is conditional and does not dominate privileged effects`);
     }
     const unexpected = boundaryCalls.filter((call) => call.name !== expectedBoundary);
     if (unexpected.length) {
