@@ -170,3 +170,76 @@ export function newEditingSessionId(): string {
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
+
+/**
+ * Command-service call helper for POST /api/projects/:id/commands.
+ *
+ * Different wire contract from `commandWrite` (which is for the
+ * PATCH/DELETE endpoints that carry `If-Match` + `Idempotency-Key` as
+ * headers): the command service takes the whole envelope in the body,
+ * with `expectedRevision`, `idempotencyKey`, `editingSessionId`, and
+ * `groupId` alongside the command itself.
+ *
+ * The 409 revision-conflict retry uses the SAME idempotencyKey so a
+ * request that actually landed but timed out mid-response does not
+ * double-execute on the retry.
+ */
+export interface CommandServiceCallOptions {
+  projectId: string;
+  editingSessionId: string;
+  revisionRef: { current: number };
+  // The ProjectCommand payload, e.g. { type: 'object.create', ... }.
+  command: unknown;
+  // Optional undo-group id. Auto-generated per call if omitted (each
+  // add-object action becomes its own undo entry, which is what users
+  // expect from the "Add character" button).
+  groupId?: string;
+}
+
+export async function commandServiceCall(
+  options: CommandServiceCallOptions,
+): Promise<Response> {
+  const url = `/api/projects/${options.projectId}/commands`;
+  const idempotencyKey = newIdempotencyKey();
+  const buildBody = () =>
+    JSON.stringify({
+      idempotencyKey,
+      editingSessionId: options.editingSessionId,
+      groupId: options.groupId ?? `cmd-${Date.now()}`,
+      expectedRevision: options.revisionRef.current,
+      command: options.command,
+    });
+
+  const doFetch = () =>
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: buildBody(),
+    });
+
+  let response = await doFetch();
+  if (response.ok) {
+    await advanceRevisionFromResponse(response, options.revisionRef);
+    return response;
+  }
+
+  const { isConflict, freshRevision } = await inspectConflict(response);
+  if (isConflict) {
+    const seed = freshRevision ?? (await refetchRevision(options.projectId));
+    if (seed !== null && seed > options.revisionRef.current) {
+      options.revisionRef.current = seed;
+      const retry = await doFetch();
+      if (retry.ok) await advanceRevisionFromResponse(retry, options.revisionRef);
+      return retry;
+    }
+  }
+
+  return response;
+}
+
+/** UUID v4 without dashes stripped. Callers need a UUID for `command.objectId`. */
+export function newObjectId(): string {
+  return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
+}

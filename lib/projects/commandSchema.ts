@@ -118,11 +118,24 @@ const SceneReorder = z
   })
   .strict();
 
+const Vec3 = z.object({ x: Coord, y: Coord, z: Coord }).strict();
+
+// `.passthrough()` rather than `.strict()`: the object-add pickers
+// (character/collectible/obstacle/sound) each carry a picker-specific
+// metadata bag (characterType, collectibleType, obstacleType, soundType,
+// beat/bpm/autoplay_beat, model_url/thumbnail_url/model_bounds/model_origin_offset)
+// that is not enumerable from this file. handleObjectCreate JSON-stringifies
+// whatever it receives into the `properties` column and only reads its own
+// named fields, so unknown keys have no code path — they become opaque
+// per-object metadata the renderer picks up. Strict rejection here forced
+// every new picker field to go through this schema, which caused a silent
+// 422 regression when the legacy /api/ai/apply-update path was retired and
+// clients started sending their real metadata through the command service.
 const ObjectProperties = z
   .object({
-    position: z.object({ x: Coord, y: Coord, z: Coord }).strict().optional(),
-    rotation: z.object({ x: Coord, y: Coord, z: Coord }).strict().optional(),
-    scale: z.object({ x: Coord, y: Coord, z: Coord }).strict().optional(),
+    position: Vec3.optional(),
+    rotation: Vec3.optional(),
+    scale: Vec3.optional(),
     color: CssColor.optional(),
     shape: z
       .enum([
@@ -138,15 +151,30 @@ const ObjectProperties = z
         'circle',
       ])
       .optional(),
-    modelUrl: Url.nullable().optional(),
+    // ModelPath accepts relative paths ("/models/foo.glb") as well as
+    // absolute URLs — prefabs and uploads both take the relative form.
+    modelUrl: z.string().min(1).max(2048).nullable().optional(),
     // Runtime numeric limits — see plan's global-constraint list. Rejecting at
     // the command layer keeps the transaction short and the failure precise.
     mass: z.number().nonnegative().max(1e6).optional(),
     friction: z.number().min(0).max(100).optional(),
     restitution: z.number().min(0).max(100).optional(),
+    // Common picker-visual fields, typed so their intent is documented even
+    // though `.passthrough()` would accept them anyway.
+    size: z.number().min(0).max(10000).optional(),
+    characterType: ShortText(120).optional(),
+    collectibleType: ShortText(120).optional(),
+    obstacleType: ShortText(120).optional(),
+    soundType: ShortText(120).optional(),
+    thumbnailUrl: z.string().min(1).max(2048).nullable().optional(),
+    // Snake-case aliases the pickers historically emit. Kept alongside the
+    // camelCase form because the JSON column already stores the snake shape.
+    model_url: z.string().min(1).max(2048).nullable().optional(),
+    thumbnail_url: z.string().min(1).max(2048).nullable().optional(),
+    model_bounds: z.object({ min: Vec3, max: Vec3 }).passthrough().optional(),
+    model_origin_offset: Vec3.optional(),
   })
-  .strict()
-  .partial();
+  .passthrough();
 
 const ObjectCreate = z
   .object({

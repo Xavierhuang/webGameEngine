@@ -27,7 +27,7 @@ import { useTranslator } from '../common/LocaleProvider';
 import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 import { SceneLights } from '@/components/three/SceneLights';
-import { commandWrite, newEditingSessionId } from '@/lib/editor/commandWrite';
+import { commandWrite, commandServiceCall, newEditingSessionId, newObjectId } from '@/lib/editor/commandWrite';
 
 // Blockly needs the DOM — load the block editor client-side only.
 /**
@@ -407,34 +407,40 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const duplicateObject = async (source: any) => {
     if (!currentScene || !source) return;
     try {
-      const response = await fetch('/api/ai/apply-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          projectId,
-          update: {
-            type: 'add_game_object',
-            game_object: {
-              scene_id: (currentScene as any).id,
-              type: source.type,
-              name: `${source.name || 'Object'} copy`,
-              position_x: (Number(source.position_x) || 0) + 40,
-              position_y: Number(source.position_y) || 0,
-              position_z: (Number(source.position_z) || 0) + 40,
-              rotation: source.rotation,
-              scale_x: source.scale_x,
-              scale_y: source.scale_y,
-              sprite_url: source.sprite_url,
-              color: source.color,
-              width: source.width,
-              height: source.height,
-              has_physics: source.has_physics,
-              is_static: source.is_static,
-              mass: source.mass,
-              properties: source.properties,
+      // Coalesce the source object's row columns + JSON properties into a
+      // single properties bag for the command service, then offset the copy
+      // by (+40, 0, +40) so it isn't hidden under the original.
+      const sourceProps = (source.properties && typeof source.properties === 'object') ? source.properties : {};
+      const scaleX = Number(source.scale_x);
+      const scaleY = Number(source.scale_y);
+      const rotationY = Number(source.rotation);
+      const response = await commandServiceCall({
+        projectId,
+        editingSessionId: editingSessionIdRef.current,
+        revisionRef,
+        command: {
+          type: 'object.create',
+          objectId: newObjectId(),
+          sceneId: (currentScene as any).id,
+          name: `${source.name || 'Object'} copy`,
+          objectType: source.type,
+          properties: {
+            ...sourceProps,
+            position: {
+              x: (Number(source.position_x) || 0) + 40,
+              y: Number(source.position_y) || 0,
+              z: (Number(source.position_z) || 0) + 40,
             },
+            ...(Number.isFinite(rotationY) ? { rotation: { x: 0, y: rotationY, z: 0 } } : {}),
+            ...(Number.isFinite(scaleX) && Number.isFinite(scaleY)
+              ? { scale: { x: scaleX, y: scaleY, z: 1 } }
+              : {}),
+            ...(source.color ? { color: source.color } : {}),
+            ...(source.mass != null && Number.isFinite(Number(source.mass))
+              ? { mass: Number(source.mass) }
+              : {}),
           },
-        }),
+        },
       });
       if (!response.ok) return;
 
@@ -789,27 +795,23 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 const defaults = getObjectDefaults(type);
                 const addedTo = objectIdsIn(sceneId);
 
-                const response = await fetch('/api/ai/apply-update', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    projectId,
-                    update: {
-                      type: 'add_game_object',
-                      scene_id: sceneId,
-                      game_object: {
-                        type,
-                        name: nextObjectName(type),
-                        position: { x: 500, y: type === 'platform' ? 300 : 300, z: 0 },
-                        sprite_data: defaults,
-                        properties: {
-                          shape: defaults.shape,
-                          color: defaults.color,
-                          size: defaults.size,
-                        },
-                      },
+                const response = await commandServiceCall({
+                  projectId,
+                  editingSessionId: editingSessionIdRef.current,
+                  revisionRef,
+                  command: {
+                    type: 'object.create',
+                    objectId: newObjectId(),
+                    sceneId,
+                    name: nextObjectName(type),
+                    objectType: type,
+                    properties: {
+                      position: { x: 500, y: type === 'platform' ? 300 : 300, z: 0 },
+                      shape: defaults.shape,
+                      color: defaults.color,
+                      size: defaults.size,
                     },
-                  }),
+                  },
                 });
 
                 if (!response.ok) {
@@ -1308,7 +1310,15 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           projectId={projectId}
           onClose={() => setShowAIAssistant(false)}
           onApplyUpdate={async (update) => {
-            // Apply AI update to the game
+            // Apply AI update to the game.
+            //
+            // TODO(add-object-migration): the legacy /api/ai/apply-update
+            // route is retired server-side; this call currently 503s.
+            // Migrating requires mapping each AI update shape
+            // (add_game_object, add_scene, set_backdrop, add_logic_blocks, ...)
+            // to a command-service command, which is beyond the scope of the
+            // add-object picker fix. Deferred until the AI Assistant panel
+            // gets its own migration pass.
             try {
               const response = await fetch('/api/ai/apply-update', {
                 method: 'POST',
@@ -1366,24 +1376,24 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
 
             const addedTo = objectIdsIn(sceneId);
 
-            const response = await fetch('/api/ai/apply-update', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                projectId,
-                update: {
-                  type: 'add_game_object',
-                  scene_id: sceneId,
-                  game_object: {
-                    type: 'character',
-                    name: character.name,
-                    position: { x: 500, y: 300, z: 0 },
-                    sprite_data: visual.spriteData,
-                    // visual.properties already includes characterType from the builder
-                    properties: visual.properties,
-                  },
+            const response = await commandServiceCall({
+              projectId,
+              editingSessionId: editingSessionIdRef.current,
+              revisionRef,
+              command: {
+                type: 'object.create',
+                objectId: newObjectId(),
+                sceneId,
+                name: character.name,
+                objectType: 'character',
+                properties: {
+                  position: { x: 500, y: 300, z: 0 },
+                  // visual.properties already includes characterType, shape,
+                  // color, size (+ model_url/thumbnail_url/model_bounds/
+                  // model_origin_offset for 3D models) from the picker builder.
+                  ...visual.properties,
                 },
-              }),
+              },
             });
 
             if (response.ok) {
@@ -1413,32 +1423,24 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             }
             const addedTo = objectIdsIn(sceneId);
 
-            const response = await fetch('/api/ai/apply-update', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                projectId,
-                update: {
-                  type: 'add_game_object',
-                  scene_id: sceneId,
-                  game_object: {
-                    type: 'collectible',
-                    name: item.name,
-                    position: { x: 500, y: 300, z: 0 },
-                    sprite_data: {
-                      shape: item.shape,
-                      color: item.color,
-                      size: item.size || 30,
-                    },
-                    properties: {
-                      shape: item.shape,
-                      color: item.color,
-                      size: item.size || 30,
-                      collectibleType: item.id,
-                    },
-                  },
+            const response = await commandServiceCall({
+              projectId,
+              editingSessionId: editingSessionIdRef.current,
+              revisionRef,
+              command: {
+                type: 'object.create',
+                objectId: newObjectId(),
+                sceneId,
+                name: item.name,
+                objectType: 'collectible',
+                properties: {
+                  position: { x: 500, y: 300, z: 0 },
+                  shape: item.shape,
+                  color: item.color,
+                  size: item.size || 30,
+                  collectibleType: item.id,
                 },
-              }),
+              },
             });
             if (response.ok) {
               const projectResponse = await fetch(`/api/projects/${projectId}`);
@@ -1466,32 +1468,24 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             }
             const addedTo = objectIdsIn(sceneId);
 
-            const response = await fetch('/api/ai/apply-update', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                projectId,
-                update: {
-                  type: 'add_game_object',
-                  scene_id: sceneId,
-                  game_object: {
-                    type: 'obstacle',
-                    name: item.name,
-                    position: { x: 500, y: 300, z: 0 },
-                    sprite_data: {
-                      shape: item.shape,
-                      color: item.color,
-                      size: item.size || 50,
-                    },
-                    properties: {
-                      shape: item.shape,
-                      color: item.color,
-                      size: item.size || 50,
-                      obstacleType: item.id,
-                    },
-                  },
+            const response = await commandServiceCall({
+              projectId,
+              editingSessionId: editingSessionIdRef.current,
+              revisionRef,
+              command: {
+                type: 'object.create',
+                objectId: newObjectId(),
+                sceneId,
+                name: item.name,
+                objectType: 'obstacle',
+                properties: {
+                  position: { x: 500, y: 300, z: 0 },
+                  shape: item.shape,
+                  color: item.color,
+                  size: item.size || 50,
+                  obstacleType: item.id,
                 },
-              }),
+              },
             });
             if (response.ok) {
               const projectResponse = await fetch(`/api/projects/${projectId}`);
@@ -1519,36 +1513,28 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             }
             const addedTo = objectIdsIn(sceneId);
 
-            const response = await fetch('/api/ai/apply-update', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                projectId,
-                update: {
-                  type: 'add_game_object',
-                  scene_id: sceneId,
-                  game_object: {
-                    type: 'sound',
-                    name: item.name,
-                    position: { x: 500, y: 300, z: 0 },
-                    sprite_data: {
-                      shape: item.shape,
-                      color: item.color,
-                      size: item.size || 40,
-                    },
-                    properties: {
-                      shape: item.shape,
-                      color: item.color,
-                      size: item.size || 40,
-                      soundType: item.id,
-                      // The picker's own properties carry beat/bpm/autoplay_beat
-                      // for the Beats tab. These used to be dropped on the floor
-                      // here, so picking "Chill 90" persisted no beat at all.
-                      ...(item.properties ?? {}),
-                    },
-                  },
+            const response = await commandServiceCall({
+              projectId,
+              editingSessionId: editingSessionIdRef.current,
+              revisionRef,
+              command: {
+                type: 'object.create',
+                objectId: newObjectId(),
+                sceneId,
+                name: item.name,
+                objectType: 'sound',
+                properties: {
+                  position: { x: 500, y: 300, z: 0 },
+                  shape: item.shape,
+                  color: item.color,
+                  size: item.size || 40,
+                  soundType: item.id,
+                  // The picker's own properties carry beat/bpm/autoplay_beat
+                  // for the Beats tab. These used to be dropped on the floor
+                  // here, so picking "Chill 90" persisted no beat at all.
+                  ...(item.properties ?? {}),
                 },
-              }),
+              },
             });
             if (response.ok) {
               const projectResponse = await fetch(`/api/projects/${projectId}`);
