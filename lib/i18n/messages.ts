@@ -265,6 +265,13 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
     'home.footer.link.guidelines': 'Community guidelines',
     'home.footer.copyright': '© {year} lingplay. Made for kids.',
     'home.footer.status': 'All systems normal',
+
+    // Mobile viewport gate for the block editor.
+    'editor.mobile.title': "The editor needs a bigger screen",
+    'editor.mobile.subtitle': "Building games with blocks + 3D works best on a computer or tablet. Come back on a bigger screen — everything you make will still be here.",
+    'editor.mobile.exploreCta': 'Explore games',
+    'editor.mobile.myGamesCta': 'My games',
+    'editor.mobile.rotationHint': 'On a tablet? Try rotating to landscape.',
   },
 
   zh: {
@@ -493,6 +500,13 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
     'home.footer.link.guidelines': '社区规范',
     'home.footer.copyright': '© {year} lingplay。为孩子而生。',
     'home.footer.status': '一切正常',
+
+    // 编辑器移动端提示
+    'editor.mobile.title': '编辑器需要更大的屏幕',
+    'editor.mobile.subtitle': '用积木 + 3D 制作游戏最好在电脑或平板上。用大屏幕再来 —— 你做的一切都会保留在这里。',
+    'editor.mobile.exploreCta': '浏览游戏',
+    'editor.mobile.myGamesCta': '我的游戏',
+    'editor.mobile.rotationHint': '用平板的话?试试横屏。',
   },
   es: {
     'editor.move': 'Mover',

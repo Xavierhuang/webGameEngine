@@ -3,6 +3,7 @@ import { query, queryOne } from '@/lib/mysql/server';
 import { resolveCurrentActor } from '@/lib/auth/actor';
 import { requireProjectEdit } from '@/lib/auth/access';
 import GameEditor from '@/components/editor/GameEditor';
+import { MobileEditorGate } from '@/components/editor/MobileEditorGate';
 import { CollaborationProvider } from '@/components/realtime/CollaborationProvider';
 
 interface EditorPageProps {
@@ -161,13 +162,15 @@ export default async function EditorPage({ params }: EditorPageProps) {
   username = userProfile?.username || userProfile?.display_name || 'Player';
 
   return (
-    <CollaborationProvider
-      projectId={id}
-      userId={userId}
-      username={username}
-    >
-      <GameEditor projectId={id} initialData={projectWithRelations} />
-    </CollaborationProvider>
+    <MobileEditorGate>
+      <CollaborationProvider
+        projectId={id}
+        userId={userId}
+        username={username}
+      >
+        <GameEditor projectId={id} initialData={projectWithRelations} />
+      </CollaborationProvider>
+    </MobileEditorGate>
   );
 }
 

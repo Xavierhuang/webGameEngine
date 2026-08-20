@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Boxes } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Boxes, Menu, X } from 'lucide-react';
 import { PALETTE } from './design';
 import { SignOutButton } from './SignOutButton';
 import { LocaleSwitcher } from './LocaleSwitcher';
@@ -13,6 +14,11 @@ import { useTranslator, useLocale } from './LocaleProvider';
  * A client component: it is rendered from both server pages and the client
  * page at app/projects/new, so it must not import next/headers. The locale
  * arrives via LocaleProvider, which the root layout feeds from the server.
+ *
+ * Below the md breakpoint (<768px) the horizontal link row is replaced with
+ * a hamburger button that opens a slide-down panel — previously the nav
+ * links simply disappeared on phones with no replacement, so mobile users
+ * could not reach Explore / My Games / Learn / For Parents from anywhere.
  */
 export function AppNav({
   signedInAs,
@@ -22,10 +28,29 @@ export function AppNav({
 } = {}) {
   const locale = useLocale();
   const t = useTranslator();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close the mobile panel on Escape and when the viewport widens past the
+  // md breakpoint (so a rotate-to-landscape doesn't leave a stuck sheet).
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    const onResize = () => {
+      if (window.matchMedia('(min-width: 768px)').matches) setMobileOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [mobileOpen]);
 
   return (
     <nav className="sticky top-0 z-40 backdrop-blur bg-white/80 border-b border-slate-200">
-      <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-slate-900">
           <LogoMark />
           <span>lingplay</span>
@@ -64,9 +89,71 @@ export function AppNav({
           >
             {t('nav.startBuilding')}
           </Link>
+          {/* Hamburger — visible only when the desktop nav row is hidden. */}
+          <button
+            type="button"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+            aria-controls="app-nav-mobile"
+            onClick={() => setMobileOpen((v) => !v)}
+            className="md:hidden inline-flex items-center justify-center w-10 h-10 rounded-md text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          >
+            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile panel — slides down from the bottom of the nav bar. */}
+      {mobileOpen && (
+        <div
+          id="app-nav-mobile"
+          className="md:hidden border-t border-slate-200 bg-white/95 backdrop-blur"
+        >
+          <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col text-base font-medium text-slate-700">
+            <MobileLink href="/projects/new" onClick={() => setMobileOpen(false)}>{t('nav.create')}</MobileLink>
+            <MobileLink href="/explore" onClick={() => setMobileOpen(false)}>{t('nav.explore')}</MobileLink>
+            <MobileLink href="/projects" onClick={() => setMobileOpen(false)}>{t('nav.myGames')}</MobileLink>
+            <MobileLink href="/learn" onClick={() => setMobileOpen(false)}>{t('nav.learn')}</MobileLink>
+            <MobileLink href="/#safety" onClick={() => setMobileOpen(false)}>{t('nav.forParents')}</MobileLink>
+            <div className="my-2 h-px bg-slate-100" />
+            {signedInAs ? (
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{ background: PALETTE.control }}
+                  />
+                  {signedInAs}
+                </span>
+                <SignOutButton label={t('nav.signOut')} />
+              </div>
+            ) : (
+              <MobileLink href="/auth/login" onClick={() => setMobileOpen(false)}>{t('nav.signIn')}</MobileLink>
+            )}
+          </div>
+        </div>
+      )}
     </nav>
+  );
+}
+
+function MobileLink({
+  href,
+  children,
+  onClick,
+}: {
+  href: string;
+  children: React.ReactNode;
+  onClick?: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onClick}
+      className="px-3 py-3 rounded-md hover:bg-slate-100 min-h-[44px] flex items-center"
+    >
+      {children}
+    </Link>
   );
 }
 

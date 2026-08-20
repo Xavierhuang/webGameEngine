@@ -103,7 +103,7 @@ export default async function ProjectsPage(props: {
         </div>
 
         {projects && projects.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {projects.map((project) => (
               <ProjectCard key={project.id} project={project} />
             ))}
