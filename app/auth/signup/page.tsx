@@ -46,7 +46,7 @@ export default function SignUpPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Account creation failed. Please try again.');
+        throw new Error(data.error || t('auth.signup.errGeneric'));
       }
 
       if (data.success) {
@@ -60,13 +60,13 @@ export default function SignUpPage() {
         router.push('/projects?signup=success');
       }
     } catch (err: any) {
-      let errorMessage = err.message || 'Something went wrong';
+      let errorMessage = err.message || t('auth.signup.errFallback');
       if (errorMessage.includes('rate limit') || errorMessage.includes('429') || err.status === 429) {
-        errorMessage = 'Too many signup attempts. Please wait 60 seconds and try again.';
+        errorMessage = t('auth.signup.errRateLimit');
       } else if (errorMessage.includes('already registered')) {
-        errorMessage = 'This email is already registered. Try signing in instead.';
+        errorMessage = t('auth.signup.errAlreadyRegistered');
       } else if (errorMessage.includes('password')) {
-        errorMessage = 'Password must be at least 6 characters long.';
+        errorMessage = t('auth.signup.errPassword');
       }
       setError(errorMessage);
     } finally {
@@ -76,19 +76,19 @@ export default function SignUpPage() {
 
   return (
     <AuthShell
-      title="Create your account"
-      subtitle="Start building 3D games with blocks and AI."
+      title={t('auth.signup.title')}
+      subtitle={t('auth.signup.subtitle')}
       footer={
         <p className="text-sm text-slate-600">
-          Already have an account?{' '}
+          {t('auth.signup.haveAccount')}{' '}
           <Link href="/auth/login" className="text-slate-900 font-semibold underline underline-offset-2">
-            Sign in
+            {t('auth.signup.signInLink')}
           </Link>
         </p>
       }
     >
       <form onSubmit={handleSignUp} className="space-y-4">
-        <Field label="Username">
+        <Field label={t('auth.signup.usernameLabel')}>
           <input
             type="text"
             value={username}
@@ -96,7 +96,7 @@ export default function SignUpPage() {
             required
             autoComplete="username"
             className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
-            placeholder="Pick a fun name"
+            placeholder={t('auth.signup.usernamePlaceholder')}
           />
         </Field>
 
@@ -108,11 +108,11 @@ export default function SignUpPage() {
             required
             autoComplete="email"
             className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
-            placeholder="you@example.com"
+            placeholder={t('auth.signup.emailPlaceholder')}
           />
         </Field>
 
-        <Field label="Password" hint="At least 8 characters.">
+        <Field label={t('auth.signup.passwordLabel')} hint={t('auth.signup.passwordHint')}>
           <input
             type="password"
             value={password}
@@ -121,14 +121,14 @@ export default function SignUpPage() {
             minLength={8}
             autoComplete="new-password"
             className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
-            placeholder="Pick a strong password"
+            placeholder={t('auth.signup.passwordPlaceholder')}
           />
         </Field>
 
-        <Field label="Date of birth" hint="We use this to keep younger kids safe.">
+        <Field label={t('auth.signup.dobLabel')} hint={t('auth.signup.dobHint')}>
           <input
             type="date"
-            aria-label="Date of birth"
+            aria-label={t('auth.signup.dobLabel')}
             value={dateOfBirth}
             onChange={(e) => setDateOfBirth(e.target.value)}
             required
@@ -139,8 +139,8 @@ export default function SignUpPage() {
 
         {needsParentEmail && (
           <Field
-            label="A parent or guardian's email"
-            hint="Because you're under 13, we'll email a grown-up to ask their permission. You can keep building privately while you wait."
+            label={t('auth.signup.parentEmailLabel')}
+            hint={t('auth.signup.parentEmailHint')}
           >
             <input
               type="email"
@@ -148,7 +148,7 @@ export default function SignUpPage() {
               onChange={(e) => setParentEmail(e.target.value)}
               required
               className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
-              placeholder="parent@example.com"
+              placeholder={t('auth.signup.parentEmailPlaceholder')}
             />
           </Field>
         )}
@@ -171,11 +171,11 @@ export default function SignUpPage() {
             verifies the email before granting parent capabilities). The
             checkbox-based self-declare is gone. */}
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
-          <strong className="font-semibold text-slate-800">Are you a parent?</strong>{' '}
+          <strong className="font-semibold text-slate-800">{t('auth.signup.parentPromptLabel')}</strong>{' '}
           <Link href="/auth/parent-enrollment" className="text-slate-900 underline underline-offset-2 font-semibold">
-            Enroll as a parent
+            {t('auth.signup.parentPromptLink')}
           </Link>{' '}
-          instead — we&apos;ll verify your email before turning on the parent controls.
+          {t('auth.signup.parentPromptSuffix')}
         </div>
       </form>
     </AuthShell>

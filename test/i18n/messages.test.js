@@ -21,7 +21,11 @@ eq(baseKeys.length > 0, true, 'the default catalog has keys');
 // staged. The `translate()` fallback (locale -> en -> key) still renders these
 // gracefully in English for locales that haven't caught up. Remove a namespace
 // from this list once every locale has real translations for it.
-const PENDING_TRANSLATION_NAMESPACES = ['home.', 'editor.mobile.', 'newProject.'];
+const PENDING_TRANSLATION_NAMESPACES = [
+  'home.', 'editor.mobile.', 'newProject.',
+  'auth.login.', 'auth.signup.', 'auth.forgot.', 'auth.reset.',
+  'learn.', 'privacy.', 'projects.',
+];
 // Locales that DO have real translations for the pending namespaces above.
 // Any locale not listed here is allowed to be missing those keys.
 const FULLY_TRANSLATED = new Set(['en', 'zh']);
@@ -73,6 +77,11 @@ const SAME_AS_ENGLISH = new Set([
   'sv:editor.position',    // "Position (X, Y, Z)" is identical in Swedish
   'zh:home.gallery.tag.askAi',  // "ask_ai" is a block identifier, kept as-is in Chinese
   'zh:home.footer.link.github', // "GitHub" is a brand name, kept as-is in Chinese
+  // Placeholder email formats — same shape in every locale.
+  'zh:auth.login.emailPlaceholder',
+  'zh:auth.signup.emailPlaceholder',
+  'zh:auth.signup.parentEmailPlaceholder',
+  'zh:auth.forgot.emailPlaceholder',
 ]);
 
 // No locale may simply echo the English string — that is what a half-finished

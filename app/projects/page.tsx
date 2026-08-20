@@ -55,17 +55,17 @@ export default async function ProjectsPage(props: {
         {signupSuccess && (
           <NotificationBar
             tone="success"
-            title="Welcome! Your account is ready."
-            body="Start creating games — every project you make is saved to your account."
+            title={t('projects.signupSuccess.title')}
+            body={t('projects.signupSuccess.body')}
           />
         )}
         {actor.kind === 'anonymous' && (
           <NotificationBar
             tone="info"
-            title="You're creating as a guest."
+            title={t('projects.guest.title')}
             body={
               <>
-                <Link href="/auth/signup" className="font-semibold underline">Sign up</Link> to save your games permanently.
+                <Link href="/auth/signup" className="font-semibold underline">{t('projects.guest.signUp')}</Link> {t('projects.guest.bodySuffix')}
               </>
             }
           />
@@ -73,8 +73,8 @@ export default async function ProjectsPage(props: {
         {profile && !profile.parental_approval && profile.role === 'child' && (
           <NotificationBar
             tone="warning"
-            title="Waiting for parent approval."
-            body="You can build and play locally — some sharing features unlock once a parent approves the account."
+            title={t('projects.pending.title')}
+            body={t('projects.pending.body')}
           />
         )}
 
@@ -84,10 +84,10 @@ export default async function ProjectsPage(props: {
               {actor.kind === 'user' ? t('projects.signedIn') : t('projects.guestMode')}
             </div>
             <h1 className="mt-1 text-4xl font-black tracking-tight text-slate-900">
-              {displayName}&apos;s Games
+              {t('projects.title').replace('{name}', displayName)}
             </h1>
             <p className="mt-2 text-slate-600 max-w-xl">
-              Every project you build lives here. Open one to keep editing, or start a fresh world.
+              {t('projects.subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -105,11 +105,11 @@ export default async function ProjectsPage(props: {
         {projects && projects.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {projects.map((project) => (
-              <ProjectCard key={project.id} project={project} />
+              <ProjectCard key={project.id} project={project} t={t} />
             ))}
           </div>
         ) : (
-          <EmptyState />
+          <EmptyState t={t} />
         )}
       </div>
     </div>
@@ -138,7 +138,7 @@ function NotificationBar({
   );
 }
 
-function ProjectCard({ project }: { project: any }) {
+function ProjectCard({ project, t }: { project: any; t: (k: any) => string }) {
   return (
     <div className="group rounded-2xl overflow-hidden border border-slate-200 bg-white hover:shadow-xl hover:border-slate-300 transition">
       <div className="relative h-40 bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200">
@@ -165,7 +165,7 @@ function ProjectCard({ project }: { project: any }) {
       <div className="p-4">
         <h2 className="font-bold text-slate-900 truncate">{project.title}</h2>
         <p className="mt-1 text-sm text-slate-500 line-clamp-2 min-h-[2.5rem]">
-          {project.description || 'No description yet.'}
+          {project.description || t('projects.card.noDescription')}
         </p>
 
         <div className="mt-4 flex gap-2">
@@ -174,19 +174,19 @@ function ProjectCard({ project }: { project: any }) {
             className="flex-1 inline-flex items-center justify-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg px-3 py-2 transition"
           >
             <Edit className="w-3.5 h-3.5" />
-            Edit
+            {t('projects.card.edit')}
           </Link>
           <Link
             href={`/play/${project.id}`}
             className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 text-sm font-semibold rounded-lg px-3 py-2 transition"
           >
             <Play className="w-3.5 h-3.5" />
-            Play
+            {t('projects.card.play')}
           </Link>
         </div>
 
         <div className="mt-3 text-xs text-slate-400">
-          Updated {new Date(project.updated_at).toLocaleDateString()}
+          {t('projects.card.updated').replace('{date}', new Date(project.updated_at).toLocaleDateString())}
         </div>
       </div>
     </div>
@@ -216,17 +216,17 @@ function genreEmoji(genre: string | null | undefined): string {
   }
 }
 
-function EmptyState() {
+function EmptyState({ t }: { t: (k: any) => string }) {
   return (
     <div className="mt-8 rounded-3xl border border-dashed border-slate-300 bg-slate-50/50 px-6 py-16 text-center">
       <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-sm mb-6">
         <Sparkles className="w-7 h-7 text-slate-400" />
       </div>
       <h2 className="text-2xl font-black text-slate-900">
-        No games yet — let&apos;s fix that.
+        {t('projects.empty.title')}
       </h2>
       <p className="mt-2 text-slate-600 max-w-md mx-auto">
-        Start with a blank 3D world, or describe one to the AI and it&apos;ll scaffold the whole project for you.
+        {t('projects.empty.body')}
       </p>
       <div className="mt-6">
         <Link
@@ -234,7 +234,7 @@ function EmptyState() {
           className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-6 py-3 shadow-lg shadow-slate-900/10 transition"
         >
           <Plus className="w-4 h-4" />
-          Create Your First Game
+          {t('projects.empty.cta')}
         </Link>
       </div>
     </div>

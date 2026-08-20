@@ -30,9 +30,9 @@ export default function LoginPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setError('Account not found. Please sign up first, or check your email and password.');
+          setError(t('auth.login.errAccountNotFound'));
         } else {
-          setError(data.error || 'Unable to sign in. Please try again.');
+          setError(data.error || t('auth.login.errGeneric'));
         }
         return;
       }
@@ -42,7 +42,7 @@ export default function LoginPage() {
         router.refresh();
       }
     } catch (err: any) {
-      setError(err.message || 'Something went wrong. Please try again.');
+      setError(err.message || t('auth.login.errNetwork'));
     } finally {
       setLoading(false);
     }
@@ -50,13 +50,13 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Sign in to keep building your games."
+      title={t('auth.login.title')}
+      subtitle={t('auth.login.subtitle')}
       footer={
         <p className="text-sm text-slate-600">
-          Don&apos;t have an account?{' '}
+          {t('auth.login.noAccount')}{' '}
           <Link href="/auth/signup" className="text-slate-900 font-semibold underline underline-offset-2">
-            Sign up
+            {t('auth.login.signUpLink')}
           </Link>
         </p>
       }
@@ -70,7 +70,7 @@ export default function LoginPage() {
             required
             autoComplete="email"
             className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
-            placeholder="you@example.com"
+            placeholder={t('auth.login.emailPlaceholder')}
           />
         </Field>
 
@@ -82,7 +82,7 @@ export default function LoginPage() {
             required
             autoComplete="current-password"
             className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
-            placeholder="Your password"
+            placeholder={t('auth.login.passwordPlaceholder')}
           />
         </Field>
 
@@ -97,7 +97,7 @@ export default function LoginPage() {
             href="/auth/forgot-password"
             className="text-sm text-slate-600 hover:text-slate-900"
           >
-            Forgot password?
+            {t('auth.login.forgotPassword')}
           </Link>
         </div>
 
