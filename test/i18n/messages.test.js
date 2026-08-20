@@ -21,7 +21,7 @@ eq(baseKeys.length > 0, true, 'the default catalog has keys');
 // staged. The `translate()` fallback (locale -> en -> key) still renders these
 // gracefully in English for locales that haven't caught up. Remove a namespace
 // from this list once every locale has real translations for it.
-const PENDING_TRANSLATION_NAMESPACES = ['home.', 'editor.mobile.'];
+const PENDING_TRANSLATION_NAMESPACES = ['home.', 'editor.mobile.', 'newProject.'];
 // Locales that DO have real translations for the pending namespaces above.
 // Any locale not listed here is allowed to be missing those keys.
 const FULLY_TRANSLATED = new Set(['en', 'zh']);

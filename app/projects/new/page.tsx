@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { ArrowLeft, Shuffle, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
+import { useTranslator } from '@/components/common/LocaleProvider';
+import type { MessageKey } from '@/lib/i18n/messages';
 import { ensureGuestSession } from '@/lib/auth/guestSessionClient';
 
 // Random game name pool — adjective + noun combos so /projects/new is
@@ -35,13 +37,13 @@ const TITLE_NOUNS = [
  * compared with the screen. Blank, with a placeholder inviting them to write
  * one when they have something to describe.
  */
-const GENRES: { value: string; label: string; emoji: string }[] = [
-  { value: 'platformer', label: 'Platformer', emoji: '🏃' },
-  { value: 'puzzle', label: 'Puzzle', emoji: '🧩' },
-  { value: 'adventure', label: 'Adventure', emoji: '🗺️' },
-  { value: 'racing', label: 'Racing', emoji: '🏎️' },
-  { value: 'arcade', label: 'Arcade', emoji: '🕹️' },
-  { value: 'other', label: 'Other', emoji: '🎮' },
+const GENRES: { value: string; labelKey: MessageKey; emoji: string }[] = [
+  { value: 'platformer', labelKey: 'newProject.genre.platformer', emoji: '🏃' },
+  { value: 'puzzle',     labelKey: 'newProject.genre.puzzle',     emoji: '🧩' },
+  { value: 'adventure',  labelKey: 'newProject.genre.adventure',  emoji: '🗺️' },
+  { value: 'racing',     labelKey: 'newProject.genre.racing',     emoji: '🏎️' },
+  { value: 'arcade',     labelKey: 'newProject.genre.arcade',     emoji: '🕹️' },
+  { value: 'other',      labelKey: 'newProject.genre.other',      emoji: '🎮' },
 ];
 
 const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
@@ -64,6 +66,7 @@ export default function NewProjectPage() {
 }
 
 function NewProjectPageInner() {
+  const t = useTranslator();
   // Server-render placeholder defaults so hydration matches; useEffect below
   // rerolls to a fresh random combo the moment the client mounts.
   const [title, setTitle] = useState('My Awesome Game');
@@ -73,6 +76,15 @@ function NewProjectPageInner() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Localized subtitle: "…just tap Create, or change what you like first."
+  // The {createBold} placeholder wraps a bolded, non-linking word to match
+  // the original design; splitting on the marker keeps translation-agnostic
+  // word order (e.g. Chinese moves "创建" to the end).
+  const subtitleTemplate = t('newProject.subtitle');
+  const [subtitleBefore, subtitleAfter] = subtitleTemplate.includes('{createBold}')
+    ? subtitleTemplate.split('{createBold}')
+    : [subtitleTemplate, ''];
 
   useEffect(() => {
     const d = randomDefaults();
@@ -115,14 +127,14 @@ function NewProjectPageInner() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create project');
+        throw new Error(data.error || t('newProject.error.default'));
       }
 
       if (data.project) {
         router.push(`/editor/${data.project.id}`);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to create project');
+      setError(err.message || t('newProject.error.default'));
     } finally {
       setLoading(false);
     }
@@ -139,35 +151,37 @@ function NewProjectPageInner() {
           className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-medium mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to My Games
+          {t('newProject.back')}
         </Link>
 
         <div className="rounded-3xl border border-slate-200 bg-white shadow-xl p-8">
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
               <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-                New project
+                {t('newProject.eyebrow')}
               </div>
               <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
-                Name your game.
+                {t('newProject.title')}
               </h1>
               <p className="mt-2 text-slate-600 text-sm">
-                Everything&apos;s pre-filled — just tap <span className="font-semibold text-slate-900">Create</span>, or change what you like first.
+                {subtitleBefore}
+                <span className="font-semibold text-slate-900">{t('newProject.createInline')}</span>
+                {subtitleAfter}
               </p>
             </div>
             <button
               type="button"
               onClick={shuffle}
-              title="Reroll a random name"
+              title={t('newProject.shuffleTitle')}
               className="shrink-0 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-full px-3 py-2 transition"
             >
               <Shuffle className="w-3.5 h-3.5" />
-              Shuffle
+              {t('newProject.shuffle')}
             </button>
           </div>
 
           <form onSubmit={handleCreate} className="space-y-5">
-            <Field label="Game title">
+            <Field label={t('newProject.field.title')}>
               <input
                 type="text"
                 value={title}
@@ -175,22 +189,22 @@ function NewProjectPageInner() {
                 required
                 maxLength={50}
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900"
-                placeholder="My Awesome Game"
+                placeholder={t('newProject.field.titlePlaceholder')}
               />
             </Field>
 
-            <Field label="Description" hint="A one-liner about what the game is.">
+            <Field label={t('newProject.field.description')} hint={t('newProject.field.descriptionHint')}>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={500}
                 rows={3}
                 className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent bg-white text-slate-900 resize-none"
-                placeholder="What kind of game are you creating?"
+                placeholder={t('newProject.field.descriptionPlaceholder')}
               />
             </Field>
 
-            <Field label="Genre">
+            <Field label={t('newProject.field.genre')}>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {GENRES.map((g) => (
                   <button
@@ -204,7 +218,7 @@ function NewProjectPageInner() {
                     }`}
                   >
                     <span className="text-lg">{g.emoji}</span>
-                    {g.label}
+                    {t(g.labelKey)}
                   </button>
                 ))}
               </div>
@@ -222,7 +236,7 @@ function NewProjectPageInner() {
               className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-3 rounded-full font-semibold shadow-lg shadow-slate-900/10 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Sparkles className="w-4 h-4" />
-              {loading ? 'Creating…' : 'Create Game'}
+              {loading ? t('newProject.submitLoading') : t('newProject.submit')}
             </button>
           </form>
         </div>
