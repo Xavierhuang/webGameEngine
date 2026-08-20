@@ -13,18 +13,23 @@ import {
 } from 'lucide-react';
 import { AppNav, LogoMark } from '@/components/common/AppNav';
 import { PALETTE } from '@/components/common/design';
+import { getTranslator } from '@/lib/i18n/server';
+import type { MessageKey } from '@/lib/i18n/messages';
 
-export default function Home() {
+type T = (key: MessageKey) => string;
+
+export default async function Home() {
+  const t = await getTranslator();
   return (
     <main className="min-h-screen bg-white text-slate-900">
       <AppNav />
-      <Hero />
-      <BlockCategoriesSection />
-      <ThreeDimensionalSection />
-      <AISection />
-      <GallerySection />
-      <SafetyBar />
-      <Footer />
+      <Hero t={t} />
+      <BlockCategoriesSection t={t} />
+      <ThreeDimensionalSection t={t} />
+      <AISection t={t} />
+      <GallerySection t={t} />
+      <SafetyBar t={t} />
+      <Footer t={t} />
     </main>
   );
 }
@@ -33,7 +38,7 @@ export default function Home() {
 // Hero
 // -----------------------------------------------------------------------------
 
-function Hero() {
+function Hero({ t }: { t: T }) {
   return (
     <section className="relative overflow-hidden">
       <div
@@ -53,16 +58,15 @@ function Hero() {
               className="inline-block w-2 h-2 rounded-full"
               style={{ background: PALETTE.ai }}
             />
-            AI-powered · 3D · Free forever
+            {t('home.hero.badge')}
           </div>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black leading-[1.05] tracking-tight text-slate-900">
-            Make <span style={{ color: PALETTE.motion }}>3D games</span>.<br />
-            With blocks.<br />
-            With <span style={{ color: PALETTE.ai }}>AI</span>.
+            {t('home.hero.title.line1')}<br />
+            {t('home.hero.title.line2')}<br />
+            {t('home.hero.title.line3')}
           </h1>
           <p className="mt-6 text-base sm:text-lg text-slate-600 max-w-xl">
-            Snap Scratch-style blocks together to build worlds, characters, and games — in
-            real 3D. Stuck? Ask the built-in AI and it&apos;ll write the code with you.
+            {t('home.hero.subtitle')}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -70,24 +74,24 @@ function Hero() {
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-6 py-3 text-base shadow-lg shadow-slate-900/10 transition"
             >
               <Play className="w-4 h-4" />
-              Start Building
+              {t('home.hero.cta.build')}
             </Link>
             <Link
               href="/explore"
               className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 font-semibold rounded-full px-6 py-3 text-base transition"
             >
-              Explore Projects
+              {t('home.hero.cta.explore')}
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
           <div className="mt-10 flex items-center gap-6 text-sm text-slate-500">
-            <StatPill value="90+" label="blocks" />
-            <StatPill value="12" label="categories" />
-            <StatPill value="3D" label="native" />
+            <StatPill value="90+" label={t('home.hero.stats.blocks')} />
+            <StatPill value="12" label={t('home.hero.stats.categories')} />
+            <StatPill value="3D" label={t('home.hero.stats.native')} />
           </div>
         </div>
         <div className="lg:col-span-6">
-          <EditorPreview />
+          <EditorPreview t={t} />
         </div>
       </div>
     </section>
@@ -105,7 +109,7 @@ function StatPill({ value, label }: { value: string; label: string }) {
 
 // A stylized preview of the editor — palette on the left, block stack in the
 // middle, 3D scene on the right. Pure CSS, no runtime.
-function EditorPreview() {
+function EditorPreview({ t }: { t: T }) {
   return (
     <div className="relative">
       <div className="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-blue-100/50 via-purple-100/40 to-orange-100/40 blur-2xl" />
@@ -115,7 +119,7 @@ function EditorPreview() {
           <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
           <span className="w-2.5 h-2.5 rounded-full bg-green-400" />
           <span className="ml-3 text-xs text-slate-500 font-medium">
-            lingplay editor · Space Explorer
+            {t('home.preview.editorName')}
           </span>
         </div>
         <div className="grid grid-cols-12 h-[340px] sm:h-[380px]">
@@ -132,20 +136,20 @@ function EditorPreview() {
             <PaletteChip color={PALETTE.variables} label="Vars" />
           </div>
           {/* Block stack */}
-          <div className="col-span-7 sm:col-span-5 p-3 sm:p-4 space-y-1.5 bg-white overflow-hidden">
+          <div className="col-span-6 sm:col-span-5 p-3 space-y-1.5 overflow-hidden">
             <FakeBlock color={PALETTE.events} shape="hat" text="when game starts" />
-            <FakeBlock color={PALETTE.looks} text="say  Hello!  for  2  secs" />
+            <FakeBlock color={PALETTE.looks} text="say Hello for 2 secs" />
             <FakeBlock color={PALETTE.control} shape="c-open" text="forever" />
             <FakeBlock color={PALETTE.motion} nested text="move  forward  200" />
             <FakeBlock color={PALETTE.control} shape="c-open" nested text="if  touching  Wall  then" />
-            <FakeBlock color={PALETTE.motion} nestedDeep text="rotate y 180" />
+            <FakeBlock color={PALETTE.motion} nestedDeep text="rotate  y  180" />
             <FakeBlock color={PALETTE.control} shape="c-close" nested text="end" />
             <FakeBlock color={PALETTE.ai} nested text="ask AI  next move  into  plan" />
             <FakeBlock color={PALETTE.control} shape="c-close" text="end" />
           </div>
           {/* 3D scene */}
-          <div className="col-span-5 sm:col-span-4 relative bg-gradient-to-b from-sky-200 via-sky-100 to-emerald-100 overflow-hidden">
-            <ScenePreview />
+          <div className="col-span-6 sm:col-span-4 relative bg-gradient-to-b from-sky-100 to-emerald-100">
+            <ScenePreview t={t} />
           </div>
         </div>
       </div>
@@ -153,10 +157,18 @@ function EditorPreview() {
   );
 }
 
-function PaletteChip({ color, label, active }: { color: string; label: string; active?: boolean }) {
+function PaletteChip({
+  color,
+  label,
+  active,
+}: {
+  color: string;
+  label: string;
+  active?: boolean;
+}) {
   return (
     <div
-      className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${active ? 'bg-white shadow-sm ring-1 ring-slate-200' : ''}`}
+      className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${active ? 'bg-white shadow-sm' : ''}`}
     >
       <span
         className="inline-block w-3 h-3 rounded-full"
@@ -195,7 +207,7 @@ function FakeBlock({
   );
 }
 
-function ScenePreview() {
+function ScenePreview({ t }: { t: T }) {
   return (
     <>
       {/* Sun */}
@@ -208,7 +220,7 @@ function ScenePreview() {
       <div className="absolute bottom-24 right-6 w-4 h-4 rounded-full bg-yellow-400 shadow" />
       {/* Speech bubble */}
       <div className="absolute top-8 left-4 bg-white text-slate-800 text-[10px] font-semibold rounded-lg px-2 py-1 shadow-md border border-slate-200">
-        Hello!
+        {t('home.preview.speech')}
       </div>
     </>
   );
@@ -233,14 +245,14 @@ const CATEGORIES: { name: string; color: string; count: number; sample: string }
   { name: 'My Blocks', color: PALETTE.myblocks, count: 999, sample: 'define your own' },
 ];
 
-function BlockCategoriesSection() {
+function BlockCategoriesSection({ t }: { t: T }) {
   return (
     <section className="py-14 sm:py-20 border-t border-slate-100">
       <div className="max-w-7xl mx-auto px-6">
         <SectionHeader
-          eyebrow="Every block Scratch has — and 3D on top"
-          title="A full block language, categorized like you already know."
-          copy="Motion, Looks, Sound, Events, Control, Sensing, Operators, Variables, Lists, and Clones — plus native 3D writers and an AI category for asking the model at runtime."
+          eyebrow={t('home.categories.eyebrow')}
+          title={t('home.categories.title')}
+          copy={t('home.categories.copy')}
         />
         <div className="mt-12 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {CATEGORIES.map((c) => (
@@ -313,24 +325,24 @@ function SectionHeader({
 // 3D thesis
 // -----------------------------------------------------------------------------
 
-function ThreeDimensionalSection() {
+function ThreeDimensionalSection({ t }: { t: T }) {
   return (
     <section className="py-14 sm:py-20 bg-slate-50 border-y border-slate-100">
       <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-12 gap-10 items-center">
         <div className="lg:col-span-5">
           <SectionHeader
-            eyebrow="Beyond 2D sprites"
-            title="Sprites are flat. Worlds aren't."
-            copy="Every object is a real 3D shape you can rotate, glide, scale, and collide in three axes. Cameras follow characters, physics is on by default, and clones spawn at live positions — up to 300 at once."
+            eyebrow={t('home.threed.eyebrow')}
+            title={t('home.threed.title')}
+            copy={t('home.threed.copy')}
           />
           <ul className="mt-8 space-y-3 text-slate-700">
-            <FeatureRow icon={<Layers className="w-5 h-5" />} label="X, Y, Z motion writers: goto, glide, point-towards" />
-            <FeatureRow icon={<Boxes className="w-5 h-5" />} label="3D touching + distance sensing on world radii" />
-            <FeatureRow icon={<Wand2 className="w-5 h-5" />} label="Say / think bubbles that follow objects through space" />
+            <FeatureRow icon={<Layers className="w-5 h-5" />} label={t('home.threed.feature.motion')} />
+            <FeatureRow icon={<Boxes className="w-5 h-5" />} label={t('home.threed.feature.sensing')} />
+            <FeatureRow icon={<Wand2 className="w-5 h-5" />} label={t('home.threed.feature.bubbles')} />
           </ul>
         </div>
         <div className="lg:col-span-7">
-          <SceneShowcase />
+          <SceneShowcase t={t} />
         </div>
       </div>
     </section>
@@ -351,7 +363,7 @@ function FeatureRow({ icon, label }: { icon: React.ReactNode; label: string }) {
   );
 }
 
-function SceneShowcase() {
+function SceneShowcase({ t }: { t: T }) {
   return (
     <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-xl">
       <div className="relative h-[360px] bg-gradient-to-b from-sky-200 via-sky-100 to-emerald-100">
@@ -387,7 +399,7 @@ function SceneShowcase() {
         <div className="absolute bottom-28 left-20 w-10 h-10 rounded-full bg-purple-500 shadow-lg" />
         {/* Speech bubble */}
         <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-white text-slate-800 text-xs font-semibold rounded-xl px-3 py-1.5 shadow-md border border-slate-200">
-          Let&apos;s go! ▾
+          {t('home.threed.scene.speech')}
         </div>
       </div>
     </div>
@@ -398,23 +410,23 @@ function SceneShowcase() {
 // AI section
 // -----------------------------------------------------------------------------
 
-function AISection() {
+function AISection({ t }: { t: T }) {
   return (
     <section className="py-14 sm:py-20">
       <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-12 gap-10 items-center">
         <div className="lg:col-span-7 order-2 lg:order-1">
-          <AIMockup />
+          <AIMockup t={t} />
         </div>
         <div className="lg:col-span-5 order-1 lg:order-2">
           <SectionHeader
-            eyebrow="AI-first, not AI-bolted-on"
-            title="Ask, and the blocks appear."
-            copy="Describe what you want in plain English. The AI writes real block programs into your project — the same blocks you'd drag by hand. Nothing hidden, everything editable."
+            eyebrow={t('home.ai.eyebrow')}
+            title={t('home.ai.title')}
+            copy={t('home.ai.copy')}
           />
           <ul className="mt-8 space-y-3 text-slate-700">
-            <FeatureRow icon={<Bot className="w-5 h-5" />} label="AI generates full games from a prompt" />
-            <FeatureRow icon={<Sparkles className="w-5 h-5" />} label='Runtime "ask_ai" and "ai_decide" blocks — NPCs that think' />
-            <FeatureRow icon={<Wand2 className="w-5 h-5" />} label="Safe, moderated, and kid-appropriate by default" />
+            <FeatureRow icon={<Bot className="w-5 h-5" />} label={t('home.ai.feature.generate')} />
+            <FeatureRow icon={<Sparkles className="w-5 h-5" />} label={t('home.ai.feature.runtime')} />
+            <FeatureRow icon={<Wand2 className="w-5 h-5" />} label={t('home.ai.feature.safe')} />
           </ul>
         </div>
       </div>
@@ -422,17 +434,17 @@ function AISection() {
   );
 }
 
-function AIMockup() {
+function AIMockup({ t }: { t: T }) {
   return (
     <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-xl">
       <div className="flex items-center gap-2 px-4 h-10 border-b border-slate-200 bg-slate-50">
         <Bot className="w-4 h-4" style={{ color: PALETTE.ai }} />
-        <span className="text-sm font-semibold">AI Assistant</span>
+        <span className="text-sm font-semibold">{t('home.ai.mockup.assistantLabel')}</span>
       </div>
       <div className="p-5 space-y-3 bg-gradient-to-br from-orange-50/50 to-white">
-        <ChatBubble side="right">Build me a maze game with a red hero and coins to collect.</ChatBubble>
+        <ChatBubble side="right">{t('home.ai.mockup.user1')}</ChatBubble>
         <ChatBubble side="left">
-          <div className="mb-2">Added a 3D maze, a red character, and 8 coins. Here&apos;s what I wrote:</div>
+          <div className="mb-2">{t('home.ai.mockup.assistant1Preamble')}</div>
           <div className="space-y-1.5">
             <FakeBlock color={PALETTE.events} shape="hat" text="when game starts" />
             <FakeBlock color={PALETTE.control} shape="c-open" text="forever" />
@@ -444,7 +456,7 @@ function AIMockup() {
             <FakeBlock color={PALETTE.control} shape="c-close" text="end" />
           </div>
         </ChatBubble>
-        <ChatBubble side="right">Make the enemy chase me only when I&apos;m close.</ChatBubble>
+        <ChatBubble side="right">{t('home.ai.mockup.user2')}</ChatBubble>
       </div>
     </div>
   );
@@ -474,41 +486,50 @@ function ChatBubble({ side, children }: { side: 'left' | 'right'; children: Reac
 // to /projects/new so they can build the idea; the prompt is prefilled via
 // query params so the create form doesn't feel empty.
 const SAMPLE_PROJECTS: {
-  title: string;
-  tag: string;
+  titleKey: MessageKey;
+  tagKey: MessageKey;
   from: string;
   to: string;
   emoji: string;
   href: string;
 }[] = [
-  { title: 'Platformer Adventure', tag: 'starter', from: '#4C97FF', to: '#9966FF', emoji: '🏃', href: '/projects/new?genre=platformer' },
-  { title: 'Space Explorer', tag: 'physics', from: '#0F172A', to: '#4C97FF', emoji: '🚀', href: '/projects/new?genre=adventure' },
-  { title: 'Maze Runner', tag: 'AI enemy', from: '#FF6B35', to: '#FFBF00', emoji: '🌀', href: '/projects/new?genre=arcade' },
-  { title: 'Fish Tank', tag: 'clones', from: '#5CB1D6', to: '#59C059', emoji: '🐟', href: '/projects/new?genre=other' },
-  { title: 'Puzzle Room', tag: 'sensing', from: '#9966FF', to: '#CF63CF', emoji: '🧩', href: '/projects/new?genre=puzzle' },
-  { title: 'AI Pet', tag: 'ask_ai', from: '#FF6680', to: '#FF6B35', emoji: '🐶', href: '/projects/new?genre=other' },
+  { titleKey: 'home.gallery.project.platformer', tagKey: 'home.gallery.tag.starter',  from: '#4C97FF', to: '#9966FF', emoji: '🏃', href: '/projects/new?genre=platformer' },
+  { titleKey: 'home.gallery.project.space',      tagKey: 'home.gallery.tag.physics',  from: '#0F172A', to: '#4C97FF', emoji: '🚀', href: '/projects/new?genre=adventure' },
+  { titleKey: 'home.gallery.project.maze',       tagKey: 'home.gallery.tag.aiEnemy',  from: '#FF6B35', to: '#FFBF00', emoji: '🌀', href: '/projects/new?genre=arcade' },
+  { titleKey: 'home.gallery.project.fish',       tagKey: 'home.gallery.tag.clones',   from: '#5CB1D6', to: '#59C059', emoji: '🐟', href: '/projects/new?genre=other' },
+  { titleKey: 'home.gallery.project.puzzle',     tagKey: 'home.gallery.tag.sensing',  from: '#9966FF', to: '#CF63CF', emoji: '🧩', href: '/projects/new?genre=puzzle' },
+  { titleKey: 'home.gallery.project.pet',        tagKey: 'home.gallery.tag.askAi',    from: '#FF6680', to: '#FF6B35', emoji: '🐶', href: '/projects/new?genre=other' },
 ];
 
-function GallerySection() {
+function GallerySection({ t }: { t: T }) {
   return (
     <section className="py-14 sm:py-20 bg-slate-50 border-y border-slate-100" id="learn">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-end justify-between flex-wrap gap-4">
           <SectionHeader
-            eyebrow="Made with lingplay"
-            title="Start from a spark. Ship a whole world."
-            copy="Remix any starter or build from scratch. Every project runs in the browser — no downloads, no accounts required."
+            eyebrow={t('home.gallery.eyebrow')}
+            title={t('home.gallery.title')}
+            copy={t('home.gallery.copy')}
           />
           <Link
             href="/explore"
             className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700 hover:text-slate-900"
           >
-            Browse all <ArrowRight className="w-4 h-4" />
+            {t('home.gallery.browseAll')} <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
         <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {SAMPLE_PROJECTS.map((p) => (
-            <ProjectCard key={p.title} {...p} />
+            <ProjectCard
+              key={p.titleKey}
+              title={t(p.titleKey)}
+              tag={t(p.tagKey)}
+              from={p.from}
+              to={p.to}
+              emoji={p.emoji}
+              href={p.href}
+              startLabel={t('home.gallery.startBuildingThisIdea')}
+            />
           ))}
         </div>
       </div>
@@ -523,6 +544,7 @@ function ProjectCard({
   to,
   emoji,
   href,
+  startLabel,
 }: {
   title: string;
   tag: string;
@@ -530,6 +552,7 @@ function ProjectCard({
   to: string;
   emoji: string;
   href: string;
+  startLabel: string;
 }) {
   return (
     <Link
@@ -550,7 +573,7 @@ function ProjectCard({
       <div className="p-4 flex items-center justify-between">
         <div>
           <div className="font-bold text-slate-900">{title}</div>
-          <div className="text-xs text-slate-500">Start building this idea</div>
+          <div className="text-xs text-slate-500">{startLabel}</div>
         </div>
         <span
           className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 group-hover:bg-slate-900 group-hover:text-white transition"
@@ -567,7 +590,7 @@ function ProjectCard({
 // Safety bar
 // -----------------------------------------------------------------------------
 
-function SafetyBar() {
+function SafetyBar({ t }: { t: T }) {
   return (
     <section id="safety" className="py-14 sm:py-20">
       <div className="max-w-5xl mx-auto px-6">
@@ -575,21 +598,19 @@ function SafetyBar() {
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-500 mb-2">
               <Shield className="w-4 h-4" />
-              For parents and teachers
+              {t('home.safety.eyebrow')}
             </div>
             <h3 className="text-2xl font-black text-slate-900">
-              Safe by default. Kid-appropriate always.
+              {t('home.safety.title')}
             </h3>
             <p className="mt-3 text-slate-600">
-              AI responses are moderated. No open chat between kids. Projects
-              are private until you choose to share. Age-tuned content filters
-              run on every prompt.
+              {t('home.safety.copy')}
             </p>
           </div>
           <div className="grid grid-cols-3 md:grid-cols-1 gap-3 text-sm">
-            <TrustTile label="Moderated AI" />
-            <TrustTile label="Private by default" />
-            <TrustTile label="No open chat" />
+            <TrustTile label={t('home.safety.tile.moderated')} />
+            <TrustTile label={t('home.safety.tile.private')} />
+            <TrustTile label={t('home.safety.tile.noChat')} />
           </div>
         </div>
       </div>
@@ -609,7 +630,8 @@ function TrustTile({ label }: { label: string }) {
 // Footer
 // -----------------------------------------------------------------------------
 
-function Footer() {
+function Footer({ t }: { t: T }) {
+  const copyright = t('home.footer.copyright').replace('{year}', String(new Date().getFullYear()));
   return (
     <footer className="border-t border-slate-200 bg-white">
       <div className="max-w-7xl mx-auto px-6 py-12 grid md:grid-cols-4 gap-8">
@@ -619,39 +641,39 @@ function Footer() {
             lingplay
           </div>
           <p className="mt-3 text-sm text-slate-600 max-w-xs">
-            A creative coding platform for kids to make 3D games with blocks and AI.
+            {t('home.footer.tagline')}
           </p>
         </div>
-        <FooterCol title="Build">
-          <FooterLink href="/projects/new">Start a project</FooterLink>
-          <FooterLink href="/explore">Explore</FooterLink>
-          <FooterLink href="/auth/signup">Create account</FooterLink>
+        <FooterCol title={t('home.footer.col.build')}>
+          <FooterLink href="/projects/new">{t('home.footer.link.startProject')}</FooterLink>
+          <FooterLink href="/explore">{t('home.footer.link.explore')}</FooterLink>
+          <FooterLink href="/auth/signup">{t('home.footer.link.createAccount')}</FooterLink>
         </FooterCol>
-        <FooterCol title="Learn">
-          <FooterLink href="#learn">Starter projects</FooterLink>
-          <FooterLink href="#safety">For parents</FooterLink>
-          <FooterLink href="/auth/login">Sign in</FooterLink>
+        <FooterCol title={t('home.footer.col.learn')}>
+          <FooterLink href="#learn">{t('home.footer.link.starters')}</FooterLink>
+          <FooterLink href="#safety">{t('home.footer.link.forParents')}</FooterLink>
+          <FooterLink href="/auth/login">{t('home.footer.link.signIn')}</FooterLink>
         </FooterCol>
-        <FooterCol title="Community">
+        <FooterCol title={t('home.footer.col.community')}>
           <FooterLink href="https://github.com" external>
             <Github className="w-4 h-4 inline mr-1" />
-            GitHub
+            {t('home.footer.link.github')}
           </FooterLink>
           <FooterLink href="#safety">
             <Users className="w-4 h-4 inline mr-1" />
-            Community guidelines
+            {t('home.footer.link.guidelines')}
           </FooterLink>
         </FooterCol>
       </div>
       <div className="border-t border-slate-100">
         <div className="max-w-7xl mx-auto px-6 py-6 text-xs text-slate-500 flex items-center justify-between">
-          <span>© {new Date().getFullYear()} lingplay. Made for kids.</span>
+          <span>{copyright}</span>
           <span className="flex items-center gap-1">
             <span
               className="inline-block w-2 h-2 rounded-full"
               style={{ background: PALETTE.control }}
             />
-            All systems normal
+            {t('home.footer.status')}
           </span>
         </div>
       </div>
