@@ -687,7 +687,15 @@ export class RuntimeWorld {
 
   /** Called from the player's pointer/raycast handling. */
   notifyClicked(id: string) {
-    this.clickCounts.set(id, (this.clickCounts.get(id) ?? 0) + 1);
+    const next = (this.clickCounts.get(id) ?? 0) + 1;
+    this.clickCounts.set(id, next);
+    // Temporary diagnostic (2026-08-21): kids report `当此角色被点击 → 跳跃`
+    // not firing on prod. Log lets us see in devtools whether the pointer
+    // hit actually reaches the runtime, distinct from any interpreter- or
+    // isGrounded-side issue.
+    if (typeof console !== 'undefined') {
+      console.log('[lingplay] notifyClicked', id, '→ count', next);
+    }
   }
 
   clickCount(id: string): number {
