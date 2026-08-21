@@ -149,6 +149,10 @@ const ObjectProperties = z
         'plane',
         'model',
         'circle',
+        // Placed particle emitters use `shape: 'particles'` as a sentinel that
+        // tells the renderer to spawn an emitter here instead of drawing a
+        // mesh. Without this the toolbar's "Effect" button 422'd every time.
+        'particles',
       ])
       .optional(),
     // ModelPath accepts relative paths ("/models/foo.glb") as well as
@@ -161,7 +165,24 @@ const ObjectProperties = z
     restitution: z.number().min(0).max(100).optional(),
     // Common picker-visual fields, typed so their intent is documented even
     // though `.passthrough()` would accept them anyway.
-    size: z.number().min(0).max(10000).optional(),
+    //
+    // `size` accepts either a scalar (used by character/collectible/obstacle
+    // /sound tiles for a uniform side length) OR a `{width, height}` bag —
+    // platforms emit the latter because the ground is asymmetric. Before this
+    // union the toolbar's "Platform" button 422'd on every click; the client
+    // had been sending an object shape into a scalar slot.
+    size: z
+      .union([
+        z.number().min(0).max(10000),
+        z
+          .object({
+            width: z.number().min(0).max(10000).optional(),
+            height: z.number().min(0).max(10000).optional(),
+            depth: z.number().min(0).max(10000).optional(),
+          })
+          .passthrough(),
+      ])
+      .optional(),
     characterType: ShortText(120).optional(),
     collectibleType: ShortText(120).optional(),
     obstacleType: ShortText(120).optional(),
@@ -182,7 +203,7 @@ const ObjectCreate = z
     objectId: UUID,
     sceneId: UUID,
     name: ShortText(120),
-    objectType: z.enum(['character', 'platform', 'collectible', 'obstacle', 'sprite', 'sound']),
+    objectType: z.enum(['character', 'platform', 'collectible', 'obstacle', 'sprite', 'sound', 'particles']),
     properties: ObjectProperties.optional(),
   })
   .strict();

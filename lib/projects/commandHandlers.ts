@@ -523,7 +523,7 @@ async function handleObjectDelete(
       objectId: before.id,
       sceneId: before.scene_id,
       name: before.name,
-      objectType: before.type as 'character' | 'platform' | 'collectible' | 'obstacle' | 'sprite' | 'sound',
+      objectType: before.type as 'character' | 'platform' | 'collectible' | 'obstacle' | 'sprite' | 'sound' | 'particles',
     },
     result: { deleted: true },
   };
