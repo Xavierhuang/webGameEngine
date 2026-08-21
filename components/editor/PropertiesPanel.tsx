@@ -98,7 +98,7 @@ export default function PropertiesPanel({
         {selectedObject.properties?.shape === 'particles' && (
           <div className="rounded-2xl border border-slate-200 p-3 space-y-3">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Effect
+              {t('editor.properties.effect')}
             </div>
             {/*
               Sliders rather than number boxes: the emitter is rendering live
@@ -106,7 +106,7 @@ export default function PropertiesPanel({
               immediately. That feedback loop is the reason effects became a
               placed object instead of only a block.
             */}
-            <PPField label="Kind">
+            <PPField label={t('editor.properties.kind')}>
               <select
                 value={selectedObject.properties?.effect ?? 'sparkle'}
                 onChange={(e) =>
@@ -114,14 +114,21 @@ export default function PropertiesPanel({
                 }
                 className="w-full px-2 py-1 border border-slate-200 rounded-md text-sm text-slate-900"
               >
-                {[['sparkle', 'Sparkles'], ['smoke', 'Smoke'], ['fire', 'Fire'], ['confetti', 'Confetti'],
-                  ['bubbles', 'Bubbles'], ['magic', 'Magic'], ['explosion', 'Explosion'], ['snow', 'Snow']]
-                  .map(([value, label]) => (
+                {[
+                  ['sparkle', t('editor.properties.effect.sparkles')],
+                  ['smoke', t('editor.properties.effect.smoke')],
+                  ['fire', t('editor.properties.effect.fire')],
+                  ['confetti', t('editor.properties.effect.confetti')],
+                  ['bubbles', t('editor.properties.effect.bubbles')],
+                  ['magic', t('editor.properties.effect.magic')],
+                  ['explosion', t('editor.properties.effect.explosion')],
+                  ['snow', t('editor.properties.effect.snow')],
+                ].map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
                   ))}
               </select>
             </PPField>
-            <PPField label="Colour">
+            <PPField label={t('editor.common.colour')}>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -140,11 +147,11 @@ export default function PropertiesPanel({
                   }
                   className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 transition hover:border-slate-300"
                 >
-                  Use preset colours
+                  {t('editor.properties.presetColors')}
                 </button>
               </div>
             </PPField>
-            <PPField label={`Size — ${selectedObject.properties?.particleSize ?? 100}%`}>
+            <PPField label={t('editor.properties.particleSizeFmt').replace('%d', String(selectedObject.properties?.particleSize ?? 100))}>
               <input
                 type="range"
                 min={10}
@@ -157,7 +164,7 @@ export default function PropertiesPanel({
                 className="w-full accent-slate-900"
               />
             </PPField>
-            <PPField label={`Amount — ${selectedObject.properties?.particleAmount ?? 100}%`}>
+            <PPField label={t('editor.properties.particleAmountFmt').replace('%d', String(selectedObject.properties?.particleAmount ?? 100))}>
               <input
                 type="range"
                 min={10}
@@ -176,30 +183,30 @@ export default function PropertiesPanel({
         {selectedObject.type === 'sound' && (
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              Sound controls
+              {t('editor.properties.sound.controls')}
             </div>
             <div className="flex flex-wrap gap-1.5 mb-3">
               <button
                 onClick={() => AudioManager.get().playSfx(selectedObject.properties?.soundType || 'click')}
                 className="inline-flex items-center gap-1 text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-white rounded-full px-3 py-1.5 transition"
               >
-                Play once
+                {t('editor.properties.sound.playOnce')}
               </button>
               <button
                 onClick={() => AudioManager.get().startBeat(selectedObject.properties?.beat || 'simple', selectedObject.properties?.bpm || 120)}
                 className="inline-flex items-center gap-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 text-slate-800 rounded-full px-3 py-1.5 transition"
               >
-                Start beat
+                {t('editor.properties.sound.startBeat')}
               </button>
               <button
                 onClick={() => AudioManager.get().stopBeat()}
                 className="inline-flex items-center gap-1 text-xs font-semibold bg-white border border-slate-200 hover:border-slate-300 text-slate-800 rounded-full px-3 py-1.5 transition"
               >
-                Stop beat
+                {t('editor.properties.sound.stopBeat')}
               </button>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <PPField label="BPM">
+              <PPField label={t('editor.properties.sound.bpm')}>
                 <input
                   type="number"
                   defaultValue={selectedObject.properties?.bpm || 120}
@@ -207,7 +214,7 @@ export default function PropertiesPanel({
                   className="w-full px-2 py-1 border border-slate-200 rounded-md text-sm text-slate-900 focus:ring-2 focus:ring-slate-900 focus:border-transparent"
                 />
               </PPField>
-              <PPField label="Autoplay">
+              <PPField label={t('editor.properties.sound.autoplay')}>
                 <label className="inline-flex items-center gap-2 text-xs text-slate-700">
                   <input
                     type="checkbox"
@@ -215,7 +222,7 @@ export default function PropertiesPanel({
                     onChange={(e) => onUpdate({ properties: { ...(selectedObject.properties || {}), autoplay_beat: e.target.checked } })}
                     className="w-4 h-4 accent-slate-900"
                   />
-                  on start
+                  {t('editor.properties.sound.onStart')}
                 </label>
               </PPField>
             </div>
@@ -487,7 +494,7 @@ export default function PropertiesPanel({
               onClick={() => onUpdate({ properties: { ...currentProps, texture_url: null } })}
               className="mt-1 w-full text-center text-xs text-slate-500 hover:text-slate-800"
             >
-              Remove drawing
+              {t('editor.properties.removeDrawing')}
             </button>
           )}
         </div>
@@ -528,7 +535,7 @@ export default function PropertiesPanel({
               </div>
               {costumes.length === 0 ? (
                 <p className="text-xs text-gray-500 mt-1">
-                  No costumes yet. Add one to switch appearance with <span className="font-mono">switch costume to</span>.
+                  {t('editor.properties.costumes.empty')}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -563,7 +570,7 @@ export default function PropertiesPanel({
                           }}
                           className="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded"
                         >
-                          Delete
+                          {t('editor.properties.costumes.delete')}
                         </button>
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-2">
@@ -576,7 +583,7 @@ export default function PropertiesPanel({
                             save(next);
                           }}
                           className="w-full h-8 rounded cursor-pointer"
-                          title="Color"
+                          title={t('editor.properties.color.title')}
                         />
                         <select
                           value={c.shape || ''}
@@ -586,10 +593,10 @@ export default function PropertiesPanel({
                             save(next);
                           }}
                           className="w-full px-2 py-1 text-xs border border-gray-300 rounded"
-                          title="Shape"
+                          title={t('editor.properties.shape.title')}
                         >
                           {SHAPES.map((s) => (
-                            <option key={s} value={s}>{s || '(inherit shape)'}</option>
+                            <option key={s} value={s}>{s || t('editor.properties.inheritShape')}</option>
                           ))}
                         </select>
                       </div>
@@ -624,7 +631,7 @@ export default function PropertiesPanel({
               return (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Animation State
+                    {t('editor.properties.anim.state')}
                   </label>
                   <select
                     value={props.animationState === null || props.animationState === undefined ? 'stop' : (props.animationState || 'idle')}
@@ -639,17 +646,17 @@ export default function PropertiesPanel({
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
-                    <option value="idle">Idle</option>
-                    <option value="walk">Walk</option>
-                    <option value="run">Run</option>
-                    <option value="jump">Jump</option>
-                    <option value="fall">Fall</option>
-                    <option value="stop">Stop (No Animation)</option>
+                    <option value="idle">{t('editor.properties.anim.idle')}</option>
+                    <option value="walk">{t('editor.properties.anim.walk')}</option>
+                    <option value="run">{t('editor.properties.anim.run')}</option>
+                    <option value="jump">{t('editor.properties.anim.jump')}</option>
+                    <option value="fall">{t('editor.properties.anim.fall')}</option>
+                    <option value="stop">{t('editor.properties.anim.stop')}</option>
                   </select>
                   {availableAnimations.length > 0 && (
                     <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
                       <p className="text-xs font-semibold text-blue-800 mb-1">
-                        Available Animations ({availableAnimations.length}):
+                        {t('editor.properties.anim.availableFmt').replace('%d', String(availableAnimations.length))}
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {availableAnimations.map((anim, idx) => (
@@ -664,8 +671,7 @@ export default function PropertiesPanel({
                     </div>
                   )}
                   <p className="text-xs text-gray-500 mt-1">
-                    In play mode, animations change automatically based on movement.
-                    Check browser console for detected animations.
+                    {t('editor.properties.anim.autoNote')}
                   </p>
                   <button
                     onClick={() => {
@@ -681,7 +687,7 @@ export default function PropertiesPanel({
                     className="mt-3 w-full px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <Bone className="w-4 h-4" />
-                    Open Animation Editor
+                    {t('editor.properties.anim.openEditor')}
                   </button>
                 </div>
               );
@@ -700,7 +706,7 @@ export default function PropertiesPanel({
               className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
             />
             <span className="text-sm font-medium text-gray-700">
-              Enable Physics
+              {t('editor.properties.physics.enable')}
             </span>
           </label>
         </div>
@@ -708,7 +714,7 @@ export default function PropertiesPanel({
         {selectedObject.has_physics && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mass
+              {t('editor.properties.physics.mass')}
             </label>
             <input
               type="number"
@@ -724,14 +730,14 @@ export default function PropertiesPanel({
           <div className="pt-4 border-t border-gray-200">
             <button
               onClick={() => {
-                if (confirm(`Are you sure you want to delete "${selectedObject.name}"?`)) {
+                if (confirm(t('editor.properties.confirmDelete').replace('%@', selectedObject.name ?? ''))) {
                   onDelete();
                 }
               }}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
-              Delete Object
+              {t('editor.properties.delete')}
             </button>
           </div>
         )}
