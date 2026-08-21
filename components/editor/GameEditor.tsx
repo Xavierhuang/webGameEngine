@@ -145,6 +145,20 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showBackdropSelector, setShowBackdropSelector] = useState(false);
   const [showTutorials, setShowTutorials] = useState(false);
+  // Properties panel occupies a full sidebar (w-80) — a lot of horizontal
+  // real estate on smaller laptops. Persist the collapsed state in
+  // localStorage so a user who prefers the compact stage doesn't have to
+  // hide it on every visit.
+  const [propertiesCollapsed, setPropertiesCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try { return window.localStorage.getItem('lingplay.propertiesCollapsed') === '1'; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { window.localStorage.setItem('lingplay.propertiesCollapsed', propertiesCollapsed ? '1' : '0'); }
+    catch { /* private mode, ignore */ }
+  }, [propertiesCollapsed]);
 
   /**
    * Open the tutorials once, for someone who has never seen them.
@@ -1184,7 +1198,20 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             step while looking at the thing the step is about. */}
         {showTutorials && <TutorialPanel onClose={() => setShowTutorials(false)} />}
 
-        <div className="w-80 bg-white border-l border-slate-200 overflow-y-auto">
+        <div className={`${propertiesCollapsed ? 'w-8' : 'w-80'} bg-white border-l border-slate-200 overflow-y-auto relative transition-[width] duration-150`}>
+          {/* Collapse/expand toggle. Sits pinned at the top-left of the
+              panel; on collapsed layouts the panel is 32 px wide so the
+              button IS the whole panel. */}
+          <button
+            type="button"
+            onClick={() => setPropertiesCollapsed((v) => !v)}
+            title={propertiesCollapsed ? t('editor.properties.expand') : t('editor.properties.collapse')}
+            aria-label={propertiesCollapsed ? t('editor.properties.expand') : t('editor.properties.collapse')}
+            className={`sticky top-2 z-10 ${propertiesCollapsed ? 'mx-auto' : 'ml-2'} flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-slate-300 hover:text-slate-900`}
+          >
+            <span aria-hidden className="text-xs font-semibold">{propertiesCollapsed ? '‹' : '›'}</span>
+          </button>
+          {propertiesCollapsed ? null : (
           <ErrorBoundary
             fallback={
               <div className="p-4">
@@ -1289,6 +1316,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             }}
           />
           </ErrorBoundary>
+          )}
         </div>
       </div>
 
