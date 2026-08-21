@@ -327,7 +327,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
         window.clearInterval(interval);
         try { ctx.stopAllSounds?.(); } catch { /* noop */ }
       };
-      setPreviewNote(previewNotice(summarisePreview(body as any)));
+      setPreviewNote(previewNotice(summarisePreview(body as any), t as (key: string) => string));
       setIsPreviewing(true);
     };
 
@@ -367,7 +367,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
   }, [objectId, locale]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" data-tour-target="blockCanvas">
       <div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
         <span className="text-white text-sm font-medium">
           {t('editor.blocksFor')} <span className="text-blue-300">{objectName}</span>

@@ -656,7 +656,10 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             </h1>
           </div>
           {/* Scene / Logic mode toggle */}
-          <div className="ml-4 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
+          <div
+            className="ml-4 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200"
+            data-tour-target="sceneLogicTabs"
+          >
             <ModeButton active={editorMode === 'scene'} onClick={() => setEditorMode('scene')}>
               {t('editor.scene')}
             </ModeButton>
@@ -710,6 +713,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           {/* Save + Play */}
           <button
             onClick={handleSave}
+            data-tour-target="saveButton"
             disabled={saveState === 'saving'}
             className={`ml-2 inline-flex items-center gap-1.5 bg-white border text-sm font-semibold rounded-full px-4 py-1.5 transition disabled:opacity-60 ${
               saveState === 'error'
@@ -730,6 +734,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           <button
             type="button"
             onClick={() => setShowTutorials((v) => !v)}
+            data-tour-target="tutorialsButton"
             className={`inline-flex items-center gap-1.5 border text-sm font-semibold rounded-full px-4 py-1.5 transition ${
               showTutorials
                 ? 'border-amber-300 bg-amber-50 text-amber-800'
@@ -743,6 +748,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           <button
             type="button"
             onClick={() => setShowShareDialog(true)}
+            data-tour-target="shareButton"
             className={`inline-flex items-center gap-1.5 border text-sm font-semibold rounded-full px-4 py-1.5 transition ${
               project?.visibility === 'public'
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-300'
@@ -756,6 +762,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
           <button
             type="button"
             onClick={handlePlayTest}
+            data-tour-target="playButton"
             className="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-full px-4 py-1.5 shadow-sm transition"
             title="Play game in new window"
           >
@@ -768,7 +775,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
       {/* Main Editor Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Toolbar */}
-        <div className="w-64 bg-white border-r border-slate-200 overflow-y-auto">
+        <div className="w-64 bg-white border-r border-slate-200 overflow-y-auto" data-tour-target="toolbar">
           <Toolbar
             onAddObject={async (type) => {
               // Add object to scene

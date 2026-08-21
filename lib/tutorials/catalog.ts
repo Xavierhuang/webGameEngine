@@ -11,6 +11,8 @@
  * just that one goes on top.
  */
 
+import type { TourAnchorQuery } from './tourTargets';
+
 export type TutorialLevel = 'first' | 'easy' | 'medium';
 
 export interface TutorialStep {
@@ -20,8 +22,13 @@ export interface TutorialStep {
   body: string;
   /** Block types this step asks the child to use; validated against the palette. */
   blocks?: string[];
-  /** Which part of the editor to look at. */
+  /** Which part of the editor to look at, in words. */
   hint?: string;
+  /**
+   * Which part of the editor to *show* them. `hint` names a place; this
+   * highlights it. Steps without one still read fine — they just don't point.
+   */
+  spotlight?: TourAnchorQuery;
 }
 
 export interface Tutorial {
@@ -52,28 +59,33 @@ export const TUTORIALS: Tutorial[] = [
         title: 'Add a character',
         body: "Click Character in the toolbar and pick anyone you like. They'll appear in the middle of your world.",
         hint: 'Toolbar, top left',
+        spotlight: { target: 'toolbar' },
       },
       {
         title: 'Open the block editor',
         body: 'Switch to the Logic tab. This is where you tell your character what to do.',
         hint: 'Scene / Logic tabs',
+        spotlight: { target: 'sceneLogicTabs' },
       },
       {
         title: 'Start with an event',
         body: "Drag out `when ⬆ key held`. Blocks only run when something starts them — that's what an event block is for. Nothing happens without one.",
         blocks: ['on_key_press'],
         hint: 'Events category',
+        spotlight: { target: 'blockPalette', category: 'events' },
       },
       {
         title: 'Make it move',
         body: 'Snap `move forward 200` underneath. Blocks run top to bottom, so this happens whenever the key is held.',
         blocks: ['move'],
         hint: 'Motion category',
+        spotlight: { target: 'blockPalette', category: 'motion' },
       },
       {
         title: 'Play it',
         body: "Hit Play and hold the up arrow. You just built a game! Try adding blocks for the other arrow keys.",
         hint: 'Play button, top right',
+        spotlight: { target: 'playButton' },
       },
     ],
   },
@@ -90,12 +102,14 @@ export const TUTORIALS: Tutorial[] = [
         title: 'Add a collectible',
         body: 'Click Collectible and pick a coin. Place a few around your world.',
         hint: 'Toolbar',
+        spotlight: { target: 'toolbar' },
       },
       {
         title: 'Make a score',
         body: 'In the Logic tab, drag `set score to 0` under a `when game starts` block. Starting at zero matters — otherwise the score keeps whatever it had last time.',
         blocks: ['on_start', 'set_variable'],
         hint: 'Variables category',
+        spotlight: { target: 'blockPalette', category: 'variables' },
       },
       {
         title: 'Show the score',
@@ -128,6 +142,7 @@ export const TUTORIALS: Tutorial[] = [
         body: "Use `ask What's your name? and wait`. Your script pauses right there until the player types something.",
         blocks: ['ask_and_wait'],
         hint: 'Sensing category',
+        spotlight: { target: 'blockPalette', category: 'sensing' },
       },
       {
         title: 'Use the answer',
@@ -139,6 +154,7 @@ export const TUTORIALS: Tutorial[] = [
         body: "Now try `ask AI` with a prompt and store it in a variable, then `say` that variable. Your character can answer things you never wrote yourself.",
         blocks: ['ask_ai', 'say'],
         hint: 'AI category',
+        spotlight: { target: 'blockPalette', category: 'ai' },
       },
       {
         title: 'Play it',
@@ -160,6 +176,7 @@ export const TUTORIALS: Tutorial[] = [
         body: 'Drag `play note 60 for 1 beats` under a `when game starts`. 60 is middle C.',
         blocks: ['on_start', 'play_note'],
         hint: 'Music category',
+        spotlight: { target: 'blockPalette', category: 'music' },
       },
       {
         title: 'Make a tune',
@@ -192,6 +209,7 @@ export const TUTORIALS: Tutorial[] = [
         body: 'Under `when game starts`, add `erase all pen` then `pen down`.',
         blocks: ['on_start', 'pen_clear', 'pen_down'],
         hint: 'Pen category',
+        spotlight: { target: 'blockPalette', category: 'pen' },
       },
       {
         title: 'Move in a loop',
@@ -218,11 +236,13 @@ export const TUTORIALS: Tutorial[] = [
         title: 'Pick anyone to start',
         body: 'Add a character. It doesn\'t matter which — you\'re about to paint over it.',
         hint: 'Toolbar',
+        spotlight: { target: 'toolbar' },
       },
       {
         title: 'Open the paint editor',
         body: 'With the character selected, find "Draw your own" in the panel on the right.',
         hint: 'Properties panel',
+        spotlight: { target: 'propertiesPanel' },
       },
       {
         title: 'Draw something',
@@ -251,6 +271,7 @@ export const TUTORIALS: Tutorial[] = [
         title: 'Open the sound picker',
         body: 'Click Sound in the toolbar, then choose the Record tab.',
         hint: 'Toolbar',
+        spotlight: { target: 'toolbar' },
       },
       {
         title: 'Record something',
@@ -280,6 +301,7 @@ export const TUTORIALS: Tutorial[] = [
         title: 'Open the animation editor',
         body: 'Select a character, then find the animation editor in the properties panel.',
         hint: 'Properties panel',
+        spotlight: { target: 'propertiesPanel' },
       },
       {
         title: 'Pose the first frame',
@@ -319,6 +341,7 @@ export const TUTORIALS: Tutorial[] = [
         body: 'Use `translate Hello! to Spanish store in greeting`, then `say` that variable.',
         blocks: ['translate_to', 'say'],
         hint: 'AI category',
+        spotlight: { target: 'blockPalette', category: 'ai' },
       },
       {
         title: 'Say it out loud',
@@ -349,11 +372,13 @@ export const TUTORIALS: Tutorial[] = [
         title: 'Hit Share',
         body: 'Click Share in the top bar, then "Share publicly". Your game appears in Explore.',
         hint: 'Share button, top right',
+        spotlight: { target: 'shareButton' },
       },
       {
         title: 'Try a remix',
         body: "Go to Explore, open someone else's game and hit Remix. You get your own copy to change however you like — the original stays safe.",
         hint: 'Explore, in the nav',
+        spotlight: { target: 'exploreNav' },
       },
     ],
   },

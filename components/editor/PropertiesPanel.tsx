@@ -37,7 +37,7 @@ export default function PropertiesPanel({
   
   if (!selectedObject) {
     return (
-      <div className="p-6 h-full flex flex-col items-center justify-center text-center">
+      <div className="p-6 h-full flex flex-col items-center justify-center text-center" data-tour-target="propertiesPanel">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-100 mb-3">
           <span className="text-2xl">🎯</span>
         </div>
@@ -50,7 +50,7 @@ export default function PropertiesPanel({
   }
 
   return (
-    <div className="p-5">
+    <div className="p-5" data-tour-target="propertiesPanel">
       <div className="mb-4">
         <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
           {t('editor.properties')}

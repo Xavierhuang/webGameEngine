@@ -76,6 +76,20 @@ const NEEDS_SCENE: Array<{ label: string; blocks: string[] }> = [
   { label: 'the camera feed', blocks: ['set_video', 'set_video_transparency'] },
 ];
 
+// Map from the human-readable label above to the i18n key stem used by
+// `previewNotice` when a translator is supplied. Kept out of NEEDS_SCENE so
+// the classification test and legacy callers see the original strings.
+const LABEL_KEY_STEM: Record<string, string> = {
+  'movement': 'movement',
+  'how things look': 'looks',
+  'particles': 'particles',
+  'the camera': 'camera',
+  'the pen': 'pen',
+  'clones': 'clones',
+  'scenes': 'scenes',
+  'the camera feed': 'videoFeed',
+};
+
 const SCENE_BLOCKS = new Map<string, string>();
 for (const group of NEEDS_SCENE) {
   for (const block of group.blocks) SCENE_BLOCKS.set(block, group.label);
@@ -133,10 +147,31 @@ export function summarisePreview(
   return { playsSound, needsPlay: labels };
 }
 
-/** A sentence for the editor, or null when the preview shows everything. */
-export function previewNotice(summary: PreviewSummary): string | null {
+/** A sentence for the editor, or null when the preview shows everything.
+ *
+ * When `translate` is provided, category labels + the "To see …, press Play"
+ * template come from the message catalog so a Chinese reader gets a Chinese
+ * sentence. Callers without a translator (tests, headless tools) still get the
+ * legacy English output. */
+export function previewNotice(
+  summary: PreviewSummary,
+  translate?: (key: string) => string,
+): string | null {
   if (summary.needsPlay.length === 0) return null;
   const list = summary.needsPlay;
+  if (translate) {
+    const localizedLabels = list.map((l) =>
+      translate(`editor.preview.label.${LABEL_KEY_STEM[l] ?? l}`),
+    );
+    const sep = translate('editor.preview.listSep');
+    const andSep = translate('editor.preview.and');
+    const readable =
+      localizedLabels.length === 1
+        ? localizedLabels[0]
+        : `${localizedLabels.slice(0, -1).join(sep)}${andSep}${localizedLabels[localizedLabels.length - 1]}`;
+    const prefix = summary.playsSound ? translate('editor.preview.soundsPlayHere') : '';
+    return `${prefix}${translate('editor.preview.sentenceFmt').replace('%@', readable)}`;
+  }
   const readable =
     list.length === 1
       ? list[0]

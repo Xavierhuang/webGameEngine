@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Check, Lightbulb } from 'lucide-react';
 import { TUTORIALS, getTutorial, LEVEL_LABELS, type Tutorial } from '@/lib/tutorials/catalog';
+import { TutorialSpotlight } from './TutorialSpotlight';
 
 const STORAGE_KEY = 'lingplay-tutorial-progress';
 
@@ -130,6 +131,10 @@ export function TutorialPanel({ onClose }: { onClose: () => void }) {
                 Look at: {tutorial.steps[step].hint}
               </p>
             )}
+
+            {/* Highlights the place the line above names. Rendered here so it
+                follows the step index without any extra state. */}
+            <TutorialSpotlight query={tutorial.steps[step].spotlight} />
 
             {tutorial.steps[step].blocks && tutorial.steps[step].blocks!.length > 0 && (
               <div className="mt-3">
