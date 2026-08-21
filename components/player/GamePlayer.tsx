@@ -1044,6 +1044,12 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   const meshRef = useRef<THREE.Mesh>(null);
   const velocityRef = useRef({ x: 0, y: 0, z: 0 });
   const isGroundedRef = useRef(false);
+  // A jump requested while not grounded (typically an `on_start → jump` that
+  // fires on frame 1 before the useFrame ground check has run) gets queued
+  // and applied on the first grounded frame. Without this the jump silently
+  // no-op'd for the entire play session — first-frame airborne locked out
+  // the very first `on_start` jump for every game.
+  const pendingJumpRef = useRef(false);
   // Live key state for the interpreter (React replaces the keys object each event)
   const keysRef = useRef<KeyState>(keys);
   keysRef.current = keys;
@@ -1130,6 +1136,11 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         if (isGroundedRef.current) {
           velocityRef.current.y = PHYSICS.JUMP_FORCE;
           isGroundedRef.current = false;
+        } else {
+          // Not grounded — remember it and fire on the next landed frame.
+          // Covers the `on_start → jump` timing race and the natural "click
+          // while falling — jump the moment I land" behaviour a kid expects.
+          pendingJumpRef.current = true;
         }
       },
       rotate: (xDeg, yDeg, zDeg) => {
@@ -1609,6 +1620,16 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         }
         velocityRef.current.y = 0;
         isGroundedRef.current = true;
+        // Consume a jump that was requested while airborne (typically the
+        // `on_start → jump` script that fires before the character has
+        // landed). Doing this here means the first grounded frame is
+        // exactly when the queued jump lifts off, which is what the child
+        // asked for and never got.
+        if (pendingJumpRef.current) {
+          pendingJumpRef.current = false;
+          velocityRef.current.y = PHYSICS.JUMP_FORCE;
+          isGroundedRef.current = false;
+        }
       } else {
         isGroundedRef.current = false;
       }

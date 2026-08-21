@@ -1168,7 +1168,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
     'editor.game.reloadPage': "刷新页面",
     'editor.blockEditor.saveFailed': "保存失败",
     'editor.preview.soundsPlayHere': "这里能听到声音。",
-    'editor.preview.sentenceFmt': "要看到 %@，请按「播放」。",
+    'editor.preview.sentenceFmt': "要看到 %@，请按右上角的「运行」。",
     'editor.preview.listSep': "、",
     'editor.preview.and': "、",
     'editor.preview.label.movement': "移动",
