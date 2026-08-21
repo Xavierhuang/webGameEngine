@@ -152,16 +152,16 @@ export default function AIAssistant({
             </span>
             <div>
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none mb-0.5">
-                Beta
+                {t('editor.ai.beta')}
               </div>
               <h2 className="text-lg font-black tracking-tight text-slate-900">
-                AI game helper
+                {t('editor.ai.title')}
               </h2>
             </div>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('editor.common.close')}
             className="inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
           >
             <X className="w-5 h-5" />
@@ -189,18 +189,18 @@ export default function AIAssistant({
               suggestions={STARTER_PROMPTS}
               onClick={(s) => handleSend(s)}
               disabled={disabled}
-              label="Try one of these"
+              label={t('editor.ai.tryOne')}
             />
           )}
 
           {isLoading && (
             <StatusRow icon={<Wand2 className="w-4 h-4 animate-pulse" />}>
-              Thinking…
+              {t('editor.ai.thinking')}
             </StatusRow>
           )}
           {applyingUpdate && (
             <StatusRow tone="success" icon={<Check className="w-4 h-4" />}>
-              Applying changes to your game…
+              {t('editor.ai.applying')}
             </StatusRow>
           )}
 
@@ -221,21 +221,21 @@ export default function AIAssistant({
                 }
               }}
               rows={1}
-              placeholder="Describe what to add or change…"
+              placeholder={t('editor.ai.inputPlaceholder')}
               className="flex-1 resize-none border-0 focus:outline-none px-2 py-1.5 text-sm max-h-32 text-slate-900 placeholder:text-slate-400 bg-transparent"
               disabled={disabled}
             />
             <button
               onClick={() => handleSend()}
               disabled={!input.trim() || disabled}
-              aria-label="Send"
+              aria-label={t('editor.ai.send')}
               className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition"
             >
               <ArrowUp className="w-4 h-4" />
             </button>
           </div>
           <div className="mt-2 text-[10px] text-slate-400 px-1">
-            Enter to send · Shift + Enter for a new line · Esc to close
+            {t('editor.ai.footerHint')}
           </div>
         </div>
       </div>
