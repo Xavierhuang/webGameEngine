@@ -1520,6 +1520,14 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   // Build the block interpreter; rebuilt when the object's blocks change
   const blocksKey = JSON.stringify(logicBlocks);
   const runtime = useMemo(() => {
+    if (typeof console !== 'undefined') {
+      console.log('[lingplay] runtime setup for object', {
+        objectId,
+        name: object.name,
+        logicBlockCount: logicBlocks.length,
+        hatTypes: logicBlocks.map((b: any) => b?.block_type).filter(Boolean),
+      });
+    }
     if (logicBlocks.length === 0) return null;
     return new ObjectRuntime(objectId, logicBlocks as LogicBlock[], world.vars, ctxRef.current!, world, { isClone: !!cloneId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
