@@ -1150,6 +1150,9 @@ export class ObjectRuntime {
         if (!this.world) return false;
         const count = this.world.clickCount(this.objectId);
         if (count > script.handledClicks) {
+          if (typeof console !== 'undefined') {
+            console.log('[lingplay] when_clicked hat FIRING', this.objectId, 'count', count, 'handled', script.handledClicks);
+          }
           script.handledClicks = count;
           return true;
         }

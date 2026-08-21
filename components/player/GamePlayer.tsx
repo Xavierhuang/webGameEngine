@@ -1133,6 +1133,16 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         frameAccumRef.current.z += dz;
       },
       jump: () => {
+        // Diagnostic (2026-08-21): trace whether jump() is even called and
+        // which branch it takes — the interpreter side, the isGrounded gate,
+        // and the pending-jump path are three distinct failure modes.
+        if (typeof console !== 'undefined') {
+          console.log('[lingplay] jump() called', {
+            objectId,
+            isGrounded: isGroundedRef.current,
+            velY: velocityRef.current.y,
+          });
+        }
         if (isGroundedRef.current) {
           velocityRef.current.y = PHYSICS.JUMP_FORCE;
           isGroundedRef.current = false;
