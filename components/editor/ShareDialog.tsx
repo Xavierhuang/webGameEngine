@@ -68,7 +68,7 @@ export function ShareDialog({
       setModerationStatus(nextModeration);
       onVisibilityChange?.(next, nextModeration);
     } catch {
-      setError('Could not reach the server. Check your connection and try again.');
+      setError(t('editor.share.serverUnreachable'));
     } finally {
       setBusy(false);
     }
@@ -80,7 +80,7 @@ export function ShareDialog({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      setError('Could not copy the link — you can select and copy it manually.');
+      setError(t('editor.share.copyFailed'));
     }
   };
 
@@ -94,7 +94,7 @@ export function ShareDialog({
           <button
             onClick={onClose}
             className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-            aria-label="Close"
+            aria-label={t('editor.common.close')}
           >
             <X className="h-5 w-5" />
           </button>
@@ -121,9 +121,7 @@ export function ShareDialog({
 
           {rejected && (
             <p className="rounded-xl bg-amber-50 p-3 text-sm leading-relaxed text-amber-800">
-              This game was shared, but its title or description didn&apos;t pass our
-              content check, so it won&apos;t appear in Explore. Edit the wording and
-              share again.
+              {t('editor.share.flaggedContent')}
             </p>
           )}
 

@@ -5,6 +5,7 @@ import { Gift } from 'lucide-react';
 import ShapePreview from './ShapePreview';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
+import { useTranslator } from '../common/LocaleProvider';
 
 interface CollectibleSelectorProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export default function CollectibleSelector({
   onClose,
   onSelect,
 }: CollectibleSelectorProps) {
+  const t = useTranslator();
   const [tab, setTab] = useState<'basics' | 'fancy'>('basics');
   const current = tab === 'basics' ? BASIC_COLLECTIBLES : FANCY_COLLECTIBLES;
 
@@ -37,20 +39,20 @@ export default function CollectibleSelector({
     <SelectorModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Choose a collectible"
-      eyebrow="Add object"
+      title={t('editor.collectiblePicker.title')}
+      eyebrow={t('editor.collectiblePicker.eyebrow')}
       icon={<Gift className="w-5 h-5" />}
       accent={PALETTE.events}
       tabs={[
-        { id: 'basics', label: 'Basics' },
-        { id: 'fancy', label: 'Fancy' },
+        { id: 'basics', label: t('editor.collectiblePicker.tab.basics') },
+        { id: 'fancy', label: t('editor.collectiblePicker.tab.fancy') },
       ]}
       activeTab={tab}
       onTabChange={(id) => setTab(id as typeof tab)}
     >
       <SelectorSection
-        title={tab === 'basics' ? 'Basic pickups' : 'Fancier pickups'}
-        description="Pop one into your scene, then use a `when touching` block to reward the player."
+        title={tab === 'basics' ? t('editor.collectiblePicker.basics.title') : t('editor.collectiblePicker.fancy.title')}
+        description={t('editor.collectiblePicker.description')}
         accent={PALETTE.events}
       >
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">

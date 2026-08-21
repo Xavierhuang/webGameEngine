@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
+import { useTranslator } from '../common/LocaleProvider';
 import {
   BACKDROPS,
   BACKDROP_CATEGORIES,
@@ -19,15 +20,6 @@ interface BackdropSelectorProps {
   onSelect: (url: string | null) => void;
 }
 
-const CATEGORY_LABELS: Record<BackdropCategory, string> = {
-  outdoor: 'Outdoors',
-  space: 'Space',
-  water: 'Water',
-  indoor: 'Indoors',
-  fantasy: 'Fantasy',
-  abstract: 'Patterns',
-};
-
 /**
  * Pick a backdrop for the current scene.
  *
@@ -40,38 +32,48 @@ export default function BackdropSelector({
   currentUrl,
   onSelect,
 }: BackdropSelectorProps) {
+  const t = useTranslator();
   const [tab, setTab] = useState<BackdropCategory>('outdoor');
   const items = backdropsByCategory(tab);
+
+  const categoryLabel: Record<BackdropCategory, string> = {
+    outdoor: t('editor.backdropPicker.category.outdoor'),
+    space: t('editor.backdropPicker.category.space'),
+    water: t('editor.backdropPicker.category.water'),
+    indoor: t('editor.backdropPicker.category.indoor'),
+    fantasy: t('editor.backdropPicker.category.fantasy'),
+    abstract: t('editor.backdropPicker.category.abstract'),
+  };
 
   return (
     <SelectorModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Choose a backdrop"
-      eyebrow="Scene"
+      title={t('editor.backdropPicker.title')}
+      eyebrow={t('editor.backdropPicker.eyebrow')}
       icon={<ImageIcon className="h-5 w-5" />}
       accent={PALETTE.sensing}
-      tabs={BACKDROP_CATEGORIES.map((c) => ({ id: c, label: CATEGORY_LABELS[c] }))}
+      tabs={BACKDROP_CATEGORIES.map((c) => ({ id: c, label: categoryLabel[c] }))}
       activeTab={tab}
       onTabChange={(id) => setTab(id as BackdropCategory)}
     >
       <SelectorSection
-        title={CATEGORY_LABELS[tab]}
-        description="The backdrop fills the sky behind your scene."
+        title={categoryLabel[tab]}
+        description={t('editor.backdropPicker.description')}
         accent={PALETTE.sensing}
       >
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
           {/* Clearing returns the scene to its flat background colour. */}
           <SelectorTile
-            title="No backdrop"
-            description="Use the plain background colour"
+            title={t('editor.backdropPicker.none.title')}
+            description={t('editor.backdropPicker.none.description')}
             onClick={() => {
               onSelect(null);
               onClose();
             }}
           >
             <div className="flex h-full w-full items-center justify-center bg-slate-100 text-xs font-semibold text-slate-400">
-              None
+              {t('editor.backdropPicker.none.label')}
             </div>
           </SelectorTile>
 
@@ -83,7 +85,7 @@ export default function BackdropSelector({
                 onSelect(b.url);
                 onClose();
               }}
-              badge={currentUrl === b.url ? 'Current' : undefined}
+              badge={currentUrl === b.url ? t('editor.backdropPicker.current') : undefined}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={b.url} alt={b.name} className="h-full w-full object-cover" />

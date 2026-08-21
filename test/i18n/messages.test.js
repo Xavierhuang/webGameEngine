@@ -22,7 +22,14 @@ eq(baseKeys.length > 0, true, 'the default catalog has keys');
 // gracefully in English for locales that haven't caught up. Remove a namespace
 // from this list once every locale has real translations for it.
 const PENDING_TRANSLATION_NAMESPACES = [
-  'home.', 'editor.mobile.', 'editor.ai.', 'newProject.',
+  'home.', 'editor.mobile.', 'editor.ai.', 'editor.characterPicker.',
+  'editor.common.', 'editor.collectiblePicker.', 'editor.obstaclePicker.',
+  'editor.backdropPicker.', 'editor.soundPicker.', 'editor.modelBuilder.',
+  'editor.paint.', 'editor.animation.', 'editor.recorder.',
+  'editor.toolbar.', 'editor.properties.', 'editor.objectsPanel.',
+  'editor.game.', 'editor.blockEditor.', 'editor.sceneTabs.',
+  'editor.share.', 'prefab.',
+  'common.', 'meta.', 'newProject.',
   'auth.login.', 'auth.signup.', 'auth.forgot.', 'auth.reset.',
   'learn.', 'privacy.', 'projects.',
 ];
@@ -77,6 +84,9 @@ const SAME_AS_ENGLISH = new Set([
   'sv:editor.position',    // "Position (X, Y, Z)" is identical in Swedish
   'zh:home.gallery.tag.askAi',  // "ask_ai" is a block identifier, kept as-is in Chinese
   'zh:home.footer.link.github', // "GitHub" is a brand name, kept as-is in Chinese
+  'zh:editor.characterPicker.tab.ai',  // "AI" — universally recognized, kept as-is
+  'zh:editor.characterPicker.import.urlPlaceholder',  // URL example, same in every locale
+  'zh:editor.properties.sound.bpm',  // "BPM" — universal music tempo abbreviation
   // Placeholder email formats — same shape in every locale.
   'zh:auth.login.emailPlaceholder',
   'zh:auth.signup.emailPlaceholder',

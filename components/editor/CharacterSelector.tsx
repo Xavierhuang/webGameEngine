@@ -8,6 +8,7 @@ import ShapePreview from './ShapePreview';
 import { filterStarters } from '@/lib/editor/starterSearch';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
+import { useTranslator } from '../common/LocaleProvider';
 import { PICKER_CHARACTERS, CHARACTER_TEMPLATES, BASIC_SHAPES } from '../../lib/prefabs/characters';
 
 interface CharacterSelectorProps {
@@ -27,6 +28,7 @@ export default function CharacterSelector({
   onSelect,
   projectId,
 }: CharacterSelectorProps) {
+  const t = useTranslator();
   const [tab, setTab] = useState<'starters' | 'shapes' | 'ai' | 'import'>('starters');
   const [query, setQuery] = useState('');
   const [aiPrompt, setAiPrompt] = useState('');
@@ -129,15 +131,15 @@ export default function CharacterSelector({
       <SelectorModal
         isOpen={isOpen}
         onClose={onClose}
-        title="Choose a character"
-        eyebrow="Add object"
+        title={t('editor.characterPicker.title')}
+        eyebrow={t('editor.characterPicker.eyebrow')}
         icon={<User className="w-5 h-5" />}
         accent={PALETTE.motion}
         tabs={[
-          { id: 'starters', label: 'Starters' },
-          { id: 'shapes', label: 'Basic shapes' },
-          { id: 'ai', label: 'AI' },
-          { id: 'import', label: 'Import' },
+          { id: 'starters', label: t('editor.characterPicker.tab.starters') },
+          { id: 'shapes', label: t('editor.characterPicker.tab.shapes') },
+          { id: 'ai', label: t('editor.characterPicker.tab.ai') },
+          { id: 'import', label: t('editor.characterPicker.tab.import') },
         ]}
         activeTab={tab}
         onTabChange={(id) => setTab(id as typeof tab)}
@@ -146,7 +148,7 @@ export default function CharacterSelector({
             ? {
                 value: query,
                 onChange: setQuery,
-                placeholder: 'Search characters — try “dragon” or “good guy”',
+                placeholder: t('editor.characterPicker.searchPlaceholder'),
                 resultCount: visibleStarters.length,
               }
             : undefined
@@ -154,16 +156,27 @@ export default function CharacterSelector({
       >
         {tab === 'starters' && (
           <SelectorSection
-            title="Starter templates"
-            description="Quick presets you can tweak later. Colors and shapes are just defaults — every property is editable."
+            title={t('editor.characterPicker.starters.title')}
+            description={t('editor.characterPicker.starters.description')}
             accent={PALETTE.motion}
           >
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {visibleStarters.map((c) => (
+              {visibleStarters.map((c) => {
+                // Prefab id → localized display name. Falls back to the English
+                // hardcoded `c.name` when the id isn't in the catalog yet, so a
+                // new prefab still renders correctly before its translation
+                // lands.
+                const nameKey = `prefab.character.${c.id}.name` as any;
+                const descKey = `prefab.character.${c.id}.description` as any;
+                const localizedName = t(nameKey);
+                const localizedDesc = t(descKey);
+                const displayName = localizedName === nameKey ? c.name : localizedName;
+                const displayDesc = localizedDesc === descKey ? c.description : localizedDesc;
+                return (
                 <SelectorTile
                   key={c.id}
-                  title={c.name}
-                  description={c.description}
+                  title={displayName}
+                  description={displayDesc}
                   onClick={() => {
                     onSelect(c);
                     onClose();
@@ -179,15 +192,16 @@ export default function CharacterSelector({
                   />
 
                 </SelectorTile>
-              ))}
+                );
+              })}
             </div>
           </SelectorSection>
         )}
 
         {tab === 'shapes' && (
           <SelectorSection
-            title="Primitive shapes"
-            description="Raw 3D primitives — perfect starting points before you paint them, resize them, or attach behavior blocks."
+            title={t('editor.characterPicker.shapes.title')}
+            description={t('editor.characterPicker.shapes.description')}
             accent={PALETTE.control}
           >
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -211,8 +225,8 @@ export default function CharacterSelector({
         {tab === 'ai' && (
           <>
             <SelectorSection
-              title="Describe your character"
-              description="Say what you want in plain English — the AI will pick a shape, color, and starter behavior."
+              title={t('editor.characterPicker.ai.title')}
+              description={t('editor.characterPicker.ai.description')}
               accent={PALETTE.ai}
             >
               <div className="flex flex-col sm:flex-row gap-2">
@@ -221,7 +235,7 @@ export default function CharacterSelector({
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleGenerateAI()}
-                  placeholder="A red dragon warrior with a big sword"
+                  placeholder={t('editor.characterPicker.ai.placeholder')}
                   className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
                 />
                 <button
@@ -230,14 +244,14 @@ export default function CharacterSelector({
                   className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-5 py-2.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Sparkles className="w-4 h-4" />
-                  {generatingAI ? 'Generating…' : 'Generate'}
+                  {generatingAI ? t('editor.characterPicker.ai.generating') : t('editor.characterPicker.ai.generate')}
                 </button>
               </div>
             </SelectorSection>
 
             <SelectorSection
-              title="Build from primitives"
-              description="Combine cubes, spheres, and cylinders into a composite character — great for robots and rigs."
+              title={t('editor.characterPicker.builder.title')}
+              description={t('editor.characterPicker.builder.description')}
               accent={PALETTE.looks}
             >
               <button
@@ -245,7 +259,7 @@ export default function CharacterSelector({
                 className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 font-semibold rounded-full px-5 py-2.5 transition"
               >
                 <Boxes className="w-4 h-4" />
-                Open builder
+                {t('editor.characterPicker.builder.open')}
               </button>
             </SelectorSection>
           </>
@@ -254,8 +268,8 @@ export default function CharacterSelector({
         {tab === 'import' && (
           <>
             <SelectorSection
-              title="Paste a model URL"
-              description="Direct link to a hosted .glb, .gltf, .obj, .stl, .fbx, or .dae file."
+              title={t('editor.characterPicker.import.urlTitle')}
+              description={t('editor.characterPicker.import.urlDescription')}
               accent={PALETTE.sensing}
             >
               <div className="flex flex-col sm:flex-row gap-2">
@@ -264,7 +278,7 @@ export default function CharacterSelector({
                   value={modelUrl}
                   onChange={(e) => setModelUrl(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
-                  placeholder="https://…/model.glb"
+                  placeholder={t('editor.characterPicker.import.urlPlaceholder')}
                   className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-transparent"
                 />
                 <button
@@ -273,20 +287,20 @@ export default function CharacterSelector({
                   className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-5 py-2.5 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <LinkIcon className="w-4 h-4" />
-                  Use URL
+                  {t('editor.characterPicker.import.useUrl')}
                 </button>
               </div>
             </SelectorSection>
 
             <SelectorSection
-              title="Upload from your device"
-              description="Max 20 MB. GLB is preferred — it bundles textures and animations into a single file."
+              title={t('editor.characterPicker.import.uploadTitle')}
+              description={t('editor.characterPicker.import.uploadDescription')}
               accent={PALETTE.variables}
             >
               <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 transition p-6 text-center cursor-pointer">
                 <Upload className="w-6 h-6 text-slate-500 mx-auto mb-2" />
                 <div className="text-sm font-semibold text-slate-900">
-                  {uploading ? 'Uploading…' : 'Click to choose a file'}
+                  {uploading ? t('editor.characterPicker.import.uploading') : t('editor.characterPicker.import.chooseFile')}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
                   .glb, .gltf, .obj, .stl, .fbx, .dae

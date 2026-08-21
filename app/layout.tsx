@@ -2,13 +2,21 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { getLocale } from '@/lib/i18n/server';
 import { directionFor } from '@/lib/i18n/direction';
+import { translate } from '@/lib/i18n/messages';
 import { LocaleProvider } from '@/components/common/LocaleProvider';
 import { ErrorReporter } from '@/components/common/ErrorReporter';
 
-export const metadata: Metadata = {
-  title: 'lingplay — Make 3D games with blocks and AI',
-  description: 'A creative coding platform for 3D games. Snap blocks together, ask an AI for help, and share your world.',
-};
+// The browser tab title + description come from the same message catalog as
+// the in-page UI, so a Chinese reader sees "灵玩 — 用积木和 AI 做 3D 游戏"
+// rather than the English default. Next resolves this per-request via the
+// locale cookie / Accept-Language chain that `getLocale()` already implements.
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  return {
+    title: translate(locale, 'meta.title'),
+    description: translate(locale, 'meta.description'),
+  };
+}
 
 export default async function RootLayout({
   children,

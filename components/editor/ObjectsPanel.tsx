@@ -57,7 +57,7 @@ export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplic
                         onClick={() => onReorder(obj, -1)}
                         disabled={index === 0}
                         className="rounded p-0.5 text-gray-400 hover:bg-white hover:text-gray-700 disabled:opacity-30"
-                        title="Move up"
+                        title={t('editor.objectsPanel.moveUp')}
                       >
                         <ChevronUp className="h-3 w-3" />
                       </button>
@@ -65,7 +65,7 @@ export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplic
                         onClick={() => onReorder(obj, 1)}
                         disabled={index === objects.length - 1}
                         className="rounded p-0.5 text-gray-400 hover:bg-white hover:text-gray-700 disabled:opacity-30"
-                        title="Move down"
+                        title={t('editor.objectsPanel.moveDown')}
                       >
                         <ChevronDown className="h-3 w-3" />
                       </button>

@@ -9,6 +9,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { useGLTF } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { PALETTE } from '../common/design';
+import { useTranslator } from '../common/LocaleProvider';
 import { sampleAnimation } from '../../lib/models/customAnimation';
 import { SceneLights } from '@/components/three/SceneLights';
 
@@ -352,6 +353,7 @@ function BoneController({
 }
 
 export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }: AnimationEditorProps) {
+  const t = useTranslator();
   const [selectedBone, setSelectedBone] = useState<string | null>(null);
   const [bones, setBones] = useState<BoneInfo[]>([]);
   const [keyframes, setKeyframes] = useState<Keyframe[]>([]);
@@ -586,10 +588,10 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
             </span>
             <div>
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none mb-0.5">
-                Bone keyframes
+                {t('editor.animation.eyebrow')}
               </div>
               <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 truncate max-w-[400px]">
-                Animation Editor
+                {t('editor.animation.title')}
               </h2>
               {modelUrl && (
                 <div className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[400px]">{modelUrl.split('/').pop()}</div>
@@ -598,7 +600,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
           </div>
           <button
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('editor.common.close')}
             className="inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
           >
             <X className="w-5 h-5" />
@@ -609,16 +611,15 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
           {/* Left Panel: Bone Hierarchy */}
           <div className="w-64 bg-slate-50 border-r border-slate-200 overflow-y-auto p-4">
             <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">
-              Bone hierarchy
+              {t('editor.animation.hierarchy')}
             </div>
             {bones.length === 0 ? (
               modelLoaded ? (
                 <div className="rounded-xl bg-slate-100 border border-slate-200 p-3 text-xs text-slate-600 leading-relaxed">
-                  This model has no named parts to animate. Use the block
-                  editor&apos;s motion blocks to move it instead.
+                  {t('editor.animation.noParts')}
                 </div>
               ) : (
-                <div className="text-sm text-slate-500">Loading parts…</div>
+                <div className="text-sm text-slate-500">{t('editor.animation.loadingParts')}</div>
               )
             ) : (
               <div className="space-y-0.5">
@@ -637,14 +638,14 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
             {selectedBone && (
               <div className="mt-6 rounded-xl bg-white border border-slate-200 p-3">
                 <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Selected
+                  {t('editor.common.selected')}
                 </div>
                 <div className="font-semibold text-sm text-slate-900 mb-3 break-all">
                   {selectedBone}
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
-                    <div className="text-slate-500 mb-0.5">Position</div>
+                    <div className="text-slate-500 mb-0.5">{t('editor.common.position')}</div>
                     <div className="font-mono text-slate-800 leading-tight">
                       x {bones.find((b) => b.name === selectedBone)?.position[0].toFixed(2)}
                       <br />y {bones.find((b) => b.name === selectedBone)?.position[1].toFixed(2)}
@@ -652,7 +653,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                     </div>
                   </div>
                   <div className="rounded-lg bg-slate-50 border border-slate-200 p-2">
-                    <div className="text-slate-500 mb-0.5">Rotation</div>
+                    <div className="text-slate-500 mb-0.5">{t('editor.common.rotation')}</div>
                     <div className="font-mono text-slate-800 leading-tight">
                       x {bones.find((b) => b.name === selectedBone)?.rotation[0].toFixed(1)}°
                       <br />y {bones.find((b) => b.name === selectedBone)?.rotation[1].toFixed(1)}°
@@ -703,9 +704,9 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               {modelFraming && <FrameCamera framing={modelFraming} />}
             </Canvas>
             <div className="absolute top-3 left-3 inline-flex items-center gap-1 text-[11px] font-semibold bg-white/95 text-slate-800 px-2.5 py-1 rounded-full border border-slate-200 shadow-sm">
-              {transformMode === 'translate' && <><Move3D className="w-3 h-3" /> Move · press 1</>}
-              {transformMode === 'rotate' && <><RotateCw className="w-3 h-3" /> Rotate · press 2</>}
-              {transformMode === 'scale' && <><Maximize2 className="w-3 h-3" /> Scale · press 3</>}
+              {transformMode === 'translate' && <><Move3D className="w-3 h-3" /> {t('editor.animation.mode.moveHint')}</>}
+              {transformMode === 'rotate' && <><RotateCw className="w-3 h-3" /> {t('editor.animation.mode.rotateHint')}</>}
+              {transformMode === 'scale' && <><Maximize2 className="w-3 h-3" /> {t('editor.animation.mode.scaleHint')}</>}
             </div>
           </div>
 
@@ -715,7 +716,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               {/* Animation Name */}
               <div>
                 <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Animation name
+                  {t('editor.animation.animName')}
                 </label>
                 <input
                   type="text"
@@ -728,7 +729,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               {/* Duration */}
               <div>
                 <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Duration (seconds)
+                  {t('editor.animation.duration')}
                 </label>
                 <input
                   type="number"
@@ -743,19 +744,19 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               {/* Transform Mode */}
               <div>
                 <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
-                  Transform mode
+                  {t('editor.animation.transformMode')}
                 </label>
                 <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
-                  <TransformPill active={transformMode === 'translate'} onClick={() => setTransformMode('translate')} icon={<Move3D className="w-3.5 h-3.5" />}>Move</TransformPill>
-                  <TransformPill active={transformMode === 'rotate'} onClick={() => setTransformMode('rotate')} icon={<RotateCw className="w-3.5 h-3.5" />}>Rotate</TransformPill>
-                  <TransformPill active={transformMode === 'scale'} onClick={() => setTransformMode('scale')} icon={<Maximize2 className="w-3.5 h-3.5" />}>Scale</TransformPill>
+                  <TransformPill active={transformMode === 'translate'} onClick={() => setTransformMode('translate')} icon={<Move3D className="w-3.5 h-3.5" />}>{t('editor.common.move')}</TransformPill>
+                  <TransformPill active={transformMode === 'rotate'} onClick={() => setTransformMode('rotate')} icon={<RotateCw className="w-3.5 h-3.5" />}>{t('editor.common.rotate')}</TransformPill>
+                  <TransformPill active={transformMode === 'scale'} onClick={() => setTransformMode('scale')} icon={<Maximize2 className="w-3.5 h-3.5" />}>{t('editor.common.scale')}</TransformPill>
                 </div>
               </div>
 
               {/* Timeline */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Timeline</label>
+                  <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{t('editor.animation.timeline')}</label>
                   <span className="text-xs text-slate-500 font-mono">
                     {currentTime.toFixed(2)}s / {animationDuration.toFixed(2)}s
                   </span>
@@ -809,20 +810,20 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                   disabled={!selectedBone}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-800 text-sm font-semibold rounded-full px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Add keyframe
+                  {t('editor.animation.addKeyframe')}
                 </button>
                 <button
                   onClick={playAnimation}
                   disabled={keyframes.length === 0}
                   className="inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white rounded-full w-10 h-10 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  aria-label={isPlaying ? t('editor.common.pause') : t('editor.common.play')}
                 >
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 </button>
                 <button
                   onClick={() => setIsPlaying(false)}
                   className="inline-flex items-center justify-center bg-white border border-slate-200 hover:border-slate-300 text-slate-700 rounded-full w-10 h-10 transition"
-                  aria-label="Stop"
+                  aria-label={t('editor.common.stop')}
                 >
                   <Square className="w-4 h-4" />
                 </button>
@@ -832,21 +833,21 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-                    Keyframes · {keyframes.length}
+                    {t('editor.animation.keyframesCount').replace('%d', String(keyframes.length))}
                   </label>
                   {keyframes.length > 0 && (
                     <button
                       onClick={() => setKeyframes([])}
                       className="text-xs font-medium text-red-600 hover:text-red-700"
                     >
-                      Clear all
+                      {t('editor.common.clearAll')}
                     </button>
                   )}
                 </div>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto">
                   {keyframes.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">
-                      Select a bone, pose it, and add a keyframe.
+                      {t('editor.animation.emptyTimeline')}
                     </div>
                   ) : (
                     keyframes
@@ -866,7 +867,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                             }
                             className="text-red-600 hover:text-red-700 text-[11px] font-medium"
                           >
-                            Remove
+                            {t('editor.common.remove')}
                           </button>
                         </div>
                       ))
@@ -885,18 +886,16 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               >
                 <Save className="w-4 h-4" />
                 {saveState === 'saving'
-                  ? 'Saving…'
+                  ? t('editor.common.saving')
                   : saveState === 'saved'
-                  ? 'Saved to object'
+                  ? t('editor.animation.savedToObject')
                   : saveState === 'error'
-                  ? 'Save failed — try again'
-                  : 'Save animation'}
+                  ? t('editor.animation.saveErrorRetry')
+                  : t('editor.animation.save')}
               </button>
 
               {saveState === 'saved' && (
-                <p className="text-center text-xs leading-relaxed text-slate-500">
-                  Play it from blocks with <code>switch animation to</code>.
-                </p>
+                <p className="text-center text-xs leading-relaxed text-slate-500" dangerouslySetInnerHTML={{ __html: t('editor.animation.savedHint') }} />
               )}
 
               {/* Export */}
@@ -906,7 +905,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
                 className="w-full inline-flex items-center justify-center gap-2 border border-slate-200 hover:border-slate-300 text-slate-700 py-2.5 rounded-full font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Download className="w-4 h-4" />
-                Export as file
+                {t('editor.animation.export')}
               </button>
             </div>
           </div>

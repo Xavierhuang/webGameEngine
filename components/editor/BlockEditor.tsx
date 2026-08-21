@@ -373,7 +373,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
           {t('editor.blocksFor')} <span className="text-blue-300">{objectName}</span>
         </span>
         <span className="text-xs text-gray-400">
-          {status === 'saving' ? 'Saving…' : status === 'error' ? 'Save failed' : 'Saved'}
+          {status === 'saving' ? t('editor.common.saving') : status === 'error' ? t('editor.blockEditor.saveFailed') : t('editor.blockEditor.saved')}
         </span>
       </div>
       <div className="relative flex-1 min-h-0">
@@ -390,7 +390,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
             className="absolute top-3 right-3 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 text-white text-sm font-semibold shadow-lg"
           >
             <span className="w-3 h-3 rounded-sm bg-white" />
-            Stop preview
+            {t('editor.blockEditor.stopPreview')}
           </button>
         )}
       </div>

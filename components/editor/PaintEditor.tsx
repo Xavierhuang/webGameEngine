@@ -9,6 +9,7 @@ import {
   parseHex, floodFill, linePoints, brushOffsets, rectPoints, ellipsePoints,
   setPixel, PALETTE, type Point,
 } from '@/lib/paint/tools';
+import { useTranslator } from '../common/LocaleProvider';
 
 type Tool = 'brush' | 'eraser' | 'fill' | 'line' | 'rect' | 'ellipse';
 
@@ -34,6 +35,7 @@ interface PaintEditorProps {
  * of a Scratch costume.
  */
 export default function PaintEditor({ isOpen, onClose, initialUrl, onSave }: PaintEditorProps) {
+  const t = useTranslator();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [tool, setTool] = useState<Tool>('brush');
   const [color, setColor] = useState('#ff3b30');
@@ -213,23 +215,23 @@ export default function PaintEditor({ isOpen, onClose, initialUrl, onSave }: Pai
   if (!isOpen) return null;
 
   const TOOLS: Array<{ id: Tool; icon: typeof Brush; label: string }> = [
-    { id: 'brush', icon: Brush, label: 'Brush' },
-    { id: 'eraser', icon: Eraser, label: 'Eraser' },
-    { id: 'fill', icon: PaintBucket, label: 'Fill' },
-    { id: 'line', icon: Minus, label: 'Line' },
-    { id: 'rect', icon: SquareIcon, label: 'Rectangle' },
-    { id: 'ellipse', icon: CircleIcon, label: 'Circle' },
+    { id: 'brush', icon: Brush, label: t('editor.paint.tool.brush') },
+    { id: 'eraser', icon: Eraser, label: t('editor.paint.tool.eraser') },
+    { id: 'fill', icon: PaintBucket, label: t('editor.paint.tool.fill') },
+    { id: 'line', icon: Minus, label: t('editor.paint.tool.line') },
+    { id: 'rect', icon: SquareIcon, label: t('editor.paint.tool.rectangle') },
+    { id: 'ellipse', icon: CircleIcon, label: t('editor.paint.tool.circle') },
   ];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
       <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-          <h2 className="text-lg font-black tracking-tight text-slate-900">Draw your character</h2>
+          <h2 className="text-lg font-black tracking-tight text-slate-900">{t('editor.paint.title')}</h2>
           <button
             onClick={onClose}
             className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-            aria-label="Close"
+            aria-label={t('editor.common.close')}
           >
             <X className="h-5 w-5" />
           </button>
@@ -257,7 +259,7 @@ export default function PaintEditor({ isOpen, onClose, initialUrl, onSave }: Pai
               <button
                 onClick={undo}
                 disabled={!canUndo}
-                title="Undo"
+                title={t('editor.paint.undo')}
                 className="flex h-10 w-full items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 disabled:opacity-30"
               >
                 <Undo2 className="h-4 w-4" />
@@ -265,14 +267,14 @@ export default function PaintEditor({ isOpen, onClose, initialUrl, onSave }: Pai
               <button
                 onClick={redo}
                 disabled={!canRedo}
-                title="Redo"
+                title={t('editor.paint.redo')}
                 className="flex h-10 w-full items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 disabled:opacity-30"
               >
                 <Redo2 className="h-4 w-4" />
               </button>
               <button
                 onClick={clear}
-                title="Clear everything"
+                title={t('editor.paint.clear')}
                 className="flex h-10 w-full items-center justify-center rounded-lg text-red-500 transition hover:bg-red-50"
               >
                 <Trash2 className="h-4 w-4" />
@@ -306,7 +308,7 @@ export default function PaintEditor({ isOpen, onClose, initialUrl, onSave }: Pai
           <div className="w-40 shrink-0 space-y-4">
             <div>
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                Colour
+                {t('editor.common.colour')}
               </div>
               <div className="grid grid-cols-5 gap-1.5">
                 {PALETTE.map((c) => (
@@ -331,7 +333,7 @@ export default function PaintEditor({ isOpen, onClose, initialUrl, onSave }: Pai
 
             <div>
               <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                Size · {brushSize}
+                {t('editor.paint.sizeLabel').replace('%d', String(brushSize))}
               </div>
               <input
                 type="range"
@@ -350,7 +352,7 @@ export default function PaintEditor({ isOpen, onClose, initialUrl, onSave }: Pai
             onClick={onClose}
             className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300"
           >
-            Cancel
+            {t('editor.common.cancel')}
           </button>
           <button
             onClick={save}
@@ -358,7 +360,7 @@ export default function PaintEditor({ isOpen, onClose, initialUrl, onSave }: Pai
             className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
           >
             <Save className="h-4 w-4" />
-            {saving ? 'Saving…' : 'Use this drawing'}
+            {saving ? t('editor.common.saving') : t('editor.paint.use')}
           </button>
         </div>
       </div>

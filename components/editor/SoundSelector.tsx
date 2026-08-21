@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Music2, Volume2, Sparkles } from 'lucide-react';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
+import { useTranslator } from '../common/LocaleProvider';
 import { soundsByCategory, type SoundCategory } from '@/lib/audio/soundCatalog';
 import AudioManager from '@/lib/audio/AudioManager';
 import { SoundRecorder } from './SoundRecorder';
@@ -24,13 +25,7 @@ type Sound = {
   bpm?: number;
 };
 
-const CATEGORY_TABS: Array<{ id: SoundCategory; label: string }> = [
-  { id: 'ui', label: 'UI' },
-  { id: 'game', label: 'Gameplay' },
-  { id: 'animal', label: 'Animals' },
-  { id: 'music', label: 'Music' },
-  { id: 'ambient', label: 'Ambient' },
-];
+const CATEGORY_ORDER: SoundCategory[] = ['ui', 'game', 'animal', 'music', 'ambient'];
 
 const CATEGORY_COLORS: Record<SoundCategory, string> = {
   ui: PALETTE.motion,
@@ -40,18 +35,31 @@ const CATEGORY_COLORS: Record<SoundCategory, string> = {
   ambient: PALETTE.sensing,
 };
 
-const BEAT_LOOPS: (Sound & { bpm: number })[] = [
-  { id: 'simple', name: 'Simple 4/4', color: PALETTE.control, description: 'Kick / snare / hat loop', bpm: 120 },
-  { id: 'chill', name: 'Chill 90', color: PALETTE.sensing, description: 'Slower mellow loop', bpm: 90 },
-  { id: 'fast', name: 'Fast 140', color: PALETTE.sound, description: 'Energetic loop', bpm: 140 },
-];
-
 export default function SoundSelector({
   isOpen,
   onClose,
   onSelect,
 }: SoundSelectorProps) {
+  const t = useTranslator();
   const [tab, setTab] = useState<SoundCategory | 'beats' | 'record'>('ui');
+
+  const categoryLabel = (c: SoundCategory | 'beats' | 'record'): string => {
+    switch (c) {
+      case 'ui': return t('editor.soundPicker.tab.ui');
+      case 'game': return t('editor.soundPicker.tab.game');
+      case 'animal': return t('editor.soundPicker.tab.animal');
+      case 'music': return t('editor.soundPicker.tab.music');
+      case 'ambient': return t('editor.soundPicker.tab.ambient');
+      case 'beats': return t('editor.soundPicker.tab.beats');
+      case 'record': return t('editor.soundPicker.tab.record');
+    }
+  };
+
+  const BEAT_LOOPS: (Sound & { bpm: number })[] = [
+    { id: 'simple', name: t('editor.soundPicker.beat.simple.name'), color: PALETTE.control, description: t('editor.soundPicker.beat.simple.description'), bpm: 120 },
+    { id: 'chill', name: t('editor.soundPicker.beat.chill.name'), color: PALETTE.sensing, description: t('editor.soundPicker.beat.chill.description'), bpm: 90 },
+    { id: 'fast', name: t('editor.soundPicker.beat.fast.name'), color: PALETTE.sound, description: t('editor.soundPicker.beat.fast.description'), bpm: 140 },
+  ];
 
   /** Audition the sound before adding it — the picker used to be silent. */
   const preview = (item: Sound) => {
@@ -85,6 +93,14 @@ export default function SoundSelector({
     onClose();
   };
 
+  const describeSpec = (duration: number, layers: number): string => {
+    const durKey = duration < 0.25 ? 'short' : duration < 0.6 ? 'medium' : 'long';
+    const dur = t(`editor.soundPicker.duration.${durKey}` as any);
+    const layerKey = layers === 1 ? 'one' : 'many';
+    const layer = t(`editor.soundPicker.layer.${layerKey}` as any).replace('%d', String(layers));
+    return `${dur} · ${layer}`;
+  };
+
   const current: Sound[] =
     tab === 'beats'
       ? BEAT_LOOPS
@@ -94,25 +110,29 @@ export default function SoundSelector({
           id: spec.id,
           name: spec.name,
           color: CATEGORY_COLORS[spec.category],
-          description: `${spec.duration < 0.25 ? 'Short' : spec.duration < 0.6 ? 'Medium' : 'Long'} · ${spec.layers.length} layer${spec.layers.length === 1 ? '' : 's'}`,
+          description: describeSpec(spec.duration, spec.layers.length),
         }));
 
   return (
     <SelectorModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Choose a sound"
-      eyebrow="Add object"
+      title={t('editor.soundPicker.title')}
+      eyebrow={t('editor.soundPicker.eyebrow')}
       icon={<Music2 className="w-5 h-5" />}
       accent={PALETTE.sound}
-      tabs={[...CATEGORY_TABS, { id: 'beats' as const, label: 'Beats' }, { id: 'record' as const, label: 'Record' }]}
+      tabs={[
+        ...CATEGORY_ORDER.map((c) => ({ id: c, label: categoryLabel(c) })),
+        { id: 'beats' as const, label: categoryLabel('beats') },
+        { id: 'record' as const, label: categoryLabel('record') },
+      ]}
       activeTab={tab}
       onTabChange={(id) => setTab(id as typeof tab)}
     >
       {tab === 'record' ? (
         <SelectorSection
-          title="Record your own"
-          description="Use your microphone to record a real sound. It only records while you hold the button, and nothing is sent until you save."
+          title={t('editor.soundPicker.record.title')}
+          description={t('editor.soundPicker.record.description')}
           accent={PALETTE.sound}
         >
           <SoundRecorder
@@ -125,7 +145,7 @@ export default function SoundSelector({
                 color: PALETTE.sound,
                 shape: 'box',
                 size: 40,
-                description: 'Recorded sound',
+                description: t('editor.soundPicker.record.recorded'),
                 properties: { soundType: url, recorded: true },
               });
               onClose();
@@ -136,13 +156,13 @@ export default function SoundSelector({
       <SelectorSection
         title={
           tab === 'beats'
-            ? 'Background beats'
-            : `${CATEGORY_TABS.find((t) => t.id === tab)?.label ?? ''} sounds`
+            ? t('editor.soundPicker.bgm.title')
+            : t('editor.soundPicker.section.sounds').replace('%@', categoryLabel(tab))
         }
         description={
           tab === 'beats'
-            ? 'Autoplaying loops that keep going in the background. Adjust BPM after adding.'
-            : 'One-shot effects triggered by `play sound` blocks. Click a tile to hear it.'
+            ? t('editor.soundPicker.bgm.description')
+            : t('editor.soundPicker.sfx.description')
         }
         accent={PALETTE.sound}
       >

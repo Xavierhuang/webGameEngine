@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Mic, Square, Play, Trash2, Save, AlertCircle } from 'lucide-react';
+import { useTranslator } from '../common/LocaleProvider';
 
 /** Recordings are capped so a forgotten tab can't fill the disk. */
 const MAX_SECONDS = 30;
@@ -24,10 +25,11 @@ interface SoundRecorderProps {
  * reality. Nothing leaves the browser until the child presses Save.
  */
 export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
+  const t = useTranslator();
   const [state, setState] = useState<'idle' | 'recording' | 'recorded' | 'saving'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(0);
-  const [name, setName] = useState('My sound');
+  const [name, setName] = useState(t('editor.recorder.defaultName'));
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -54,7 +56,7 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
   const start = async () => {
     setError(null);
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setError("This browser can't record audio.");
+      setError(t('editor.recorder.noBrowser'));
       return;
     }
 
@@ -90,8 +92,8 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
       cleanup();
       setError(
         e?.name === 'NotAllowedError'
-          ? 'Microphone permission was blocked. Allow it in your browser to record.'
-          : "Couldn't start recording."
+          ? t('editor.recorder.permBlocked')
+          : t('editor.recorder.startFailed')
       );
     }
   };
@@ -104,7 +106,7 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
 
   const preview = () => {
     if (!urlRef.current) return;
-    new Audio(urlRef.current).play().catch(() => setError("Couldn't play that back."));
+    new Audio(urlRef.current).play().catch(() => setError(t('editor.recorder.playbackFailed')));
   };
 
   const discard = () => {
@@ -122,20 +124,20 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
     try {
       const form = new FormData();
       form.append('audio', blobRef.current, 'recording.webm');
-      form.append('name', name.trim() || 'My sound');
+      form.append('name', name.trim() || t('editor.recorder.defaultName'));
       if (projectId) form.append('projectId', projectId);
 
       const response = await fetch('/api/uploads/audio', { method: 'POST', body: form });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.url) {
-        setError(data?.error || "Couldn't save that recording.");
+        setError(data?.error || t('editor.recorder.saveFailed'));
         setState('recorded');
         return;
       }
-      onSaved({ url: data.url, name: name.trim() || 'My sound' });
+      onSaved({ url: data.url, name: name.trim() || t('editor.recorder.defaultName') });
       discard();
     } catch {
-      setError('Could not reach the server. Try again.');
+      setError(t('editor.recorder.networkFailed'));
       setState('recorded');
     }
   };
@@ -147,7 +149,7 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
           <button
             onClick={stop}
             className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white transition hover:bg-red-600"
-            aria-label="Stop recording"
+            aria-label={t('editor.recorder.stopRecording')}
           >
             <Square className="h-5 w-5" />
           </button>
@@ -156,7 +158,7 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
             onClick={start}
             disabled={state === 'saving'}
             className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-800 disabled:opacity-50"
-            aria-label="Start recording"
+            aria-label={t('editor.recorder.startRecording')}
           >
             <Mic className="h-5 w-5" />
           </button>
@@ -167,15 +169,15 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
             <div className="flex items-center gap-2">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" />
               <span className="text-sm font-semibold text-slate-900">
-                Recording… {seconds}s
+                {t('editor.recorder.recording').replace('%d', String(seconds))}
               </span>
-              <span className="text-xs text-slate-500">(max {MAX_SECONDS}s)</span>
+              <span className="text-xs text-slate-500">{t('editor.recorder.maxHint').replace('%d', String(MAX_SECONDS))}</span>
             </div>
           ) : state === 'recorded' || state === 'saving' ? (
-            <div className="text-sm font-semibold text-slate-900">Recorded {seconds}s</div>
+            <div className="text-sm font-semibold text-slate-900">{t('editor.recorder.recorded').replace('%d', String(seconds))}</div>
           ) : (
             <div className="text-sm text-slate-600">
-              Tap the microphone to record your own sound.
+              {t('editor.recorder.tapHint')}
             </div>
           )}
         </div>
@@ -186,7 +188,7 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Name your sound"
+            placeholder={t('editor.recorder.namePlaceholder')}
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400"
           />
           <div className="flex gap-2">
@@ -195,14 +197,14 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300"
             >
               <Play className="h-3 w-3" />
-              Listen
+              {t('editor.recorder.listen')}
             </button>
             <button
               onClick={discard}
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:border-red-300"
             >
               <Trash2 className="h-3 w-3" />
-              Discard
+              {t('editor.recorder.discard')}
             </button>
             <div className="flex-1" />
             <button
@@ -211,7 +213,7 @@ export function SoundRecorder({ onSaved, projectId }: SoundRecorderProps) {
               className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
             >
               <Save className="h-3 w-3" />
-              {state === 'saving' ? 'Saving…' : 'Save sound'}
+              {state === 'saving' ? t('editor.common.saving') : t('editor.recorder.save')}
             </button>
           </div>
         </div>

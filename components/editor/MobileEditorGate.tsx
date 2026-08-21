@@ -49,7 +49,7 @@ function MobileGateScreen() {
           <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-gradient-to-br from-blue-500 to-orange-500 text-white">
             <Boxes className="w-4 h-4" />
           </span>
-          <span className="font-bold text-lg text-slate-900">lingplay</span>
+          <span className="font-bold text-lg text-slate-900">{t('common.brand')}</span>
         </div>
       </header>
       <main className="flex-1 flex items-center justify-center px-6 py-12">

@@ -53,7 +53,7 @@ export function AppNav({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-2">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg text-slate-900">
           <LogoMark />
-          <span>lingplay</span>
+          <span>{t('common.brand')}</span>
         </Link>
         <div className="hidden md:flex items-center gap-1 text-sm font-medium text-slate-700">
           <NavLink href="/projects/new">{t('nav.create')}</NavLink>

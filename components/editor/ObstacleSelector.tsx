@@ -5,6 +5,7 @@ import { ShieldAlert } from 'lucide-react';
 import ShapePreview from './ShapePreview';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
+import { useTranslator } from '../common/LocaleProvider';
 
 interface ObstacleSelectorProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export default function ObstacleSelector({
   onClose,
   onSelect,
 }: ObstacleSelectorProps) {
+  const t = useTranslator();
   const [tab, setTab] = useState<'basics' | 'hazards'>('basics');
   const current = tab === 'basics' ? BASIC_OBSTACLES : HAZARD_OBSTACLES;
 
@@ -37,23 +39,23 @@ export default function ObstacleSelector({
     <SelectorModal
       isOpen={isOpen}
       onClose={onClose}
-      title="Choose an obstacle"
-      eyebrow="Add object"
+      title={t('editor.obstaclePicker.title')}
+      eyebrow={t('editor.obstaclePicker.eyebrow')}
       icon={<ShieldAlert className="w-5 h-5" />}
       accent={PALETTE.lists}
       tabs={[
-        { id: 'basics', label: 'Solid blocks' },
-        { id: 'hazards', label: 'Hazards' },
+        { id: 'basics', label: t('editor.obstaclePicker.tab.solid') },
+        { id: 'hazards', label: t('editor.obstaclePicker.tab.hazards') },
       ]}
       activeTab={tab}
       onTabChange={(id) => setTab(id as typeof tab)}
     >
       <SelectorSection
-        title={tab === 'basics' ? 'Impassable blockers' : 'Damaging hazards'}
+        title={tab === 'basics' ? t('editor.obstaclePicker.solid.title') : t('editor.obstaclePicker.hazards.title')}
         description={
           tab === 'basics'
-            ? "Objects the player can't move through. Great for walls, terrain, and puzzles."
-            : 'Combine with a `when touching` block to subtract lives or reset the level.'
+            ? t('editor.obstaclePicker.solid.description')
+            : t('editor.obstaclePicker.hazards.description')
         }
         accent={PALETTE.lists}
       >

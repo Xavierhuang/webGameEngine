@@ -46,11 +46,15 @@ const StagePreview = dynamic(
 
 const BlockEditor = dynamic(() => import('./BlockEditor'), {
   ssr: false,
+  // Loading fallback shown for <1s while the code-split chunk loads. Kept as
+  // an English literal because `dynamic`'s loading callback runs outside any
+  // component's render, so `useTranslator()` can't be called here. The spinner
+  // does most of the communication.
   loading: () => (
     <div className="w-full h-full flex items-center justify-center bg-slate-50">
       <div className="flex flex-col items-center gap-3 text-slate-500 text-sm">
         <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
-        Loading block editor…
+        Loading…
       </div>
     </div>
   ),
@@ -373,7 +377,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
 
   const deleteScene = async (sceneId: string) => {
     if ((project?.scenes?.length ?? 0) <= 1) return;
-    if (!confirm('Delete this scene and everything in it?')) return;
+    if (!confirm(t('editor.game.confirmDeleteScene'))) return;
     try {
       const response = await commandWrite({
         url: `/api/scenes/${sceneId}`,
@@ -384,7 +388,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        alert(data?.error || 'Could not delete the scene.');
+        alert(data?.error || t('editor.game.sceneDeleteFailed'));
         return;
       }
       setProject((prev: any) => {
@@ -1125,9 +1129,9 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-white border border-slate-200 mb-3">
                           <span className="text-2xl">🧩</span>
                         </div>
-                        <p className="font-semibold text-slate-900">No object selected</p>
+                        <p className="font-semibold text-slate-900">{t('editor.game.noSelection.title')}</p>
                         <p className="mt-1 text-sm text-slate-500">
-                          Pick an object in the scene (or add one from the left) to write its logic.
+                          {t('editor.game.noSelection.hint')}
                         </p>
                       </div>
                     </div>
@@ -1617,6 +1621,7 @@ function EditorErrorPanel({
   body: string;
   inline?: boolean;
 }) {
+  const t = useTranslator();
   const content = (
     <div className="rounded-2xl border border-red-200 bg-red-50 p-6 max-w-sm text-center">
       <h3 className="font-bold text-red-800">{title}</h3>
@@ -1625,7 +1630,7 @@ function EditorErrorPanel({
         onClick={() => window.location.reload()}
         className="mt-4 inline-flex items-center justify-center bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-full px-4 py-2 transition"
       >
-        Reload page
+        {t('editor.game.reloadPage')}
       </button>
     </div>
   );

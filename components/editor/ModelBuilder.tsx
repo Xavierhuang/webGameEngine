@@ -5,6 +5,7 @@ import { X, Shapes, Plus, Trash2, Move3D, RotateCw, Maximize2 } from 'lucide-rea
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Box as DreiBox, Sphere as DreiSphere, TransformControls } from '@react-three/drei';
 import { PALETTE } from '../common/design';
+import { useTranslator } from '../common/LocaleProvider';
 import { SceneLights } from '@/components/three/SceneLights';
 
 interface ModelBuilderProps {
@@ -34,6 +35,7 @@ const presets = [
 ];
 
 export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderProps) {
+  const t = useTranslator();
   const [name, setName] = useState('Composite');
   const [parts, setParts] = useState<Part[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -330,16 +332,16 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
             </span>
             <div>
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider leading-none mb-0.5">
-                Composite builder
+                {t('editor.modelBuilder.eyebrow')}
               </div>
               <h2 className="text-lg sm:text-xl font-black tracking-tight text-slate-900">
-                Model Builder
+                {t('editor.modelBuilder.title')}
               </h2>
             </div>
           </div>
           <button
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('editor.common.close')}
             className="inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition"
           >
             <X className="w-5 h-5" />
@@ -352,7 +354,7 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
             {/* Live 3D preview */}
             <div className="w-full h-96 relative rounded-2xl border border-slate-200 mb-3 overflow-hidden bg-slate-50">
               <div className="absolute z-10 top-2 left-2 text-[11px] text-slate-700 bg-white/95 px-2.5 py-1.5 rounded-lg pointer-events-none shadow-sm border border-slate-200">
-                Click a part to select · <span className="font-semibold">1</span> Move · <span className="font-semibold">2</span> Rotate · <span className="font-semibold">3</span> Scale · <span className="font-semibold">Esc</span> Clear
+                {t('editor.modelBuilder.hint')}
               </div>
               <Canvas camera={{ position: [0, 3, 6], fov: 55 }}>
                 <SceneLights />
@@ -375,20 +377,20 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
             </div>
             {/* Gizmo mode */}
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Gizmo</span>
+              <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">{t('editor.modelBuilder.gizmo')}</span>
               <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200">
-                <PillButton active={gizmoMode === 'translate'} onClick={() => setGizmoMode('translate')} icon={<Move3D className="w-3.5 h-3.5" />}>Move</PillButton>
-                <PillButton active={gizmoMode === 'rotate'} onClick={() => setGizmoMode('rotate')} icon={<RotateCw className="w-3.5 h-3.5" />}>Rotate</PillButton>
-                <PillButton active={gizmoMode === 'scale'} onClick={() => setGizmoMode('scale')} icon={<Maximize2 className="w-3.5 h-3.5" />}>Scale</PillButton>
+                <PillButton active={gizmoMode === 'translate'} onClick={() => setGizmoMode('translate')} icon={<Move3D className="w-3.5 h-3.5" />}>{t('editor.common.move')}</PillButton>
+                <PillButton active={gizmoMode === 'rotate'} onClick={() => setGizmoMode('rotate')} icon={<RotateCw className="w-3.5 h-3.5" />}>{t('editor.common.rotate')}</PillButton>
+                <PillButton active={gizmoMode === 'scale'} onClick={() => setGizmoMode('scale')} icon={<Maximize2 className="w-3.5 h-3.5" />}>{t('editor.common.scale')}</PillButton>
               </div>
             </div>
             {/* Snap controls */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-xs">
-              <SnapRow label="Move snap" value={moveSnap} options={[{ v: null, label: 'Off' }, { v: 0.5, label: '0.5' }, { v: 1, label: '1' }]} onSelect={setMoveSnap} />
-              <SnapRow label="Rotate snap" value={rotateSnapDeg} options={[{ v: null, label: 'Off' }, { v: 15, label: '15°' }, { v: 45, label: '45°' }]} onSelect={setRotateSnapDeg} />
-              <SnapRow label="Scale snap" value={scaleSnap} options={[{ v: null, label: 'Off' }, { v: 0.1, label: '0.1' }, { v: 0.25, label: '0.25' }]} onSelect={setScaleSnap} />
+              <SnapRow label={t('editor.modelBuilder.moveSnap')} value={moveSnap} options={[{ v: null, label: t('editor.common.off') }, { v: 0.5, label: '0.5' }, { v: 1, label: '1' }]} onSelect={setMoveSnap} />
+              <SnapRow label={t('editor.modelBuilder.rotateSnap')} value={rotateSnapDeg} options={[{ v: null, label: t('editor.common.off') }, { v: 15, label: '15°' }, { v: 45, label: '45°' }]} onSelect={setRotateSnapDeg} />
+              <SnapRow label={t('editor.modelBuilder.scaleSnap')} value={scaleSnap} options={[{ v: null, label: t('editor.common.off') }, { v: 0.1, label: '0.1' }, { v: 0.25, label: '0.25' }]} onSelect={setScaleSnap} />
             </div>
-            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Name</label>
+            <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">{t('editor.common.name')}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -398,7 +400,7 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
           {/* Left Pane: Add Parts + Parts List */}
           <div className="flex flex-col gap-3">
             <div>
-              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Add parts</div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('editor.modelBuilder.addParts')}</div>
               <div className="grid grid-cols-2 gap-2">
                 {presets.map((p) => (
                   <button
@@ -413,11 +415,11 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Parts</div>
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">{t('editor.modelBuilder.parts')}</div>
               <div className="space-y-2 max-h-[calc(90vh-380px)] overflow-auto pr-1">
                 {parts.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
-                    No parts yet. Add one from above.
+                    {t('editor.modelBuilder.empty')}
                   </div>
                 ) : (
                   parts.map((part) => (
@@ -438,12 +440,12 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
                           onClick={() => removePart(part.id)}
                           className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
                         >
-                          <Trash2 className="w-3.5 h-3.5" /> Remove
+                          <Trash2 className="w-3.5 h-3.5" /> {t('editor.common.remove')}
                         </button>
                       </div>
                       <div className="grid grid-cols-6 gap-2">
                         <div className="col-span-2">
-                          <PartFieldLabel>Color</PartFieldLabel>
+                          <PartFieldLabel>{t('editor.common.color')}</PartFieldLabel>
                           <input
                             type="color"
                             value={part.color}
@@ -451,7 +453,7 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
                             className="w-full h-9 rounded-md border border-slate-200"
                           />
                         </div>
-                        <PartField label="Size" value={part.size} onChange={(v) => updatePart(part.id, { size: v })} />
+                        <PartField label={t('editor.common.size')} value={part.size} onChange={(v) => updatePart(part.id, { size: v })} />
                         <PartField label="X" value={part.offset.x} onChange={(v) => updatePart(part.id, { offset: { ...part.offset, x: v } })} />
                         <PartField label="Y" value={part.offset.y} onChange={(v) => updatePart(part.id, { offset: { ...part.offset, y: v } })} />
                         <PartField label="Z" value={part.offset.z} onChange={(v) => updatePart(part.id, { offset: { ...part.offset, z: v } })} />
@@ -482,7 +484,7 @@ export default function ModelBuilder({ isOpen, onClose, onSave }: ModelBuilderPr
                 disabled={parts.length === 0}
                 className="w-full inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-full font-semibold transition shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Save composite
+                {t('editor.modelBuilder.save')}
               </button>
             </div>
           </div>
