@@ -57,7 +57,11 @@ export function TutorialPanel({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-l border-slate-200 bg-white">
+    // `relative z-50` keeps the panel above the spotlight's dim (z-40). Without
+    // it the overlay dims the very instructions the child is reading, since the
+    // panel is docked in normal flow and would otherwise have no stacking
+    // context of its own.
+    <aside className="relative z-50 flex h-full w-80 shrink-0 flex-col border-l border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
         <h2 className="text-sm font-bold text-slate-900">
           {tutorial ? tutorial.title : 'Tutorials'}
