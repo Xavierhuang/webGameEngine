@@ -35,6 +35,11 @@ interface AnimatedModelProps {
   onAnimationsLoaded?: (animations: string[]) => void;
   onLoad?: () => void;
   onError?: (error: unknown) => void;
+  // Forward pointer clicks from the wrapping group so `when_clicked` scripts
+  // fire when a kid taps the character mesh itself, not just the invisible
+  // volume around it. Without this, click-to-jump silently no-ops on any
+  // GLB/FBX character.
+  onClick?: (e: any) => void;
 }
 
 export default function AnimatedModel({
@@ -47,6 +52,7 @@ export default function AnimatedModel({
   onAnimationsLoaded,
   onLoad,
   onError,
+  onClick,
 }: AnimatedModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const ext = (url.split('.').pop() || '').toLowerCase();
@@ -54,15 +60,16 @@ export default function AnimatedModel({
   // For GLTF/GLB files, use drei's useAnimations
   if (ext === 'glb' || ext === 'gltf') {
     const model = <GLTFAnimatedModel
-      url={url} 
-      position={position} 
-      rotation={rotation} 
+      url={url}
+      position={position}
+      rotation={rotation}
       scale={scale}
       animationState={animationState}
       playAnimation={playAnimation}
       onAnimationsLoaded={onAnimationsLoaded}
       onLoad={onLoad}
       onError={onError}
+      onClick={onClick}
     />;
 
     if (onError) {
@@ -78,16 +85,17 @@ export default function AnimatedModel({
   
   // For FBX files, use manual animation extraction
   if (ext === 'fbx') {
-    return <FBXAnimatedModel 
-      url={url} 
-      position={position} 
-      rotation={rotation} 
+    return <FBXAnimatedModel
+      url={url}
+      position={position}
+      rotation={rotation}
       scale={scale}
       animationState={animationState}
       playAnimation={playAnimation}
       onAnimationsLoaded={onAnimationsLoaded}
       onLoad={onLoad}
       onError={onError}
+      onClick={onClick}
     />;
   }
   
@@ -105,6 +113,7 @@ function GLTFAnimatedModel({
   onAnimationsLoaded,
   onLoad,
   onError,
+  onClick,
 }: AnimatedModelProps) {
   const { scene: sourceScene, animations } = useGLTF(url);
   const [committedInstance, setCommittedInstance] = useState<{
@@ -143,6 +152,7 @@ function GLTFAnimatedModel({
       scale={scale}
       animationState={animationState}
       playAnimation={playAnimation}
+      onClick={onClick}
     />
   );
 }
@@ -154,6 +164,7 @@ function GLTFAnimatedModelInstance({
   scale,
   animationState,
   playAnimation,
+  onClick,
 }: AnimatedModelProps & {
   instance: THREE.Group;
   animations: THREE.AnimationClip[];
@@ -243,8 +254,8 @@ function GLTFAnimatedModelInstance({
   // Rotation is handled by the parent group in SceneView, so we don't apply it here
   // This ensures TransformControls rotates around the correct pivot point
   return (
-    <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale}>
-      <primitive object={instance} dispose={null} />
+    <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale} onClick={onClick}>
+      <primitive object={instance} dispose={null} onClick={onClick} />
     </group>
   );
 }
@@ -259,6 +270,7 @@ function FBXAnimatedModel({
   onAnimationsLoaded,
   onLoad,
   onError,
+  onClick,
 }: AnimatedModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
@@ -525,7 +537,7 @@ function FBXAnimatedModel({
   return (
     // Rotation is handled by the parent group in SceneView, so we don't apply it here
     // This ensures TransformControls rotates around the correct pivot point
-    <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale} />
+    <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale} onClick={onClick} />
   );
 }
 

@@ -1935,7 +1935,7 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
             ref={meshRef as any}
             position={shouldHavePhysics ? [0, 0, 0] : position}
             scale={modelRender.outerScale}
-            onClick={() => world.notifyClicked(objectId)}
+            onClick={(e) => { e.stopPropagation(); world.notifyClicked(objectId); }}
           >
             <AnimatedModel
               url={modelUrl}
@@ -1944,6 +1944,12 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
               scale={modelRender.innerScale}
               animationState={finalAnimationState || 'idle'}
               playAnimation={!isAnimationStopped}
+              // Belt-and-suspenders: the outer group already has onClick, but
+              // the group's raycast bounding volume is empty (only children
+              // have geometry). Forwarding onClick to the loaded GLTF/FBX
+              // primitive makes sure a click on the visible mesh registers
+              // even if the group's own hit test misses.
+              onClick={(e) => { e.stopPropagation(); world.notifyClicked(objectId); }}
             />
           </group>
           <FollowerBubble meshRef={meshRef as any} bubble={bubble} yOffset={scaleValue * 1.8 + 0.3} />
@@ -1964,17 +1970,22 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
     const modelPosition: [number, number, number] = shouldHavePhysics ? [0, 0, 0] : position;
     return (
       <>
-        <Suspense fallback={null}>
-          <ExtensionModel
-            ext={ext}
-            modelUrl={modelUrl}
-            meshRef={meshRef}
-            position={modelPosition}
-            rotation={rotation}
-            scale={scale}
-            color={color}
-          />
-        </Suspense>
+        {/* OBJ/STL/DAE models had no click handler at all, so `when_clicked`
+            scripts silently never fired on them. Wrap the primitive in a
+            group whose onClick reports the click to the runtime. */}
+        <group onClick={(e) => { e.stopPropagation(); world.notifyClicked(objectId); }}>
+          <Suspense fallback={null}>
+            <ExtensionModel
+              ext={ext}
+              modelUrl={modelUrl}
+              meshRef={meshRef}
+              position={modelPosition}
+              rotation={rotation}
+              scale={scale}
+              color={color}
+            />
+          </Suspense>
+        </group>
         <FollowerBubble meshRef={meshRef} bubble={bubble} yOffset={scaleValue * 1.2 + 0.3} />
       </>
     );
