@@ -45,6 +45,14 @@ if (USE_LINGMODEL) {
     // Explicitly omit apiKey so the SDK sends only the Authorization: Bearer
     // header (not X-Api-Key). Passing '' triggers "auth method unresolved".
     apiKey: null,
+    // LingCode's inference proxy WAF blocks the SDK's default
+    // `User-Agent: Anthropic/JS ...` (same class of block that hit the
+    // LingCodeBaby Quinny bundle's Python UA). Announce ourselves as LingPlay
+    // so the WAF lets us through — the request otherwise 403s "Your request
+    // was blocked" with no other diagnostic.
+    defaultHeaders: {
+      'User-Agent': 'LingPlay/1.0 (+https://lingcode.dev)',
+    },
   });
   console.log(`[ai] LingModel enabled: ${LINGMODEL_BASE_URL} (model=${LINGMODEL_MODEL})`);
 } else if (anthropicKey) {
