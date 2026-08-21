@@ -22,7 +22,7 @@ eq(baseKeys.length > 0, true, 'the default catalog has keys');
 // gracefully in English for locales that haven't caught up. Remove a namespace
 // from this list once every locale has real translations for it.
 const PENDING_TRANSLATION_NAMESPACES = [
-  'home.', 'editor.mobile.', 'newProject.',
+  'home.', 'editor.mobile.', 'editor.ai.', 'newProject.',
   'auth.login.', 'auth.signup.', 'auth.forgot.', 'auth.reset.',
   'learn.', 'privacy.', 'projects.',
 ];

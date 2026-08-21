@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Send, Bot, Check, Wand2, ArrowUp } from 'lucide-react';
 import { PALETTE } from '../common/design';
+import { useTranslator } from '../common/LocaleProvider';
 
 interface AIAssistantProps {
   projectId: string;
@@ -17,21 +18,19 @@ interface Message {
   suggestions?: string[];
 }
 
-const WELCOME_MESSAGE =
-  "Hi! Tell me what you want to build and I'll write the blocks for you. Small change or full game — I can do both.";
-
-const STARTER_PROMPTS = [
-  'Make a hero that jumps with space',
-  'Add 3 coins that spin and get collected',
-  'Enemy chases me when I get close',
-  'Play a jump sound when I press space',
-];
-
 export default function AIAssistant({
   projectId,
   onClose,
   onApplyUpdate,
 }: AIAssistantProps) {
+  const t = useTranslator();
+  const WELCOME_MESSAGE = t('editor.ai.welcome');
+  const STARTER_PROMPTS = [
+    t('editor.ai.starter.jump'),
+    t('editor.ai.starter.coins'),
+    t('editor.ai.starter.chase'),
+    t('editor.ai.starter.jumpSound'),
+  ];
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: WELCOME_MESSAGE },
   ]);
