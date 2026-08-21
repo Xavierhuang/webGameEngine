@@ -1094,6 +1094,17 @@ export class ObjectRuntime {
       const body = blockChildren(def.hat!) ?? def.body;
       if (spec.name) this.definitions.set(spec.name.toLowerCase(), { params: spec.params, body });
     }
+    // Diag: log the built scripts so we can see WHY when_clicked isn't firing
+    // when the object has 2 blocks. Two separate standalone stacks build
+    // differently from one connected chain, and the difference decides
+    // whether the click ever runs the jump.
+    if (typeof console !== 'undefined') {
+      console.log('[lingplay] scripts built for', this.objectId, this.scripts.map((s) => ({
+        hat: s.hat?.block_type ?? null,
+        bodyLen: s.body.length,
+        bodyTypes: s.body.map((b) => b.block_type),
+      })));
+    }
   }
 
   get hasScripts(): boolean {

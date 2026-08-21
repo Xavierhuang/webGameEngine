@@ -608,6 +608,22 @@ async function handleObjectBlocksReplace(
     const block = nextBlocks[index];
     const blockId =
       typeof block?.id === 'string' && block.id.length === 36 ? (block.id as string) : randomUUID();
+    // The BlockEditor client sends LogicBlock-shaped rows produced by
+    // blocklyToLogic() — fields are `block_type` / `parent_block_id`, not
+    // Blockly's own `type` / `parentId`. The original code read the Blockly
+    // field names, always missed, and fell back to 'unknown'; every row
+    // landed with block_type='unknown', so HAT_TYPES.has('when_clicked')
+    // never matched at runtime and click-to-jump silently died. Accept
+    // both shapes so a legacy caller (or a Blockly workspace JSON passed
+    // in raw for undo) still writes the right block_type.
+    const blockType =
+      typeof block?.block_type === 'string' ? (block.block_type as string)
+        : typeof block?.type === 'string' ? (block.type as string)
+        : 'unknown';
+    const parentBlockId =
+      typeof block?.parent_block_id === 'string' ? (block.parent_block_id as string)
+        : typeof block?.parentId === 'string' ? (block.parentId as string)
+        : null;
     await connection.execute(
       `INSERT INTO logic_blocks
          (id, game_object_id, project_id, scene_id, block_type, category,
@@ -618,9 +634,9 @@ async function handleObjectBlocksReplace(
         object.id,
         projectId,
         object.scene_id,
-        typeof block?.type === 'string' ? (block.type as string) : 'unknown',
+        blockType,
         typeof block?.category === 'string' ? (block.category as string) : 'unknown',
-        typeof block?.parentId === 'string' ? (block.parentId as string) : null,
+        parentBlockId,
         index,
         JSON.stringify(block),
       ],
