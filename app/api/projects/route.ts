@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/mysql/server';
 import { resolveActor } from '@/lib/auth/actor';
 import { moderateText, sanitizeUserInput } from '@/lib/safety/moderation';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/messages';
 
 export async function GET(request: NextRequest) {
   try {
@@ -99,9 +101,15 @@ export async function POST(request: NextRequest) {
           genre,
         ],
       );
+      // Default scene name follows the creator's locale — a zh reader
+      // starting a new project sees 主场景 in the tab, not "Main Scene".
+      // Existing projects keep whatever name is already stored; SceneTabs
+      // maps the well-known English default to a localized display at
+      // render time so nothing needs a data migration.
+      const defaultSceneName = translate(await getLocale(), 'editor.sceneTabs.defaultName');
       await connection.execute(
         'INSERT INTO scenes (id, project_id, name, order_index) VALUES (?, ?, ?, ?)',
-        [sceneId, projectId, 'Main Scene', 0],
+        [sceneId, projectId, defaultSceneName, 0],
       );
       const [rows] = await connection.execute('SELECT * FROM projects WHERE id = ?', [projectId]);
       const list = rows as Array<Record<string, unknown>>;

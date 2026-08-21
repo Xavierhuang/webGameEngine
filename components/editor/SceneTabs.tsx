@@ -42,6 +42,16 @@ export default function SceneTabs({
     setEditingId(null);
   };
 
+  // Existing projects were created before the default scene name honored
+  // the user's locale, so their scenes table still has "Main Scene" as a
+  // stored value. Rewrite that specific well-known default at render time
+  // so a Chinese reader sees 主场景 without a data migration. Only maps
+  // the exact English default — a user's own renamed scene is left alone.
+  const displayName = (name: string | null | undefined): string => {
+    if (name === 'Main Scene') return t('editor.sceneTabs.defaultName');
+    return name ?? '';
+  };
+
   return (
     <div className="border-b border-slate-200 bg-white px-3 py-2">
       <div className="mb-1.5 flex items-center justify-between">
@@ -84,14 +94,17 @@ export default function SceneTabs({
                   <button
                     onClick={() => onSelect(scene)}
                     className="min-w-0 flex-1 truncate text-left"
-                    title={scene.name}
+                    title={displayName(scene.name)}
                   >
-                    {scene.name}
+                    {displayName(scene.name)}
                   </button>
                   <button
                     onClick={() => {
                       setEditingId(scene.id);
-                      setDraft(scene.name ?? '');
+                      // Prime the rename input with the localized display so a
+                      // zh user renaming the default scene doesn't suddenly see
+                      // "Main Scene" appear in the field.
+                      setDraft(displayName(scene.name));
                     }}
                     className={`shrink-0 opacity-0 transition group-hover:opacity-100 ${
                       active ? 'text-slate-300 hover:text-white' : 'text-slate-400 hover:text-slate-700'
