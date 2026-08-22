@@ -35,6 +35,7 @@ import { ObjectRuntime, RuntimeWorld, type RuntimeContext } from '../../lib/runt
 import AudioManager from '../../lib/audio/AudioManager';
 import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
 import { SceneLights } from '@/components/three/SceneLights';
+import { readScenePreset } from '@/lib/scene/lightingPresets';
 import { VideoSensing, type VideoSensingHandle } from './VideoSensing';
 import { ParticleField, type ParticleController } from './ParticleField';
 import { ParticleEmitter } from '../three/ParticleEmitter';
@@ -514,7 +515,11 @@ export default function GamePlayer({ project, compact = false }: GamePlayerProps
             scene.background = new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR);
           }}
         >
-          <SceneLights />
+          {/* Match the editor's lighting-preset pick for this scene. In the
+              same browser the preset is in localStorage; a stranger loading
+              a published game gets the neutral default until we move this
+              onto the server. */}
+          <SceneLights preset={scene?.id ? readScenePreset(scene.id) : undefined} />
           {/* One points cloud for every emitter in the scene. */}
           <ParticleField
             onReady={(c) => {

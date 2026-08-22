@@ -27,6 +27,13 @@ import { useTranslator } from '../common/LocaleProvider';
 import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 import { SceneLights } from '@/components/three/SceneLights';
+import {
+  LIGHTING_PRESETS,
+  DEFAULT_PRESET,
+  readScenePreset,
+  writeScenePreset,
+  type LightingPresetId,
+} from '@/lib/scene/lightingPresets';
 import { commandWrite, commandServiceCall, newEditingSessionId, newObjectId } from '@/lib/editor/commandWrite';
 
 // Blockly needs the DOM — load the block editor client-side only.
@@ -153,6 +160,17 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     try { window.localStorage.setItem('lingplay.snapEnabled', snapEnabled ? '1' : '0'); }
     catch { /* private mode, ignore */ }
   }, [snapEnabled]);
+  // Lighting preset for the current scene — persisted per scene ID in
+  // localStorage. Read on scene switch; write on picker change.
+  const [lightingPreset, setLightingPreset] = useState<LightingPresetId>(DEFAULT_PRESET);
+  useEffect(() => {
+    if (!currentScene?.id) return;
+    setLightingPreset(readScenePreset(currentScene.id));
+  }, [currentScene?.id]);
+  const applyLightingPreset = (preset: LightingPresetId) => {
+    setLightingPreset(preset);
+    if (currentScene?.id) writeScenePreset(currentScene.id, preset);
+  };
   const [focusRequest, setFocusRequest] = useState(0);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -945,9 +963,26 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             <ErrorBoundary
               fallback={<EditorErrorPanel title="Scene rendering error" body="Something went wrong rendering the 3D scene." />}
             >
-              <div className="w-full h-full editor-grid">
+              <div className="w-full h-full editor-grid relative">
+                {/* Floating lighting-preset picker — top-left of the canvas
+                    so it doesn't compete with the transform toolbar (top)
+                    or property panel (right). One click changes the scene
+                    vibe; the choice persists per scene in localStorage. */}
+                <select
+                  value={lightingPreset}
+                  onChange={(e) => applyLightingPreset(e.target.value as LightingPresetId)}
+                  className="absolute left-3 top-3 z-10 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur transition hover:border-slate-300"
+                  aria-label={t('editor.lighting.pickerLabel')}
+                  title={t('editor.lighting.pickerLabel')}
+                >
+                  {LIGHTING_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {t(`editor.lighting.preset.${p.id}` as any)}
+                    </option>
+                  ))}
+                </select>
                 <Canvas camera={{ position: [0, 5, 10] }}>
-                <SceneLights />
+                <SceneLights preset={lightingPreset} />
                 <OrbitControls ref={orbitRef} />
                 <Grid
                   args={[20, 20]}
