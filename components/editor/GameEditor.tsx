@@ -314,16 +314,18 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     () => setFocusRequest((request) => request + 1),
   ), [editorMode]);
 
-  // Duplicate the currently-selected object. Client-only copy — reuses
-  // the same object.create shape as the toolbar / picker Add flows so
-  // the copy lands in the same code path (interpreter, renderer,
-  // delete). Nudge position +40 world units so the copy doesn't overlap
-  // the source and the kid can see they got a new object. Logic blocks
-  // are NOT copied yet — that's a v2 that needs a follow-up call to
-  // object.blocks.replace after fetching the source's serialized JSON
-  // (block_data lives on each row, but the client only sees the flat
-  // rows via object.logic_blocks, not the workspace JSON the picker
-  // save path emits).
+  // Duplicate the currently-selected object. Reuses the same
+  // object.create shape as the toolbar / picker Add flows so the copy
+  // lands in the same code path (interpreter, renderer, delete). Nudge
+  // position +40 world units so the copy doesn't overlap the source
+  // and the kid can see they got a new object.
+  //
+  // Logic blocks are copied via a follow-up PUT to /logic-blocks with
+  // the source's rows repackaged as LogicBlock-shape entries — the
+  // shape the save handler already accepts after `Fix logic-block
+  // save`. Without this a duplicated Coin looks identical but has
+  // none of the collection behaviour, which is exactly the
+  // "why doesn't my copy work?" question we don't want to invite.
   const duplicateSelected = useCallback(async () => {
     if (!selectedObject?.id) return;
     const sceneId = currentScene?.id || project?.scenes?.[0]?.id;
@@ -332,6 +334,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     const srcProps = typeof src.properties === 'string'
       ? (() => { try { return JSON.parse(src.properties || '{}'); } catch { return {}; } })()
       : (src.properties || {});
+    const newId = newObjectId();
     const addedTo = objectIdsIn(sceneId);
     const response = await commandServiceCall({
       projectId,
@@ -339,7 +342,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
       revisionRef,
       command: {
         type: 'object.create',
-        objectId: newObjectId(),
+        objectId: newId,
         sceneId,
         name: `${src.name ?? ''} ${t('editor.properties.copySuffix')}`.trim(),
         objectType: src.type,
@@ -353,13 +356,46 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
         },
       },
     });
-    if (response.ok) {
-      const projectResponse = await fetch(`/api/projects/${projectId}`);
-      if (projectResponse.ok) {
-        const { project: updatedProject } = await projectResponse.json();
-        commitProject(updatedProject);
-        selectNewObject(addedTo, updatedProject, sceneId);
+    if (!response.ok) return;
+    // Copy the source's logic blocks onto the new object. Each source
+    // row already carries `block_type` + `block_data` (raw JSON with
+    // inputs/children); repackaging as LogicBlock shape means the save
+    // handler writes them straight without re-serialization.
+    const srcBlocks = Array.isArray(src.logic_blocks) ? src.logic_blocks : [];
+    if (srcBlocks.length > 0) {
+      const cloned = srcBlocks.map((row: any) => {
+        const data = typeof row.block_data === 'string'
+          ? (() => { try { return JSON.parse(row.block_data || '{}'); } catch { return {}; } })()
+          : (row.block_data || {});
+        return {
+          ...data,
+          block_type: row.block_type ?? data.block_type,
+          // Drop the source id — a fresh one gets assigned on insert.
+          id: undefined,
+        };
+      });
+      try {
+        const { commandWrite } = await import('@/lib/editor/commandWrite');
+        await commandWrite({
+          url: `/api/game-objects/${newId}/logic-blocks`,
+          method: 'PUT',
+          body: { blocks: cloned },
+          revisionRef,
+          editingSessionId: editingSessionIdRef.current,
+          projectId,
+        });
+      } catch (e) {
+        // Non-fatal: the duplicated object still exists visually; the
+        // kid can re-add blocks if the copy step failed. Logged for
+        // debugging but not surfaced — the primary duplicate worked.
+        console.warn('[GameEditor] Duplicate: block-copy step failed:', e);
       }
+    }
+    const projectResponse = await fetch(`/api/projects/${projectId}`);
+    if (projectResponse.ok) {
+      const { project: updatedProject } = await projectResponse.json();
+      commitProject(updatedProject);
+      selectNewObject(addedTo, updatedProject, sceneId);
     }
   }, [selectedObject, currentScene, project, projectId, t]);
 
