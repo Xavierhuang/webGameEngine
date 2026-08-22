@@ -29,7 +29,12 @@ export default function CharacterSelector({
   projectId,
 }: CharacterSelectorProps) {
   const t = useTranslator();
-  const [tab, setTab] = useState<'starters' | 'shapes' | 'ai' | 'import'>('starters');
+  // AI is the first tab and the default because "describe your character"
+  // is the marketing pitch — kids typing what they want and watching a 3D
+  // model appear is what makes lingplay feel magic. Buried behind two
+  // clicks it might as well not exist. Starters remain one click away for
+  // the child who already knows they want the pre-built Dinosaur.
+  const [tab, setTab] = useState<'starters' | 'shapes' | 'ai' | 'import'>('ai');
   const [query, setQuery] = useState('');
   const [aiPrompt, setAiPrompt] = useState('');
   const [generatingAI, setGeneratingAI] = useState(false);
@@ -136,9 +141,13 @@ export default function CharacterSelector({
         icon={<User className="w-5 h-5" />}
         accent={PALETTE.motion}
         tabs={[
+          // AI first + default so the pitch ("describe what you want") is
+          // what a kid sees when they open the picker. Starters/shapes/
+          // import are one click away for anyone who already knows they
+          // want the pre-built Dinosaur.
+          { id: 'ai', label: t('editor.characterPicker.tab.ai') },
           { id: 'starters', label: t('editor.characterPicker.tab.starters') },
           { id: 'shapes', label: t('editor.characterPicker.tab.shapes') },
-          { id: 'ai', label: t('editor.characterPicker.tab.ai') },
           { id: 'import', label: t('editor.characterPicker.tab.import') },
         ]}
         activeTab={tab}
@@ -246,6 +255,29 @@ export default function CharacterSelector({
                   <Sparkles className="w-4 h-4" />
                   {generatingAI ? t('editor.characterPicker.ai.generating') : t('editor.characterPicker.ai.generate')}
                 </button>
+              </div>
+              {/* Prompt-seed chips: kids often don't know what to type into
+                  a blank text box. One click fills a proven prompt and (if
+                  they hit generate right away) they see the AI actually
+                  work — the "aha" moment. Ordered from simplest → most
+                  specific so the first few are the easiest wins. */}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {[
+                  t('editor.characterPicker.ai.example1'),
+                  t('editor.characterPicker.ai.example2'),
+                  t('editor.characterPicker.ai.example3'),
+                  t('editor.characterPicker.ai.example4'),
+                ].map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => setAiPrompt(example)}
+                    disabled={generatingAI}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-50"
+                  >
+                    {example}
+                  </button>
+                ))}
               </div>
             </SelectorSection>
 
