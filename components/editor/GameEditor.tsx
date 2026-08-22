@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, useGLTF } from '@react-three/drei';
@@ -314,22 +314,79 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     () => setFocusRequest((request) => request + 1),
   ), [editorMode]);
 
-  // Keyboard shortcuts for undo/redo
+  // Duplicate the currently-selected object. Client-only copy — reuses
+  // the same object.create shape as the toolbar / picker Add flows so
+  // the copy lands in the same code path (interpreter, renderer,
+  // delete). Nudge position +40 world units so the copy doesn't overlap
+  // the source and the kid can see they got a new object. Logic blocks
+  // are NOT copied yet — that's a v2 that needs a follow-up call to
+  // object.blocks.replace after fetching the source's serialized JSON
+  // (block_data lives on each row, but the client only sees the flat
+  // rows via object.logic_blocks, not the workspace JSON the picker
+  // save path emits).
+  const duplicateSelected = useCallback(async () => {
+    if (!selectedObject?.id) return;
+    const sceneId = currentScene?.id || project?.scenes?.[0]?.id;
+    if (!sceneId) return;
+    const src = selectedObject;
+    const srcProps = typeof src.properties === 'string'
+      ? (() => { try { return JSON.parse(src.properties || '{}'); } catch { return {}; } })()
+      : (src.properties || {});
+    const addedTo = objectIdsIn(sceneId);
+    const response = await commandServiceCall({
+      projectId,
+      editingSessionId: editingSessionIdRef.current,
+      revisionRef,
+      command: {
+        type: 'object.create',
+        objectId: newObjectId(),
+        sceneId,
+        name: `${src.name ?? ''} ${t('editor.properties.copySuffix')}`.trim(),
+        objectType: src.type,
+        properties: {
+          ...srcProps,
+          position: {
+            x: (src.position_x ?? 0) + 40,
+            y: src.position_y ?? 0,
+            z: (src.position_z ?? 0) + 40,
+          },
+        },
+      },
+    });
+    if (response.ok) {
+      const projectResponse = await fetch(`/api/projects/${projectId}`);
+      if (projectResponse.ok) {
+        const { project: updatedProject } = await projectResponse.json();
+        commitProject(updatedProject);
+        selectNewObject(addedTo, updatedProject, sceneId);
+      }
+    }
+  }, [selectedObject, currentScene, project, projectId, t]);
+
+  // Keyboard shortcuts for undo/redo + duplicate
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const isMod = e.metaKey || e.ctrlKey;
       if (!isMod) return;
+      // Skip when the user is typing in an input/textarea — ⌘D there
+      // is the browser "bookmark this page" default and should stay.
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return;
       if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
       } else if ((e.key.toLowerCase() === 'z' && e.shiftKey) || e.key.toLowerCase() === 'y') {
         e.preventDefault();
         redo();
+      } else if (e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        duplicateSelected();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [history, project, currentScene]);
+  }, [history, project, currentScene, duplicateSelected]);
 
   // Initialize current scene from initial data
   useEffect(() => {
@@ -1331,6 +1388,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 console.error('Error updating object:', error);
               }
             }}
+            onDuplicate={duplicateSelected}
             onDelete={async () => {
               if (!selectedObject?.id) return;
 

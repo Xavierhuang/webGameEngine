@@ -11,6 +11,7 @@ interface PropertiesPanelProps {
   selectedObject: any;
   onUpdate: (updates: any) => void;
   onDelete?: () => void;
+  onDuplicate?: () => void;
   objectHistory?: Array<{ id: string; objectId: string; action: string; payload: any; at: number }>;
   onClearHistoryForObject?: (objectId: string) => void;
 }
@@ -19,6 +20,7 @@ export default function PropertiesPanel({
   selectedObject,
   onUpdate,
   onDelete,
+  onDuplicate,
   objectHistory = [],
   onClearHistoryForObject,
 }: PropertiesPanelProps) {
@@ -725,20 +727,35 @@ export default function PropertiesPanel({
           </div>
         )}
 
-        {/* Delete Button */}
-        {onDelete && (
-          <div className="pt-4 border-t border-gray-200">
-            <button
-              onClick={() => {
-                if (confirm(t('editor.properties.confirmDelete').replace('%@', selectedObject.name ?? ''))) {
-                  onDelete();
-                }
-              }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-              {t('editor.properties.delete')}
-            </button>
+        {/* Duplicate + Delete buttons. Duplicate lands here (not the
+            toolbar) so it sits next to the object it will act on;
+            keyboard shortcut ⌘D is wired in GameEditor for parity with
+            typical design tools. */}
+        {(onDelete || onDuplicate) && (
+          <div className="pt-4 border-t border-gray-200 space-y-2">
+            {onDuplicate && (
+              <button
+                onClick={onDuplicate}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-800 rounded-lg hover:border-slate-300 hover:bg-slate-50 transition-colors font-semibold text-sm"
+                title={t('editor.properties.duplicateHint')}
+              >
+                <span aria-hidden className="text-base leading-none">⎘</span>
+                {t('editor.properties.duplicate')}
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => {
+                  if (confirm(t('editor.properties.confirmDelete').replace('%@', selectedObject.name ?? ''))) {
+                    onDelete();
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                {t('editor.properties.delete')}
+              </button>
+            )}
           </div>
         )}
       </div>
