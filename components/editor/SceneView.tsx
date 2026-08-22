@@ -31,6 +31,10 @@ interface SceneViewProps {
   // where a drag lands on tidy positions instead of floating decimals
   // (kids place things and get whole numbers, not 4.83271492).
   snapEnabled?: boolean;
+  // Bumping cameraPresetRequest snaps the camera to `cameraPresetId`
+  // (iso/front/top/side). Same monotonic-request pattern as focusRequest.
+  cameraPresetRequest?: number;
+  cameraPresetId?: string;
   onCommitPosition?: (
     id: string,
     posPixels: { x: number; y: number; z: number },
@@ -67,6 +71,44 @@ function CameraFocusController({
   return null;
 }
 
+// Preset camera angles, Spline-style. Kids often orbit into a bad view
+// and can't recover; front/top/side/iso snap them back to a canonical
+// vantage. Positions chosen against a ground plane at Y=-2 so the
+// camera looks slightly downward for front/side, straight down for top.
+const CAMERA_PRESETS: Record<string, { position: [number, number, number]; target: [number, number, number] }> = {
+  iso: { position: [8, 6, 10], target: [0, 0, 0] },
+  front: { position: [0, 3, 14], target: [0, 3, 0] },
+  // Top view uses a tiny Z offset so OrbitControls doesn't hit gimbal
+  // lock and reset orientation on the first user drag.
+  top: { position: [0, 18, 0.001], target: [0, 0, 0] },
+  side: { position: [14, 3, 0], target: [0, 3, 0] },
+};
+
+function CameraPresetController({
+  presetRequest,
+  presetId,
+  orbitRef,
+}: {
+  presetRequest: number;
+  presetId: string;
+  orbitRef?: any;
+}) {
+  const { camera } = useThree();
+  const previous = useRef(presetRequest);
+  useEffect(() => {
+    if (presetRequest === previous.current) return;
+    previous.current = presetRequest;
+    const preset = CAMERA_PRESETS[presetId];
+    const controls = orbitRef?.current;
+    const perspectiveCamera = camera as THREE.PerspectiveCamera;
+    if (!preset || !controls || !perspectiveCamera.isPerspectiveCamera) return;
+    perspectiveCamera.position.set(...preset.position);
+    controls.target.set(...preset.target);
+    controls.update();
+  }, [presetRequest, presetId, camera, orbitRef]);
+  return null;
+}
+
 // Sky dome component - renders a large sphere as the sky
 function SkyDome() {
   return (
@@ -82,7 +124,7 @@ function SkyDome() {
   );
 }
 
-export default function SceneView({ scene, selectedObject, focusRequest, onSelectObject, orbitRef, transformMode, snapEnabled = true, onCommitPosition, onRotationChange, onAnimationsDetected }: SceneViewProps) {
+export default function SceneView({ scene, selectedObject, focusRequest, onSelectObject, orbitRef, transformMode, snapEnabled = true, cameraPresetRequest = 0, cameraPresetId = 'iso', onCommitPosition, onRotationChange, onAnimationsDetected }: SceneViewProps) {
   // Autoplay any beat loops requested by sound objects
   // This is a simple side-effect trigger in render; guard to only start once per render batch.
   if (scene?.game_objects) {
@@ -102,6 +144,11 @@ export default function SceneView({ scene, selectedObject, focusRequest, onSelec
       <CameraFocusController
         focusRequest={focusRequest}
         selectedObjectId={selectedObject?.id}
+        orbitRef={orbitRef}
+      />
+      <CameraPresetController
+        presetRequest={cameraPresetRequest}
+        presetId={cameraPresetId}
         orbitRef={orbitRef}
       />
       <SkyDome />

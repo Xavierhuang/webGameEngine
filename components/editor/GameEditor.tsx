@@ -160,6 +160,16 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     try { window.localStorage.setItem('lingplay.snapEnabled', snapEnabled ? '1' : '0'); }
     catch { /* private mode, ignore */ }
   }, [snapEnabled]);
+  // Camera preset (iso/front/top/side) + monotonic request counter so a
+  // repeat click on the same button still fires (SceneView's controller
+  // watches the number, not the id, so identical consecutive picks are
+  // observable).
+  const [cameraPresetId, setCameraPresetId] = useState<'iso' | 'front' | 'top' | 'side'>('iso');
+  const [cameraPresetRequest, setCameraPresetRequest] = useState(0);
+  const applyCameraPreset = (id: 'iso' | 'front' | 'top' | 'side') => {
+    setCameraPresetId(id);
+    setCameraPresetRequest((n) => n + 1);
+  };
   // Lighting preset for the current scene — persisted per scene ID in
   // localStorage. Read on scene switch; write on picker change.
   const [lightingPreset, setLightingPreset] = useState<LightingPresetId>(DEFAULT_PRESET);
@@ -1074,6 +1084,24 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                     </option>
                   ))}
                 </select>
+                {/* Camera preset buttons — sit to the right of the lighting
+                    picker so both scene-level widgets cluster in the same
+                    corner. Kid orbits into a bad angle → one click snaps
+                    back. Active preset gets a filled pill so the current
+                    vantage is obvious. */}
+                <div className="absolute left-3 top-12 z-10 inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-white/90 p-0.5 text-[11px] font-semibold text-slate-700 shadow-sm backdrop-blur">
+                  {(['iso', 'front', 'top', 'side'] as const).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => applyCameraPreset(id)}
+                      title={t(`editor.camera.preset.${id}` as any)}
+                      className={`rounded-full px-2.5 py-1 transition ${cameraPresetId === id ? 'bg-slate-900 text-white' : 'hover:bg-slate-100'}`}
+                    >
+                      {t(`editor.camera.preset.${id}` as any)}
+                    </button>
+                  ))}
+                </div>
                 <Canvas camera={{ position: [0, 5, 10] }}>
                 <SceneLights preset={lightingPreset} />
                 <OrbitControls ref={orbitRef} />
@@ -1091,6 +1119,8 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                   orbitRef={orbitRef}
                   transformMode={transformMode}
                   snapEnabled={snapEnabled}
+                  cameraPresetRequest={cameraPresetRequest}
+                  cameraPresetId={cameraPresetId}
                   onAnimationsDetected={(objectId, animations) => {
                     // Store animations for the selected object
                     if (selectedObject && selectedObject.id === objectId) {
