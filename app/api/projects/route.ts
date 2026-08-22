@@ -106,10 +106,66 @@ export async function POST(request: NextRequest) {
       // Existing projects keep whatever name is already stored; SceneTabs
       // maps the well-known English default to a localized display at
       // render time so nothing needs a data migration.
-      const defaultSceneName = translate(await getLocale(), 'editor.sceneTabs.defaultName');
+      const locale = await getLocale();
+      const defaultSceneName = translate(locale, 'editor.sceneTabs.defaultName');
       await connection.execute(
         'INSERT INTO scenes (id, project_id, name, order_index) VALUES (?, ?, ?, ?)',
         [sceneId, projectId, defaultSceneName, 0],
+      );
+      // Seed a first-run scene so a fresh project doesn't drop the kid on
+      // an empty stage with nothing to click. A ground platform + a Hero
+      // character is enough to see gizmos, try dragging, and be reminded
+      // that the AI tab exists. Mirrors what CharacterSelector/Toolbar
+      // would produce when a user manually adds a hero and a platform —
+      // same shape / color / size defaults — so the object rows are
+      // indistinguishable from user-created ones and the seed can be
+      // deleted with the normal delete flow.
+      const platformId = randomUUID();
+      const heroId = randomUUID();
+      const heroName = translate(locale, 'seed.hero');
+      const groundName = translate(locale, 'seed.ground');
+      // Platform: matches getObjectDefaults('platform') in the editor —
+      // plane, dark green, width/height 2000 (pixels in the editor's
+      // world-unit convention).
+      await connection.execute(
+        `INSERT INTO game_objects (id, scene_id, type, name, position_x, position_y, position_z, color, properties)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          platformId,
+          sceneId,
+          'platform',
+          groundName,
+          0,
+          0,
+          0,
+          '#166534',
+          JSON.stringify({ shape: 'plane', size: { width: 2000, height: 2000 } }),
+        ],
+      );
+      // Hero: uses the packaged hero.glb model so the seed looks like a
+      // real character, not a blue box. Matches the character-picker's
+      // "Hero" prefab (buildCharacterVisual output for id='hero') — same
+      // shape='model', model_url, characterType — so the interpreter and
+      // renderer treat it identically to a user-added Hero.
+      await connection.execute(
+        `INSERT INTO game_objects (id, scene_id, type, name, position_x, position_y, position_z, color, properties)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          heroId,
+          sceneId,
+          'character',
+          heroName,
+          500,
+          300,
+          0,
+          '#60A5FA',
+          JSON.stringify({
+            shape: 'model',
+            size: 1,
+            model_url: '/models/starters/hero.glb',
+            characterType: 'hero',
+          }),
+        ],
       );
       const [rows] = await connection.execute('SELECT * FROM projects WHERE id = ?', [projectId]);
       const list = rows as Array<Record<string, unknown>>;
