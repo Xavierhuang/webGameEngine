@@ -54,6 +54,7 @@ export interface SnapshotScene {
   order_index: number;
   background_color: string | null;
   background_image_url: string | null;
+  lighting_preset: string | null;
   physics_enabled: boolean;
   gravity_y: number;
   objects: SnapshotSceneObject[];
@@ -105,6 +106,7 @@ interface SceneRow {
   order_index: number;
   background_color: string | null;
   background_image_url: string | null;
+  lighting_preset: string | null;
   physics_enabled: number | boolean;
   gravity_y: number;
 }
@@ -140,7 +142,7 @@ export async function loadProjectSnapshot(
 
   const [sceneRows] = await connection.execute(
     `SELECT id, project_id, name, order_index, background_color, background_image_url,
-            physics_enabled, gravity_y
+            lighting_preset, physics_enabled, gravity_y
        FROM scenes
       WHERE project_id = ?
       ORDER BY order_index, id`,
@@ -193,6 +195,7 @@ export async function loadProjectSnapshot(
       order_index: scene.order_index,
       background_color: scene.background_color,
       background_image_url: scene.background_image_url,
+      lighting_preset: scene.lighting_preset,
       physics_enabled: Boolean(scene.physics_enabled),
       gravity_y: scene.gravity_y,
       objects: objects

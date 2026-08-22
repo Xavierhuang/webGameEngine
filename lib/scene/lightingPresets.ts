@@ -77,6 +77,17 @@ export function presetById(id: string | null | undefined): LightingPreset {
   return LIGHTING_PRESETS.find((p) => p.id === id) ?? LIGHTING_PRESETS[0];
 }
 
+/**
+ * Narrow an arbitrary string (or null / undefined) into a `LightingPresetId`
+ * when it names a known preset, else return undefined. Servers hand back
+ * `scenes.lighting_preset` as an untyped `string | null`; callers that need
+ * the strict prop shape route it through this instead of casting.
+ */
+export function coerceLightingPreset(id: string | null | undefined): LightingPresetId | undefined {
+  const found = LIGHTING_PRESETS.find((p) => p.id === id);
+  return found?.id;
+}
+
 /** Storage key convention. Exported so tests + tooling can list/wipe. */
 export function storageKeyForScene(sceneId: string): string {
   return `lingplay.scene.${sceneId}.lighting`;

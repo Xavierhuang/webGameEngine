@@ -87,12 +87,13 @@ async function fetchScene(
       name: string;
       background_color: string | null;
       background_image_url: string | null;
+      lighting_preset: string | null;
       order_index: number;
     }
   | null
 > {
   const [rows] = await connection.execute(
-    `SELECT id, project_id, name, background_color, background_image_url, order_index
+    `SELECT id, project_id, name, background_color, background_image_url, lighting_preset, order_index
        FROM scenes WHERE id = ?`,
     [sceneId],
   );
@@ -102,6 +103,7 @@ async function fetchScene(
     name: string;
     background_color: string | null;
     background_image_url: string | null;
+    lighting_preset: string | null;
     order_index: number;
   }>;
   return list[0] ?? null;
@@ -319,6 +321,11 @@ async function handleSceneUpdate(
     fields.push('background_image_url = ?');
     values.push(command.backgroundImageUrl);
     inverseCommand.backgroundImageUrl = before.background_image_url;
+  }
+  if (command.lightingPreset !== undefined) {
+    fields.push('lighting_preset = ?');
+    values.push(command.lightingPreset);
+    inverseCommand.lightingPreset = before.lighting_preset;
   }
 
   if (fields.length === 0) {

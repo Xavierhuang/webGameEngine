@@ -63,11 +63,12 @@ export default async function PlayPage({ params }: PlayPageProps) {
     order_index: number;
     background_color: string;
     background_image_url: string | null;
+    lighting_preset: string | null;
     physics_enabled: boolean;
     gravity_y: number;
   }>(
     `SELECT id, project_id, name, order_index, background_color,
-            background_image_url, physics_enabled, gravity_y
+            background_image_url, lighting_preset, physics_enabled, gravity_y
        FROM scenes WHERE project_id = ? ORDER BY order_index`,
     [id]
   );

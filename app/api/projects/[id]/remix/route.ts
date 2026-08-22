@@ -79,7 +79,7 @@ export async function POST(
       );
 
       const [sceneRows] = await connection.execute(
-        `SELECT id, name, order_index, background_color, background_image_url, physics_enabled, gravity_y
+        `SELECT id, name, order_index, background_color, background_image_url, lighting_preset, physics_enabled, gravity_y
          FROM scenes WHERE project_id = ? ORDER BY order_index`,
         [sourceId],
       );
@@ -89,6 +89,7 @@ export async function POST(
         order_index: number;
         background_color: string;
         background_image_url: string | null;
+        lighting_preset: string | null;
         physics_enabled: boolean | number;
         gravity_y: number;
       }>;
@@ -99,8 +100,8 @@ export async function POST(
         sceneIdMap.set(scene.id, newSceneId);
         await connection.execute(
           `INSERT INTO scenes
-             (id, project_id, name, order_index, background_color, background_image_url, physics_enabled, gravity_y)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, project_id, name, order_index, background_color, background_image_url, lighting_preset, physics_enabled, gravity_y)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             newSceneId,
             newProjectId,
@@ -108,6 +109,7 @@ export async function POST(
             scene.order_index,
             scene.background_color,
             scene.background_image_url,
+            scene.lighting_preset,
             scene.physics_enabled,
             scene.gravity_y,
           ],

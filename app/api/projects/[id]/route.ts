@@ -47,6 +47,7 @@ export async function GET(
       order_index: number;
       background_color: string;
       background_image_url: string | null;
+      lighting_preset: string | null;
       physics_enabled: boolean;
       gravity_y: number;
       created_at: Date;
@@ -153,6 +154,7 @@ export async function GET(
         order_index: scene.order_index,
         background_color: scene.background_color,
         background_image_url: scene.background_image_url,
+        lighting_preset: scene.lighting_preset,
         physics_enabled: scene.physics_enabled,
         gravity_y: scene.gravity_y,
         game_objects: gameObjects

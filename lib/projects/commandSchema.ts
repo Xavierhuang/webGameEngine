@@ -94,11 +94,18 @@ const SceneUpdate = z
     name: ShortText(120).optional(),
     backgroundColor: CssColor.optional(),
     backgroundImageUrl: Url.nullable().optional(),
+    // Lighting preset id from lib/scene/lightingPresets.ts. Nullable so a
+    // user can revert to the neutral default rig; length-capped so a
+    // rogue caller can't stuff arbitrary strings into the scenes column.
+    lightingPreset: z.string().min(1).max(32).nullable().optional(),
   })
   .strict()
   .refine(
     (v) =>
-      v.name !== undefined || v.backgroundColor !== undefined || v.backgroundImageUrl !== undefined,
+      v.name !== undefined
+        || v.backgroundColor !== undefined
+        || v.backgroundImageUrl !== undefined
+        || v.lightingPreset !== undefined,
     { message: 'scene.update requires at least one field to change' },
   );
 

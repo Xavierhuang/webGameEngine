@@ -68,6 +68,7 @@ export async function GET(
         order_index: scene.order_index,
         background_color: scene.background_color,
         background_image_url: scene.background_image_url,
+        lighting_preset: scene.lighting_preset ?? null,
         physics_enabled: Boolean(scene.physics_enabled),
         gravity_y: scene.gravity_y,
       })),

@@ -81,8 +81,8 @@ export async function POST(request: NextRequest) {
         sceneIdMap.set(String(scene.id), newId);
         await connection.execute(
           `INSERT INTO scenes
-             (id, project_id, name, order_index, background_color, background_image_url, physics_enabled, gravity_y)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, project_id, name, order_index, background_color, background_image_url, lighting_preset, physics_enabled, gravity_y)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             newId,
             projectId,
@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
             Number(scene.order_index) || index,
             scene.background_color ?? '#87CEEB',
             scene.background_image_url ?? null,
+            typeof scene.lighting_preset === 'string' ? scene.lighting_preset.substring(0, 32) : null,
             scene.physics_enabled !== false,
             Number(scene.gravity_y) || 9.8,
           ],

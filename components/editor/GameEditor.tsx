@@ -30,6 +30,7 @@ import { SceneLights } from '@/components/three/SceneLights';
 import {
   LIGHTING_PRESETS,
   DEFAULT_PRESET,
+  coerceLightingPreset,
   readScenePreset,
   writeScenePreset,
   type LightingPresetId,
@@ -170,16 +171,40 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
     setCameraPresetId(id);
     setCameraPresetRequest((n) => n + 1);
   };
-  // Lighting preset for the current scene — persisted per scene ID in
-  // localStorage. Read on scene switch; write on picker change.
+  // Lighting preset for the current scene. Server-persisted on the scenes row
+  // (migration 010) so a shared game link renders the owner's pick. The old
+  // per-scene localStorage entry is kept as a read-side fallback for scenes
+  // last edited before 010 shipped — writes always go to the server now.
   const [lightingPreset, setLightingPreset] = useState<LightingPresetId>(DEFAULT_PRESET);
   useEffect(() => {
     if (!currentScene?.id) return;
-    setLightingPreset(readScenePreset(currentScene.id));
-  }, [currentScene?.id]);
+    const serverPreset = coerceLightingPreset(
+      (currentScene as any)?.lighting_preset as string | null | undefined,
+    );
+    setLightingPreset(serverPreset ?? readScenePreset(currentScene.id));
+  }, [currentScene?.id, (currentScene as any)?.lighting_preset]);
   const applyLightingPreset = (preset: LightingPresetId) => {
     setLightingPreset(preset);
-    if (currentScene?.id) writeScenePreset(currentScene.id, preset);
+    const sceneId = currentScene?.id;
+    if (!sceneId) return;
+    writeScenePreset(sceneId, preset);
+    setProject((prev: any) => ({
+      ...prev,
+      scenes: (prev?.scenes ?? []).map((s: any) =>
+        s.id === sceneId ? { ...s, lighting_preset: preset } : s,
+      ),
+    }));
+    setCurrentScene((cur: any) => (cur?.id === sceneId ? { ...cur, lighting_preset: preset } : cur));
+    commandWrite({
+      url: `/api/scenes/${sceneId}`,
+      method: 'PATCH',
+      body: { lighting_preset: preset },
+      revisionRef,
+      editingSessionId: editingSessionIdRef.current,
+      projectId,
+    }).catch((error) => {
+      console.error('Failed to persist lighting preset:', error);
+    });
   };
   const [focusRequest, setFocusRequest] = useState(0);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');

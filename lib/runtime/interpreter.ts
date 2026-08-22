@@ -687,15 +687,7 @@ export class RuntimeWorld {
 
   /** Called from the player's pointer/raycast handling. */
   notifyClicked(id: string) {
-    const next = (this.clickCounts.get(id) ?? 0) + 1;
-    this.clickCounts.set(id, next);
-    // Temporary diagnostic (2026-08-21): kids report `当此角色被点击 → 跳跃`
-    // not firing on prod. Log lets us see in devtools whether the pointer
-    // hit actually reaches the runtime, distinct from any interpreter- or
-    // isGrounded-side issue.
-    if (typeof console !== 'undefined') {
-      console.log('[lingplay] notifyClicked', id, '→ count', next);
-    }
+    this.clickCounts.set(id, (this.clickCounts.get(id) ?? 0) + 1);
   }
 
   clickCount(id: string): number {
@@ -1094,17 +1086,6 @@ export class ObjectRuntime {
       const body = blockChildren(def.hat!) ?? def.body;
       if (spec.name) this.definitions.set(spec.name.toLowerCase(), { params: spec.params, body });
     }
-    // Diag: log the built scripts so we can see WHY when_clicked isn't firing
-    // when the object has 2 blocks. Two separate standalone stacks build
-    // differently from one connected chain, and the difference decides
-    // whether the click ever runs the jump.
-    if (typeof console !== 'undefined') {
-      console.log('[lingplay] scripts built for', this.objectId, this.scripts.map((s) => ({
-        hat: s.hat?.block_type ?? null,
-        bodyLen: s.body.length,
-        bodyTypes: s.body.map((b) => b.block_type),
-      })));
-    }
   }
 
   get hasScripts(): boolean {
@@ -1161,9 +1142,6 @@ export class ObjectRuntime {
         if (!this.world) return false;
         const count = this.world.clickCount(this.objectId);
         if (count > script.handledClicks) {
-          if (typeof console !== 'undefined') {
-            console.log('[lingplay] when_clicked hat FIRING', this.objectId, 'count', count, 'handled', script.handledClicks);
-          }
           script.handledClicks = count;
           return true;
         }

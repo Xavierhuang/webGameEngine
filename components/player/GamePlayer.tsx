@@ -35,7 +35,7 @@ import { ObjectRuntime, RuntimeWorld, type RuntimeContext } from '../../lib/runt
 import AudioManager from '../../lib/audio/AudioManager';
 import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
 import { SceneLights } from '@/components/three/SceneLights';
-import { readScenePreset } from '@/lib/scene/lightingPresets';
+import { coerceLightingPreset, readScenePreset } from '@/lib/scene/lightingPresets';
 import { VideoSensing, type VideoSensingHandle } from './VideoSensing';
 import { ParticleField, type ParticleController } from './ParticleField';
 import { ParticleEmitter } from '../three/ParticleEmitter';
@@ -515,11 +515,16 @@ export default function GamePlayer({ project, compact = false }: GamePlayerProps
             scene.background = new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR);
           }}
         >
-          {/* Match the editor's lighting-preset pick for this scene. In the
-              same browser the preset is in localStorage; a stranger loading
-              a published game gets the neutral default until we move this
-              onto the server. */}
-          <SceneLights preset={scene?.id ? readScenePreset(scene.id) : undefined} />
+          {/* Match the editor's lighting-preset pick for this scene. Prefer
+              the server-persisted value on the scenes row (migration 010) so
+              a stranger loading a shared game sees what the owner picked;
+              fall back to localStorage for scenes last touched before 010. */}
+          <SceneLights
+            preset={
+              coerceLightingPreset((scene as any)?.lighting_preset as string | null | undefined)
+              ?? (scene?.id ? readScenePreset(scene.id) : undefined)
+            }
+          />
           {/* One points cloud for every emitter in the scene. */}
           <ParticleField
             onReady={(c) => {
@@ -1138,16 +1143,6 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         frameAccumRef.current.z += dz;
       },
       jump: () => {
-        // Diagnostic (2026-08-21): trace whether jump() is even called and
-        // which branch it takes — the interpreter side, the isGrounded gate,
-        // and the pending-jump path are three distinct failure modes.
-        if (typeof console !== 'undefined') {
-          console.log('[lingplay] jump() called', {
-            objectId,
-            isGrounded: isGroundedRef.current,
-            velY: velocityRef.current.y,
-          });
-        }
         if (isGroundedRef.current) {
           velocityRef.current.y = PHYSICS.JUMP_FORCE;
           isGroundedRef.current = false;
@@ -1525,14 +1520,6 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   // Build the block interpreter; rebuilt when the object's blocks change
   const blocksKey = JSON.stringify(logicBlocks);
   const runtime = useMemo(() => {
-    if (typeof console !== 'undefined') {
-      console.log('[lingplay] runtime setup for object', {
-        objectId,
-        name: object.name,
-        logicBlockCount: logicBlocks.length,
-        hatTypes: logicBlocks.map((b: any) => b?.block_type).filter(Boolean),
-      });
-    }
     if (logicBlocks.length === 0) return null;
     return new ObjectRuntime(objectId, logicBlocks as LogicBlock[], world.vars, ctxRef.current!, world, { isClone: !!cloneId });
     // eslint-disable-next-line react-hooks/exhaustive-deps

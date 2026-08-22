@@ -101,14 +101,22 @@ async function main() {
       // transaction. A crash midway used to leave the gallery showing a
       // published example whose Remix produced an empty scene.
       await withTx(db, async (conn) => {
+        // moderation_status: migration 008 tightened the enum from
+        // ('pending','approved','rejected') to
+        // ('draft','moderation_pending','published','rejected') as part of
+        // the publication-state work. The seed script still wrote
+        // 'approved' — a value not in the new enum — so MySQL truncated it
+        // and dropped a "Data truncated for column 'moderation_status'"
+        // warning on every deploy. 'published' is the correct successor
+        // for gallery-visible examples.
         await conn.execute(
           `INSERT INTO projects
              (id, owner_id, title, description, genre, visibility, is_published,
               is_template, moderation_status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 'example', 'public', 1, 1, 'approved', NOW(), NOW())
+           VALUES (?, ?, ?, ?, 'example', 'public', 1, 1, 'published', NOW(), NOW())
            ON DUPLICATE KEY UPDATE
              title = VALUES(title), description = VALUES(description),
-             visibility = 'public', is_published = 1, moderation_status = 'approved',
+             visibility = 'public', is_published = 1, moderation_status = 'published',
              updated_at = NOW()`,
           [projectId, profileId, game.title, game.description],
         );

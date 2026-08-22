@@ -31,6 +31,9 @@ export async function PATCH(
     if (body.background_image_url === null || typeof body.background_image_url === 'string') {
       updates.backgroundImageUrl = body.background_image_url;
     }
+    if (body.lighting_preset === null || typeof body.lighting_preset === 'string') {
+      updates.lightingPreset = body.lighting_preset;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });

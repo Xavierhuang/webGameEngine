@@ -124,6 +124,7 @@ export interface Database {
           order_index: number;
           background_color: string;
           background_image_url: string | null;
+          lighting_preset: string | null;
           physics_enabled: boolean;
           gravity_y: number;
           created_at: string;
@@ -136,6 +137,7 @@ export interface Database {
           order_index?: number;
           background_color?: string;
           background_image_url?: string | null;
+          lighting_preset?: string | null;
           physics_enabled?: boolean;
           gravity_y?: number;
         };
@@ -144,6 +146,7 @@ export interface Database {
           order_index?: number;
           background_color?: string;
           background_image_url?: string | null;
+          lighting_preset?: string | null;
           physics_enabled?: boolean;
           gravity_y?: number;
         };
