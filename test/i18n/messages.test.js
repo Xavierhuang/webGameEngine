@@ -28,7 +28,7 @@ const PENDING_TRANSLATION_NAMESPACES = [
   'editor.paint.', 'editor.animation.', 'editor.recorder.',
   'editor.toolbar.', 'editor.properties.', 'editor.objectsPanel.',
   'editor.game.', 'editor.blockEditor.', 'editor.sceneTabs.',
-  'editor.share.', 'editor.preview.', 'prefab.',
+  'editor.share.', 'editor.preview.', 'editor.transform.', 'prefab.',
   'common.', 'meta.', 'newProject.',
   'auth.login.', 'auth.signup.', 'auth.forgot.', 'auth.reset.',
   'learn.', 'privacy.', 'projects.',

@@ -26,6 +26,11 @@ interface SceneViewProps {
   onSelectObject: (object: any) => void;
   orbitRef?: any;
   transformMode?: 'translate' | 'scale' | 'rotate';
+  // When true, TransformControls snaps: translate to 0.5 world units,
+  // rotate to 15°, scale to 0.1 factor. Matches the Spline "snap on" UX
+  // where a drag lands on tidy positions instead of floating decimals
+  // (kids place things and get whole numbers, not 4.83271492).
+  snapEnabled?: boolean;
   onCommitPosition?: (
     id: string,
     posPixels: { x: number; y: number; z: number },
@@ -77,7 +82,7 @@ function SkyDome() {
   );
 }
 
-export default function SceneView({ scene, selectedObject, focusRequest, onSelectObject, orbitRef, transformMode, onCommitPosition, onRotationChange, onAnimationsDetected }: SceneViewProps) {
+export default function SceneView({ scene, selectedObject, focusRequest, onSelectObject, orbitRef, transformMode, snapEnabled = true, onCommitPosition, onRotationChange, onAnimationsDetected }: SceneViewProps) {
   // Autoplay any beat loops requested by sound objects
   // This is a simple side-effect trigger in render; guard to only start once per render batch.
   if (scene?.game_objects) {
@@ -108,6 +113,7 @@ export default function SceneView({ scene, selectedObject, focusRequest, onSelec
           isSelected={selectedObject?.id === obj.id}
           orbitRef={orbitRef}
           transformMode={transformMode}
+          snapEnabled={snapEnabled}
           onCommitPosition={onCommitPosition}
           onRotationChange={onRotationChange}
           onAnimationsDetected={onAnimationsDetected}
@@ -124,6 +130,7 @@ function GameObject({
   isSelected,
   orbitRef,
   transformMode,
+  snapEnabled,
   onCommitPosition,
   onRotationChange,
   onAnimationsDetected,
@@ -133,6 +140,7 @@ function GameObject({
   isSelected?: boolean;
   orbitRef?: any;
   transformMode?: 'translate' | 'scale' | 'rotate';
+  snapEnabled?: boolean;
   onCommitPosition?: (
     id: string,
     posPixels: { x: number; y: number; z: number },
@@ -591,6 +599,12 @@ function GameObject({
           showX
           showY
           showZ
+          // Snap to tidy increments so drops land on round numbers instead
+          // of floating decimals — matches Spline's grid-snap UX. Falsy
+          // disables the snap so the user can free-drag for precision.
+          translationSnap={snapEnabled ? 0.5 : null}
+          rotationSnap={snapEnabled ? Math.PI / 12 : null}
+          scaleSnap={snapEnabled ? 0.1 : null}
           onObjectChange={() => {
             // Track that a transform occurred
             hasMovedRef.current = true;

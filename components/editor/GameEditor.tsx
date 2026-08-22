@@ -140,6 +140,19 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
   const [showObstacleSelector, setShowObstacleSelector] = useState(false);
   const [showSoundSelector, setShowSoundSelector] = useState(false);
   const [transformMode, setTransformMode] = useState<'translate' | 'scale' | 'rotate'>('translate');
+  // Snap-to-grid for the transform gizmo. On by default because a kid
+  // aiming for "put Hero on the ground" wants Y=0, not Y=-1.837. Persisted
+  // so a user who prefers free-drag stays that way across sessions.
+  const [snapEnabled, setSnapEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try { return window.localStorage.getItem('lingplay.snapEnabled') !== '0'; }
+    catch { return true; }
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try { window.localStorage.setItem('lingplay.snapEnabled', snapEnabled ? '1' : '0'); }
+    catch { /* private mode, ignore */ }
+  }, [snapEnabled]);
   const [focusRequest, setFocusRequest] = useState(0);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -721,6 +734,18 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                 <RotateCw className="w-3.5 h-3.5" />
                 {t('editor.rotate')}
               </TransformButton>
+              {/* Snap-on-drag toggle. Divider + magnet-ish glyph lives right
+                  after the transform-mode pills so a user who's already
+                  reaching for a mode button can see whether snap is on. */}
+              <span className="mx-1 h-4 w-px bg-slate-300" aria-hidden />
+              <TransformButton
+                active={snapEnabled}
+                onClick={() => setSnapEnabled((v) => !v)}
+                title={snapEnabled ? t('editor.transform.snapOn') : t('editor.transform.snapOff')}
+              >
+                <span aria-hidden className="text-xs">⊞</span>
+                {t('editor.transform.snap')}
+              </TransformButton>
             </div>
           )}
 
@@ -937,6 +962,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                   onSelectObject={setSelectedObject}
                   orbitRef={orbitRef}
                   transformMode={transformMode}
+                  snapEnabled={snapEnabled}
                   onAnimationsDetected={(objectId, animations) => {
                     // Store animations for the selected object
                     if (selectedObject && selectedObject.id === objectId) {
