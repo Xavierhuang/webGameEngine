@@ -5,6 +5,14 @@
  */
 
 export const ui: Record<string, string> = {
+  'worlds.back': 'Wróć do moich gier', 'worlds.eyebrow': 'Kreator światów', 'worlds.title': 'Stwórz świat',
+  'worlds.subtitle': 'Wybierz świat na start, a potem zbuduj własny za pomocą bloków.', 'worlds.loading': 'Szukamy światów na start…',
+  'worlds.chooseTemplate': 'Wybierz świat na start', 'worlds.card.choose': 'Wybierz', 'worlds.card.missions': '{count} misje',
+  'worlds.field.title': 'Tytuł świata', 'worlds.field.titlePlaceholder': 'Mój wspaniały świat',
+  'worlds.field.description': 'Opis (opcjonalnie)', 'worlds.field.descriptionPlaceholder': 'Co dzieje się w twoim świecie?',
+  'worlds.privateDraft': 'Twój świat zaczyna jako prywatny. Możesz go testować i dalej budować.', 'worlds.create': 'Stwórz świat',
+  'worlds.createLoading': 'Tworzymy twój świat…', 'worlds.error.catalog': 'Nie udało się załadować światów na start. Spróbuj ponownie.',
+  'worlds.error.create': 'Nie udało się stworzyć twojego świata. Spróbuj ponownie.', 'projects.blankGame': 'Pusta gra',
   'editor.move': 'Przesuń', 'editor.scale': 'Skaluj', 'editor.rotate': 'Obróć',
   'toolbar.orDescribe': 'Albo opisz to',
   'toolbar.askAIHint': 'Opisz świat, który chcesz, a lingplay przygotuje obiekty, bloki i zachowania.',

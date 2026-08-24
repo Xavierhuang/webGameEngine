@@ -5,6 +5,14 @@
  */
 
 export const ui: Record<string, string> = {
+  'worlds.back': 'Вернуться к моим играм', 'worlds.eyebrow': 'Создатель миров', 'worlds.title': 'Создай мир',
+  'worlds.subtitle': 'Выбери стартовый мир, а потом сделай его своим с помощью блоков.', 'worlds.loading': 'Ищем стартовые миры…',
+  'worlds.chooseTemplate': 'Выбери стартовый мир', 'worlds.card.choose': 'Выбрать', 'worlds.card.missions': '{count} заданий',
+  'worlds.field.title': 'Название мира', 'worlds.field.titlePlaceholder': 'Мой удивительный мир',
+  'worlds.field.description': 'Описание (необязательно)', 'worlds.field.descriptionPlaceholder': 'Что происходит в твоём мире?',
+  'worlds.privateDraft': 'Твой мир начинается как личный. Его можно тестировать и продолжать строить.', 'worlds.create': 'Создай мир',
+  'worlds.createLoading': 'Создаём твой мир…', 'worlds.error.catalog': 'Не удалось загрузить стартовые миры. Попробуй ещё раз.',
+  'worlds.error.create': 'Не удалось создать твой мир. Попробуй ещё раз.', 'projects.blankGame': 'Пустая игра',
   'editor.move': 'Двигать',
   'editor.scale': 'Масштаб',
   'editor.rotate': 'Повернуть',

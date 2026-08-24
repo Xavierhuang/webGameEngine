@@ -5,6 +5,14 @@
  */
 
 export const ui: Record<string, string> = {
+  'worlds.back': 'Tillbaka till mina spel', 'worlds.eyebrow': 'Världsbyggare', 'worlds.title': 'Skapa en värld',
+  'worlds.subtitle': 'Välj en startvärld och gör den till din med block.', 'worlds.loading': 'Letar efter dina startvärldar…',
+  'worlds.chooseTemplate': 'Välj en startvärld', 'worlds.card.choose': 'Välj', 'worlds.card.missions': '{count} uppdrag',
+  'worlds.field.title': 'Världstitel', 'worlds.field.titlePlaceholder': 'Min fantastiska värld',
+  'worlds.field.description': 'Beskrivning (valfritt)', 'worlds.field.descriptionPlaceholder': 'Vad händer i din värld?',
+  'worlds.privateDraft': 'Din värld börjar privat. Du kan testa den och fortsätta bygga.', 'worlds.create': 'Skapa en värld',
+  'worlds.createLoading': 'Skapar din värld…', 'worlds.error.catalog': 'Det gick inte att ladda startvärldarna. Försök igen.',
+  'worlds.error.create': 'Det gick inte att skapa din värld. Försök igen.', 'projects.blankGame': 'Tomt spel',
   'editor.move': 'Flytta', 'editor.scale': 'Skala', 'editor.rotate': 'Rotera',
   'toolbar.orDescribe': 'Eller beskriv den',
   'toolbar.askAIHint': 'Beskriv världen du vill ha så bygger lingplay upp objekt, block och beteenden.',

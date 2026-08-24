@@ -154,6 +154,17 @@ function NewProjectPageInner() {
           {t('newProject.back')}
         </Link>
 
+        <Link
+          href="/worlds/new"
+          className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-950 transition hover:border-sky-300 hover:bg-sky-100"
+        >
+          <span>
+            <span className="block text-xs font-bold uppercase tracking-wider text-sky-700">{t('worlds.eyebrow')}</span>
+            {t('newProject.createWorld')}
+          </span>
+          <Sparkles className="h-5 w-5" />
+        </Link>
+
         <div className="rounded-3xl border border-slate-200 bg-white shadow-xl p-8">
           <div className="flex items-start justify-between gap-4 mb-6">
             <div>
@@ -161,7 +172,7 @@ function NewProjectPageInner() {
                 {t('newProject.eyebrow')}
               </div>
               <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-900">
-                {t('newProject.title')}
+                {t('projects.blankGame')}
               </h1>
               <p className="mt-2 text-slate-600 text-sm">
                 {subtitleBefore}

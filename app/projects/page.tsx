@@ -93,11 +93,18 @@ export default async function ProjectsPage(props: {
           <div className="flex items-center gap-2">
             <ImportButton />
             <Link
-              href="/projects/new"
+              href="/worlds/new"
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-6 py-3 shadow-lg shadow-slate-900/10 transition"
             >
+              <Sparkles className="w-4 h-4" />
+              {t('projects.createWorld')}
+            </Link>
+            <Link
+              href="/projects/new"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
+            >
               <Plus className="w-4 h-4" />
-              {t('projects.newGame')}
+              {t('projects.blankGame')}
             </Link>
           </div>
         </div>
@@ -230,11 +237,14 @@ function EmptyState({ t }: { t: (k: any) => string }) {
       </p>
       <div className="mt-6">
         <Link
-          href="/projects/new"
+          href="/worlds/new"
           className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-6 py-3 shadow-lg shadow-slate-900/10 transition"
         >
-          <Plus className="w-4 h-4" />
-          {t('projects.empty.cta')}
+          <Sparkles className="w-4 h-4" />
+          {t('projects.createWorld')}
+        </Link>
+        <Link href="/projects/new" className="ml-4 inline-flex items-center text-sm font-semibold text-slate-700 underline underline-offset-4 hover:text-slate-950">
+          {t('projects.blankGame')}
         </Link>
       </div>
     </div>

@@ -41,6 +41,9 @@ const FULLY_TRANSLATED = new Set(['en', 'zh']);
 const isPendingKey = (k) =>
   PENDING_TRANSLATION_NAMESPACES.some((prefix) => k.startsWith(prefix));
 
+const worldKeys = baseKeys.filter((key) => key.startsWith('worlds.'));
+eq(worldKeys.length > 0, true, 'the World Builder catalog has keys');
+
 for (const locale of LOCALES) {
   const keys = Object.keys(MESSAGES[locale]).sort();
   const missingAll = baseKeys.filter((k) => !keys.includes(k));
@@ -50,6 +53,8 @@ for (const locale of LOCALES) {
   const extra = keys.filter((k) => !baseKeys.includes(k));
   eq(missing.length, 0, `${locale}: no missing keys${missing.length ? ` (${missing.join(', ')})` : ''}`);
   eq(extra.length, 0, `${locale}: no orphan keys${extra.length ? ` (${extra.join(', ')})` : ''}`);
+  const missingWorldKeys = worldKeys.filter((key) => !keys.includes(key));
+  eq(missingWorldKeys.length, 0, `${locale}: all World Builder keys are translated${missingWorldKeys.length ? ` (${missingWorldKeys.join(', ')})` : ''}`);
 }
 
 // --- no empty or untranslated-looking strings -------------------------------

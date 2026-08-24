@@ -5,6 +5,14 @@
  */
 
 export const ui: Record<string, string> = {
+  'worlds.back': 'Quay lại trò chơi của tôi', 'worlds.eyebrow': 'Trình tạo thế giới', 'worlds.title': 'Tạo một thế giới',
+  'worlds.subtitle': 'Chọn một thế giới khởi đầu rồi biến nó thành của em bằng các khối lệnh.', 'worlds.loading': 'Đang tìm thế giới khởi đầu của em…',
+  'worlds.chooseTemplate': 'Chọn một thế giới khởi đầu', 'worlds.card.choose': 'Chọn', 'worlds.card.missions': '{count} nhiệm vụ',
+  'worlds.field.title': 'Tên thế giới', 'worlds.field.titlePlaceholder': 'Thế giới tuyệt vời của em',
+  'worlds.field.description': 'Mô tả (không bắt buộc)', 'worlds.field.descriptionPlaceholder': 'Điều gì xảy ra trong thế giới của em?',
+  'worlds.privateDraft': 'Thế giới của em bắt đầu ở chế độ riêng tư. Em có thể thử và tiếp tục xây dựng.', 'worlds.create': 'Tạo một thế giới',
+  'worlds.createLoading': 'Đang tạo thế giới của em…', 'worlds.error.catalog': 'Không thể tải các thế giới khởi đầu. Hãy thử lại.',
+  'worlds.error.create': 'Không thể tạo thế giới của em. Hãy thử lại.', 'projects.blankGame': 'Trò chơi trống',
   'editor.move': 'Di chuyển', 'editor.scale': 'Phóng to', 'editor.rotate': 'Xoay',
   'toolbar.orDescribe': 'Hoặc mô tả nó',
   'toolbar.askAIHint': 'Mô tả thế giới em muốn và lingplay sẽ dựng sẵn đối tượng, khối lệnh và hành vi.',

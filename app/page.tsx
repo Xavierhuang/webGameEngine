@@ -70,11 +70,18 @@ function Hero({ t }: { t: T }) {
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
-              href="/projects/new"
+              href="/worlds/new"
               className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-6 py-3 text-base shadow-lg shadow-slate-900/10 transition"
             >
+              <Sparkles className="w-4 h-4" />
+              {t('home.hero.cta.createWorld')}
+            </Link>
+            <Link
+              href="/projects/new"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3 text-base font-semibold text-slate-800 transition hover:border-slate-300"
+            >
               <Play className="w-4 h-4" />
-              {t('home.hero.cta.build')}
+              {t('home.hero.cta.blankGame')}
             </Link>
             <Link
               href="/explore"

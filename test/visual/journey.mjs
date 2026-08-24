@@ -44,6 +44,7 @@ const browser = await chromium.launch({
 });
 const context = await browser.newContext();
 const page = await context.newPage();
+let worldPage = null;
 
 const consoleErrors = [];
 page.on('pageerror', (e) => consoleErrors.push(`uncaught: ${e.message.split('\n')[0]}`));
@@ -101,8 +102,17 @@ await step('create a project', async () => {
   if (title) await title.fill(`Journey ${STAMP}`);
   const submit = await page.$('button[type="submit"]');
   if (submit) await submit.click();
-  await page.waitForURL(/\/editor\/|\/projects\//, { timeout: 25000 });
+  await page.waitForURL(/\/editor\/[^/?]+/, { timeout: 25000 });
   return page.url();
+});
+
+await step('the blank game keeps the Hero and Ground seed', async () => {
+  const id = page.url().split('/editor/')[1]?.split(/[?#]/)[0];
+  const project = await page.evaluate(async (projectId) => (await (await fetch(`/api/projects/${projectId}/export`)).json()), id);
+  const names = JSON.stringify(project);
+  if (!names.includes('Hero') || !names.includes('Ground')) {
+    throw new Error(`blank project did not retain the hero-and-ground seed: ${names.slice(0, 300)}`);
+  }
 });
 
 await step('the editor opens with a 3D canvas', async () => {
@@ -155,6 +165,40 @@ await step('the nudge does not come back on reload', async () => {
   await page.waitForTimeout(2500);
   const reappeared = await page.locator('text=/Make your first game/').count();
   if (reappeared > 0) throw new Error('the tutorials reopened — the nudge is a nag');
+});
+
+await step('create a private Platformer world', async () => {
+  worldPage = await context.newPage();
+  await worldPage.goto(`${BASE}/worlds/new`, { waitUntil: 'networkidle' });
+  await worldPage.locator('button[aria-label="Choose Sky Steps"]').click({ timeout: 15000 });
+  await worldPage.locator('input').fill(`Sky Journey ${STAMP}`);
+  await worldPage.locator('button[type="submit"]').click();
+  await worldPage.waitForURL(/\/editor\/[^?]+\?worldBuilder=1/, { timeout: 25000 });
+});
+
+await step('the template editor has the expected private draft graph', async () => {
+  const worldId = worldPage?.url().split('/editor/')[1]?.split(/[?#]/)[0];
+  if (!worldId || !worldPage) throw new Error('not on a world editor URL');
+  const state = await worldPage.evaluate(async (id) => {
+    const [projectsResponse, exportResponse] = await Promise.all([
+      fetch('/api/projects'),
+      fetch(`/api/projects/${id}/export`),
+    ]);
+    return {
+      projects: await projectsResponse.json(),
+      project: await exportResponse.json(),
+    };
+  }, worldId);
+  const metadata = state.projects.projects?.find((project) => project.id === worldId);
+  if (!metadata || metadata.visibility !== 'private' || metadata.moderation_status !== 'draft' || metadata.is_published) {
+    throw new Error(`world is not a private draft: ${JSON.stringify(metadata)}`);
+  }
+  const names = JSON.stringify(state.project);
+  for (const expected of ['Hero', 'Starting Platform', 'Goal Star']) {
+    if (!names.includes(expected)) throw new Error(`template export is missing ${expected}`);
+  }
+  await worldPage.close();
+  worldPage = null;
 });
 
 await step('add a character', async () => {
