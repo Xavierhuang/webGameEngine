@@ -1,4 +1,4 @@
-import type { WorldMission } from './templates';
+import type { WorldMission, WorldTemplateObjectType } from './templates';
 
 export type WorldMissionAction =
   | { type: 'object_present'; objectId: string }
@@ -8,6 +8,12 @@ export type WorldMissionAction =
 
 export type VerifiedWorldMissionAction =
   | WorldMissionAction
+  | {
+      type: 'object_present';
+      objectId: string;
+      /** Server-derived type for a post-baseline object mission. */
+      verifiedObjectType: WorldTemplateObjectType;
+    }
   | {
       type: 'block_present';
       objectId: string;
@@ -83,7 +89,10 @@ export function evaluateWorldMission(
 
   switch (mission.kind) {
     case 'object_present':
-      return action.type === 'object_present' && action.objectId === mission.objectId;
+      if (action.type !== 'object_present') return false;
+      return mission.objectType
+        ? candidate.verifiedObjectType === mission.objectType
+        : action.objectId === mission.objectId;
     case 'block_present':
       return action.type === 'block_present'
         && Array.isArray(candidate.verifiedBlockTypes)

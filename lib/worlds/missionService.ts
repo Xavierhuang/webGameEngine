@@ -2,7 +2,7 @@ import type { Pool } from 'mysql2/promise';
 import type { Actor } from '../auth/actor';
 import { requireProjectEdit } from '../auth/access';
 import { withTransaction, type TransactionConnection } from '../mysql/transaction';
-import { getWorldTemplate, type WorldMission } from './templates';
+import { getWorldTemplate, type WorldMission, type WorldTemplateObjectType } from './templates';
 import {
   collectStoredBlockTypes,
   evaluateWorldMission,
@@ -147,8 +147,8 @@ async function verifyObjectAction(
   currentRevision: number,
   action: Extract<WorldMissionAction, { type: 'object_present' }>,
 ): Promise<boolean> {
-  const expected = targetTemplateObject(mission, template);
-  if (!expected) return false;
+  const expectedType = mission.objectType ?? targetTemplateObject(mission, template)?.type;
+  if (!expectedType) return false;
   const [rows] = await connection.execute(
     `SELECT object_row.id, object_row.type, object_row.name
        FROM game_objects object_row
@@ -159,11 +159,18 @@ async function verifyObjectAction(
   const object = (rows as ObjectRow[])[0];
   if (
     !object
-    || object.type !== expected.type
+    || object.type !== expectedType
     || baseline.initialObjectIds.has(object.id)
     || currentRevision <= baseline.revision
   ) return false;
-  return evaluateWorldMission(mission, { type: 'object_present', objectId: mission.objectId });
+  return evaluateWorldMission(mission, {
+    type: 'object_present',
+    // Legacy templates use their catalog object ID as the evaluator's stable
+    // semantic token. Type-based v2 missions instead verify the submitted new
+    // object UUID through verifiedObjectType.
+    objectId: mission.objectType ? action.objectId : mission.objectId ?? '',
+    verifiedObjectType: expectedType as WorldTemplateObjectType,
+  });
 }
 
 async function verifyBlockAction(

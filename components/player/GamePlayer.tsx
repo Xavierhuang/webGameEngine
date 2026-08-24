@@ -1235,6 +1235,7 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
           : { x: 0, y: 0, z: 0 },
       getRadius: () => radiusRef.current,
       touchable: object.type !== 'platform',
+      isTouchable: () => visibleRef.current,
     });
     return () => world.unregister(objectId);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,4 +1,5 @@
 import { BLOCK_SPECS } from '../blockly/definitions';
+import { validateSkyStepsFlagship } from './skyStepsContract';
 import type { WorldTemplate, WorldTemplateBlock, WorldTemplateBudget } from './templates';
 
 export interface ValidationIssue {
@@ -47,6 +48,10 @@ function addDuplicateIssue(ids: Set<string>, id: unknown, path: string, issues: 
 const WORLD_TEMPLATE_OBJECT_TYPES = new Set([
   'character', 'platform', 'collectible', 'obstacle', 'sprite', 'sound',
 ]);
+
+function isWorldTemplateObjectType(value: unknown): boolean {
+  return typeof value === 'string' && WORLD_TEMPLATE_OBJECT_TYPES.has(value);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -207,8 +212,11 @@ export function validateWorldTemplate(template: WorldTemplate): ValidationIssue[
       issues.push({ code: 'invalid_mission', path: missionPath, message: 'Mission id, title, and description must be readable text' });
     }
     if (mission.kind === 'object_present') {
-      if (typeof mission.objectId !== 'string' || !objectIds.has(mission.objectId)) {
-        issues.push({ code: 'invalid_mission', path: `${missionPath}.objectId`, message: 'An object_present mission must reference a template object' });
+      if (mission.objectType !== undefined && !isWorldTemplateObjectType(mission.objectType)) {
+        issues.push({ code: 'invalid_mission', path: `${missionPath}.objectType`, message: 'An object_present mission needs a supported post-baseline object type' });
+      }
+      if (mission.objectType === undefined && (typeof mission.objectId !== 'string' || !objectIds.has(mission.objectId))) {
+        issues.push({ code: 'invalid_mission', path: `${missionPath}.objectId`, message: 'An object_present mission must reference a template object or name a post-baseline object type' });
       }
     } else if (mission.kind === 'block_present') {
       if (!hasSupportedBlockType(mission.blockType)) {
@@ -238,6 +246,12 @@ export function validateWorldTemplate(template: WorldTemplate): ValidationIssue[
   }
   if (cloneBlockCount > Number(budgets.maxClones)) {
     issues.push({ code: 'budget_exceeded', path: 'scenes', message: `Clone count ${cloneBlockCount} exceeds the template budget` });
+  }
+
+  if (templateValue.id === 'platformer' && templateValue.version === 2) {
+    for (const message of validateSkyStepsFlagship(template)) {
+      issues.push({ code: 'invalid_metadata', path: 'skySteps', message });
+    }
   }
 
   return issues;

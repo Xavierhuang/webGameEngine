@@ -41,6 +41,8 @@ export interface WorldMission {
   title: string;
   description: string;
   kind: WorldMissionKind;
+  /** Required type for a newly-created object, verified against the baseline. */
+  objectType?: WorldTemplateObjectType;
   objectId?: string;
   blockType?: string;
   outcome?: 'win' | 'fun';
@@ -58,6 +60,8 @@ export interface WorldTemplateBudget {
 export interface WorldTemplate {
   id: string;
   version: number;
+  /** Only the latest approved version is offered by the normal catalog picker. */
+  active?: boolean;
   title: string;
   description: string;
   genre: string;
@@ -76,18 +80,18 @@ const CONSERVATIVE_BUDGETS: WorldTemplateBudget = {
   maxScriptStepsPerFrame: 120,
 };
 
-function playerBlocks(id: string, name: string): WorldTemplateBlock[] {
+function playerBlocks(id: string, name: string, movementDistance = 120): WorldTemplateBlock[] {
   return [
     { id: `${id}-start`, block_type: 'on_start' },
     { id: `${id}-follow`, block_type: 'camera_follow', inputs: { target: name } },
     { id: `${id}-up`, block_type: 'on_key_press', inputs: { key: 'ArrowUp' } },
-    { id: `${id}-move-up`, block_type: 'move', inputs: { direction: 'up', distance: 120 } },
+    { id: `${id}-move-up`, block_type: 'move', inputs: { direction: 'up', distance: movementDistance } },
     { id: `${id}-down`, block_type: 'on_key_press', inputs: { key: 'ArrowDown' } },
-    { id: `${id}-move-down`, block_type: 'move', inputs: { direction: 'down', distance: 120 } },
+    { id: `${id}-move-down`, block_type: 'move', inputs: { direction: 'down', distance: movementDistance } },
     { id: `${id}-left`, block_type: 'on_key_press', inputs: { key: 'ArrowLeft' } },
-    { id: `${id}-move-left`, block_type: 'move', inputs: { direction: 'left', distance: 120 } },
+    { id: `${id}-move-left`, block_type: 'move', inputs: { direction: 'left', distance: movementDistance } },
     { id: `${id}-right`, block_type: 'on_key_press', inputs: { key: 'ArrowRight' } },
-    { id: `${id}-move-right`, block_type: 'move', inputs: { direction: 'right', distance: 120 } },
+    { id: `${id}-move-right`, block_type: 'move', inputs: { direction: 'right', distance: movementDistance } },
   ];
 }
 
@@ -123,6 +127,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
   {
     id: 'platformer',
     version: 2,
+    active: true,
     title: 'Sky Steps',
     description: 'Climb friendly sky steps, collect bright stars, and reach the portal.',
     genre: 'Platformer',
@@ -139,60 +144,63 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           name: 'Hero',
           type: 'character',
           playerControlled: true,
-          position: [0, 0, 0],
+          position: [0, -2, 0],
           modelUrl: '/models/starters/hero.glb',
           shape: 'model',
           blocks: [
-            ...playerBlocks('sky-hero', 'Hero'),
+            ...playerBlocks('sky-hero', 'Hero', 500),
             { id: 'sky-hero-space', block_type: 'on_key_press', inputs: { key: 'SPACE' } },
             { id: 'sky-hero-jump', block_type: 'jump' },
           ],
         },
-        { id: 'sky-start-island', name: 'Starting Island', type: 'platform', position: [0, -1, 0], shape: 'box', color: '#4f8f44', blocks: [] },
-        { id: 'sky-step-one', name: 'Sky Step One', type: 'platform', position: [2, -0.25, 0], shape: 'box', color: '#74b65d', blocks: [] },
-        { id: 'sky-step-two', name: 'Sky Step Two', type: 'platform', position: [4, 0.5, 0], shape: 'box', color: '#74b65d', blocks: [] },
-        { id: 'sky-extra-platform', name: 'Sky Step Three', type: 'platform', position: [6, 1.25, 0], shape: 'box', color: '#74b65d', blocks: [] },
+        { id: 'sky-start-island', name: 'Starting Island', type: 'platform', position: [0, -2, 0], shape: 'box', color: '#4f8f44', blocks: [] },
+        { id: 'sky-step-one', name: 'Sky Step One', type: 'platform', position: [16, -1, 0], shape: 'box', color: '#74b65d', blocks: [] },
+        { id: 'sky-step-two', name: 'Sky Step Two', type: 'platform', position: [32, 0, 0], shape: 'box', color: '#74b65d', blocks: [] },
+        { id: 'sky-extra-platform', name: 'Sky Step Three', type: 'platform', position: [48, 1, 0], shape: 'box', color: '#74b65d', blocks: [] },
         {
           id: 'sky-star-one',
           name: 'Sky Star One',
           type: 'collectible',
-          position: [2, 0.65, 0],
+          position: [16, -0.75, 0],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
             { id: 'sky-star-one-touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
             { id: 'sky-star-one-say', block_type: 'say', inputs: { text: 'Star collected!' } },
+            { id: 'sky-star-one-hide', block_type: 'hide' },
           ],
         },
         {
           id: 'sky-star-two',
           name: 'Sky Star Two',
           type: 'collectible',
-          position: [4, 1.4, 0],
+          position: [32, 0.25, 0],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
             { id: 'sky-star-two-touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
             { id: 'sky-star-two-say', block_type: 'say', inputs: { text: 'Star collected!' } },
+            { id: 'sky-star-two-hide', block_type: 'hide' },
           ],
         },
         {
           id: 'sky-extra-star',
           name: 'Sky Star Three',
           type: 'collectible',
-          position: [6, 2.15, 0],
+          position: [48, 1.25, 0],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
             { id: 'sky-star-three-touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
             { id: 'sky-star-three-say', block_type: 'say', inputs: { text: 'Star collected!' } },
+            { id: 'sky-star-three-hide', block_type: 'hide' },
           ],
         },
         {
           id: 'sky-moving-cloud',
           name: 'Moving Cloud',
           type: 'obstacle',
-          position: [5, 2.25, 1],
+          position: [36, 2, 1],
           shape: 'sphere',
           color: '#ffffff',
           blocks: [{
@@ -205,7 +213,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'sky-portal',
           name: 'Sky Portal',
           type: 'sprite',
-          position: [7.5, 2, 0],
+          position: [48, 1.25, 0],
           shape: 'torus',
           color: '#fbbf24',
           blocks: [
@@ -216,8 +224,8 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
       ],
     }],
     missions: [
-      { id: 'sky-steps-add-platform', title: 'Build a new step', description: 'Add a new platform after the starting steps.', kind: 'object_present', objectId: 'sky-extra-platform' },
-      { id: 'sky-steps-add-star', title: 'Add a sky star', description: 'Add a new collectible after the starting stars.', kind: 'object_present', objectId: 'sky-extra-star' },
+      { id: 'sky-steps-add-platform', title: 'Build a new step', description: 'Add a new platform after the starting steps.', kind: 'object_present', objectType: 'platform' },
+      { id: 'sky-steps-add-star', title: 'Add a sky star', description: 'Add a new collectible after the starting stars.', kind: 'object_present', objectType: 'collectible' },
       { id: 'sky-steps-play', title: 'Play Sky Steps', description: 'Press Play and try the new steps.', kind: 'play_started' },
     ],
   },

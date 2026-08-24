@@ -69,14 +69,14 @@ async function makeActor(label) {
   return { kind: 'guest', profileId, sessionId: randomUUID() };
 }
 
-async function makeWorld(ownerId, templateId = 'platformer', baseline = {}) {
+async function makeWorld(ownerId, templateId = 'platformer', baseline = {}, templateVersion = 1) {
   const projectId = randomUUID();
   const sceneId = randomUUID();
   const objectId = randomUUID();
   projects.push(projectId);
   await pool.query(
-    "INSERT IGNORE INTO world_templates (template_id, version, catalog_metadata, active) VALUES (?, 1, '{}', TRUE)",
-    [templateId],
+    "INSERT IGNORE INTO world_templates (template_id, version, catalog_metadata, active) VALUES (?, ?, '{}', TRUE)",
+    [templateId, templateVersion],
   );
   await pool.query(
     "INSERT INTO projects (id, owner_id, title, visibility, is_published, moderation_status, revision) VALUES (?, ?, 'Mission world', 'private', FALSE, 'draft', 4)",
@@ -94,8 +94,8 @@ async function makeWorld(ownerId, templateId = 'platformer', baseline = {}) {
     [snapshotId, projectId, 'a'.repeat(64)],
   );
   await pool.query(
-    "INSERT INTO project_worlds (project_id, template_id, template_version, world_metadata) VALUES (?, ?, 1, ?)",
-    [projectId, templateId, JSON.stringify({ baselineRevision: 0, initialObjectIds: [], baselineBlockTypeCounts: {}, ...baseline })],
+    "INSERT INTO project_worlds (project_id, template_id, template_version, world_metadata) VALUES (?, ?, ?, ?)",
+    [projectId, templateId, templateVersion, JSON.stringify({ baselineRevision: 0, initialObjectIds: [], baselineBlockTypeCounts: {}, ...baseline })],
   );
   return { projectId, objectId, snapshotId };
 }
@@ -161,6 +161,35 @@ test('a template object present at creation cannot complete an object mission, b
   await pool.query('UPDATE projects SET revision = 5 WHERE id = ?', [projectId]);
   const added = await service.recordWorldMissionAction({ actor: owner, projectId, action: { type: 'object_present', objectId: addedObjectId } });
   assert.equal(added.find((entry) => entry.id === 'platformer-name-hero')?.status, 'completed');
+});
+
+test('Sky Steps v2 completes post-baseline platform and collectible missions with any newly-created matching IDs', async (t) => {
+  if (!requireMysql(t)) return;
+  const owner = await makeActor('sky steps baseline');
+  const { projectId, objectId } = await makeWorld(owner.profileId, 'platformer', {}, 2);
+  await pool.query(
+    'UPDATE project_worlds SET world_metadata = ? WHERE project_id = ?',
+    [JSON.stringify({ baselineRevision: 0, initialObjectIds: [objectId], baselineBlockTypeCounts: {} }), projectId],
+  );
+  const service = await makeService();
+  const [[scene]] = await pool.query('SELECT id FROM scenes WHERE project_id = ?', [projectId]);
+
+  const wrongTypeId = randomUUID();
+  await pool.query("INSERT INTO game_objects (id, scene_id, type, name, properties, order_index) VALUES (?, ?, 'character', 'Not a platform', '{}', 1)", [wrongTypeId, scene.id]);
+  await pool.query('UPDATE projects SET revision = 5 WHERE id = ?', [projectId]);
+  const wrongType = await service.recordWorldMissionAction({ actor: owner, projectId, action: { type: 'object_present', objectId: wrongTypeId } });
+  assert.equal(wrongType.find((entry) => entry.id === 'sky-steps-add-platform')?.status, 'not_started');
+
+  const platformId = randomUUID();
+  await pool.query("INSERT INTO game_objects (id, scene_id, type, name, properties, order_index) VALUES (?, ?, 'platform', 'A new step', '{}', 2)", [platformId, scene.id]);
+  const afterPlatform = await service.recordWorldMissionAction({ actor: owner, projectId, action: { type: 'object_present', objectId: platformId } });
+  assert.equal(afterPlatform.find((entry) => entry.id === 'sky-steps-add-platform')?.status, 'completed');
+  assert.equal(afterPlatform.find((entry) => entry.id === 'sky-steps-add-star')?.status, 'not_started');
+
+  const starId = randomUUID();
+  await pool.query("INSERT INTO game_objects (id, scene_id, type, name, properties, order_index) VALUES (?, ?, 'collectible', 'A new sky star', '{}', 3)", [starId, scene.id]);
+  const afterStar = await service.recordWorldMissionAction({ actor: owner, projectId, action: { type: 'object_present', objectId: starId } });
+  assert.equal(afterStar.find((entry) => entry.id === 'sky-steps-add-star')?.status, 'completed');
 });
 
 test('a baseline block cannot complete a mission until a target block is added after world creation', async (t) => {

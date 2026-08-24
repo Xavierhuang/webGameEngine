@@ -65,6 +65,7 @@ test('catalog contains both Sky Steps versions and one version for every other a
       .sort((left, right) => left - right),
     [1, 2],
   );
+  assert.strictEqual(getWorldTemplate('platformer', 2).active, true, 'Sky Steps v2 is marked active');
   for (const id of REQUIRED_TEMPLATE_IDS.filter((id) => id !== 'platformer')) {
     assert.strictEqual(WORLD_TEMPLATES.filter((template) => template.id === id).length, 1, `${id}: exactly one version`);
   }

@@ -423,6 +423,8 @@ export interface WorldObjectHooks {
   getRadius(): number;
   /** Whether other objects can "touch" this one (platforms are scenery — default true). */
   touchable?: boolean;
+  /** Live touch participation; hidden collectibles use this to become inactive. */
+  isTouchable?(): boolean;
 }
 
 /** Scratch caps total live clones at 300. */
@@ -831,11 +833,12 @@ export class RuntimeWorld {
   /** Overlap test by bounding radii. Empty targetName = any other object. */
   touching(fromId: string, targetName = ''): boolean {
     const a = this.objects.get(fromId);
-    if (!a) return false;
+    const canTouch = (object: WorldObjectHooks) => object.touchable !== false && object.isTouchable?.() !== false;
+    if (!a || !canTouch(a)) return false;
     const pa = a.getPosition();
     const ra = a.getRadius();
     const check = (id: string, b: WorldObjectHooks) => {
-      if (id === fromId || b.touchable === false) return false;
+      if (id === fromId || !canTouch(b)) return false;
       const pb = b.getPosition();
       const d = Math.hypot(pa.x - pb.x, pa.y - pb.y, pa.z - pb.z);
       return d <= ra + b.getRadius() + 0.001;
@@ -982,6 +985,25 @@ interface ScriptState {
 }
 
 export const HAT_TYPES = new Set(['on_start', 'on_key_press', 'when_clicked', 'when_touches', 'when_receive', 'when_clone_start', 'when_scene_starts', 'when_video_motion', 'define_custom_block']);
+
+/**
+ * Return the world-units-per-second rate emitted by an authored key → move
+ * pair. This is the same `distance / 100` conversion used in `runBlock`.
+ */
+export function movementRateForKey(
+  blocks: readonly { block_type: string; inputs?: Record<string, unknown> }[],
+  key: string,
+): number {
+  const wantedKey = key.toLowerCase();
+  for (let index = 0; index < blocks.length - 1; index += 1) {
+    const hat = blocks[index];
+    const move = blocks[index + 1];
+    if (hat.block_type !== 'on_key_press' || String(hat.inputs?.key ?? '').toLowerCase() !== wantedKey) continue;
+    if (move.block_type !== 'move') return 0;
+    return Math.abs(toNumber((move.inputs?.distance ?? 0) as any) / 100);
+  }
+  return 0;
+}
 
 /** Parse a define_custom_block hat into its name + parameter list. */
 function definitionSpec(hat: LogicBlock): { name: string; params: string[] } {

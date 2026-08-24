@@ -275,6 +275,35 @@ const ctxIdle = {
   eq(w.vars.get('hero', 'score'), 1, 'when_touches: fired on overlap');
 }
 
+// Hiding a collectible makes it non-touchable, so its level-triggered touch
+// script cannot repeatedly grant feedback while Hero remains in place.
+{
+  const w = new RuntimeWorld();
+  let starVisible = true;
+  let feedbackCount = 0;
+  w.register('hero', { name: 'Hero', getPosition: () => ({ x: 0, y: 0, z: 0 }), getRadius: () => 0.5 });
+  w.register('star', {
+    name: 'Sky Star',
+    getPosition: () => ({ x: 0, y: 0, z: 0 }),
+    getRadius: () => 0.5,
+    isTouchable: () => starVisible,
+  });
+  const star = new ObjectRuntime('star', [
+    { id: 'touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
+    { id: 'feedback', block_type: 'say', inputs: { text: 'Star collected!' } },
+    { id: 'hide', block_type: 'hide' },
+  ], w.vars, {
+    getKeys: () => ({}), move: () => {}, jump: () => {}, rotate: () => {}, scaleBy: () => {}, playSound: () => {},
+    say: () => { feedbackCount += 1; },
+    setVisible: (visible) => { starVisible = visible; },
+  }, w);
+  star.step(0.016, 0);
+  star.step(0.016, 0.016);
+  eq(starVisible, false, 'hide: deactivates the collected star');
+  eq(w.touching('star', 'Hero'), false, 'hide: collected star no longer satisfies its touch hat');
+  eq(feedbackCount, 1, 'hide: touch feedback is not repeated');
+}
+
 // when_clicked hat fires once per click (no restart queue while running)
 {
   const w = new RuntimeWorld();

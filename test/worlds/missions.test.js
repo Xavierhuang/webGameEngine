@@ -22,6 +22,22 @@ test('object mission completes only for its exact required object', () => {
   assert.equal(evaluateWorldMission(mission, { type: 'panel_opened' }), false);
 });
 
+test('post-baseline object-type missions accept only the server-verified requested type', () => {
+  const mission = { id: 'add-platform', kind: 'object_present', objectType: 'platform' };
+  assert.equal(
+    evaluateWorldMission(mission, { type: 'object_present', objectId: 'new-platform', verifiedObjectType: 'platform' }),
+    true,
+  );
+  assert.equal(
+    evaluateWorldMission(mission, { type: 'object_present', objectId: 'new-star', verifiedObjectType: 'collectible' }),
+    false,
+  );
+  assert.equal(
+    evaluateWorldMission(mission, { type: 'object_present', objectId: 'unverified-platform' }),
+    false,
+  );
+});
+
 test('block mission accepts a recursively discovered exact block type only', () => {
   const mission = platformerMissions[1];
   assert.equal(
