@@ -53,7 +53,7 @@ interface AccessDependencies {
 }
 
 const PROJECT_SELECT = `
-  SELECT project.id, project.owner_id, project.visibility, project.moderation_status
+  SELECT project.id, project.owner_id, project.visibility, project.is_published, project.moderation_status
     FROM projects project
    WHERE project.id = ?`;
 
@@ -67,20 +67,20 @@ const ACTOR_ROLE_SELECT = `
 const RESOURCE_PROJECT_SELECT: Readonly<Record<ResourceType, string>> = Object.freeze({
   scene: `
     SELECT resource.id AS resource_id,
-           project.id, project.owner_id, project.visibility, project.moderation_status
+           project.id, project.owner_id, project.visibility, project.is_published, project.moderation_status
       FROM scenes resource
       JOIN projects project ON project.id = resource.project_id
      WHERE resource.id = ?`,
   object: `
     SELECT resource.id AS resource_id,
-           project.id, project.owner_id, project.visibility, project.moderation_status
+           project.id, project.owner_id, project.visibility, project.is_published, project.moderation_status
       FROM game_objects resource
       JOIN scenes resource_scene ON resource_scene.id = resource.scene_id
       JOIN projects project ON project.id = resource_scene.project_id
      WHERE resource.id = ?`,
   'logic-block': `
     SELECT resource.id AS resource_id,
-           project.id, project.owner_id, project.visibility, project.moderation_status
+           project.id, project.owner_id, project.visibility, project.is_published, project.moderation_status
       FROM logic_blocks resource
       LEFT JOIN game_objects resource_object ON resource_object.id = resource.game_object_id
       LEFT JOIN scenes object_scene ON object_scene.id = resource_object.scene_id
@@ -90,7 +90,7 @@ const RESOURCE_PROJECT_SELECT: Readonly<Record<ResourceType, string>> = Object.f
      WHERE resource.id = ?`,
   asset: `
     SELECT resource.id AS resource_id,
-           project.id, project.owner_id, project.visibility, project.moderation_status
+           project.id, project.owner_id, project.visibility, project.is_published, project.moderation_status
       FROM assets resource
       JOIN projects project ON project.id = resource.project_id
      WHERE resource.id = ?`,

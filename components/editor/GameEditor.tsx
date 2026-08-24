@@ -1579,6 +1579,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
           projectId={projectId}
           initialVisibility={project?.visibility ?? 'private'}
           initialModerationStatus={project?.moderation_status ?? 'pending'}
+          isWorldBuilder={Boolean(worldBuilder)}
           onClose={() => setShowShareDialog(false)}
           onVisibilityChange={(visibility, moderationStatus) =>
             setProject((prev: any) =>

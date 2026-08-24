@@ -37,6 +37,7 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
      LEFT JOIN projects parent
        ON parent.id = p.remixed_from
       AND parent.visibility = 'public'
+      AND parent.is_published = TRUE
       AND parent.moderation_status = 'published'
      WHERE p.id = ?`,
     [id]
@@ -46,7 +47,7 @@ export default async function ProjectPage(props: { params: Promise<{ id: string 
 
   const remixes = await query<{ id: string; title: string }>(
     `SELECT id, title FROM projects
-     WHERE remixed_from = ? AND visibility = 'public' AND moderation_status = 'published'
+     WHERE remixed_from = ? AND visibility = 'public' AND is_published = TRUE AND moderation_status = 'published'
      ORDER BY created_at DESC LIMIT 8`,
     [id]
   );

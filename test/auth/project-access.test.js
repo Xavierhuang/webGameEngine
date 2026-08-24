@@ -14,6 +14,7 @@ const project = (overrides = {}) => ({
   id: 'project-a',
   owner_id: 'profile-owner',
   visibility: 'private',
+  is_published: false,
   moderation_status: 'draft',
   ...overrides,
 });
@@ -54,7 +55,7 @@ test('only a published public project is visible to strangers', () => {
   }
 
   const published = decideAccess(
-    project({ visibility: 'public', moderation_status: 'published' }),
+    project({ visibility: 'public', is_published: true, moderation_status: 'published' }),
     stranger
   );
   assert.equal(published.canView, true);
@@ -66,13 +67,32 @@ test('only a published public project is visible to strangers', () => {
 
 test('anonymous visitors can view but cannot remix a published public project', () => {
   const access = decideAccess(
-    project({ visibility: 'public', moderation_status: 'published' }),
+    project({ visibility: 'public', is_published: true, moderation_status: 'published' }),
     anonymous
   );
   assert.equal(access.canView, true);
   assert.equal(access.canEdit, false);
   assert.equal(access.canPublish, false);
   assert.equal(access.canRemix, false);
+});
+
+test('every release signal is required before a stranger or anonymous visitor can read', () => {
+  const completeRelease = {
+    visibility: 'public',
+    is_published: true,
+    moderation_status: 'published',
+  };
+  for (const [label, partialRelease] of [
+    ['private visibility', { ...completeRelease, visibility: 'private' }],
+    ['unpublished flag', { ...completeRelease, is_published: false }],
+    ['non-published moderation', { ...completeRelease, moderation_status: 'draft' }],
+  ]) {
+    for (const actor of [stranger, anonymous]) {
+      const access = decideAccess(project(partialRelease), actor);
+      assert.equal(access.canView, false, `${label} must remain hidden from ${actor.kind}`);
+      assert.equal(access.canEdit, false, `${label} must never grant write access`);
+    }
+  }
 });
 
 test('admin and moderator authority can moderate private or pending work without editing it', () => {
@@ -117,9 +137,9 @@ function fakeService(rows, actorRoles = {}) {
   return { service, calls };
 }
 
-test('canonical project guards load by actor plus project ID and use stable denials', async () => {
-  const published = project({ visibility: 'public', moderation_status: 'published' });
-  const { service } = fakeService({
+test('canonical project guards load a full release state and use stable denials', async () => {
+  const published = project({ visibility: 'public', is_published: true, moderation_status: 'published' });
+  const { service, calls } = fakeService({
     'project-a': published,
     'project-private': project({ id: 'project-private' }),
   });
@@ -143,6 +163,9 @@ test('canonical project guards load by actor plus project ID and use stable deni
     (error) => error instanceof AccessError &&
       error.status === 404 && error.code === 'project_not_found'
   );
+
+  const projectQuery = calls.find((call) => /FROM projects project/i.test(call.sql));
+  assert.match(projectQuery.sql, /project\.is_published/i, 'direct project access loads the release flag');
 });
 
 test('a resource from another project is rejected', async () => {
@@ -172,7 +195,7 @@ test('a resource from another project is rejected', async () => {
 });
 
 test('resource reads bind the nested id to its true owning project', async () => {
-  const published = project({ visibility: 'public', moderation_status: 'published' });
+  const published = project({ visibility: 'public', is_published: true, moderation_status: 'published' });
   const { service, calls } = fakeService({
     'object-public': { resource_id: 'object-public', ...published },
     'object-private': { resource_id: 'object-private', ...project() },
@@ -191,6 +214,18 @@ test('resource reads bind the nested id to its true owning project', async () =>
   const objectQuery = calls.find((call) => call.params.at(-1) === 'object-public');
   assert.match(objectQuery.sql, /JOIN scenes/i);
   assert.match(objectQuery.sql, /JOIN projects/i);
+  assert.match(objectQuery.sql, /project\.is_published/i, 'nested API access loads the release flag');
+});
+
+test('project API, project page, and player delegate public reads to the full-release guard', () => {
+  for (const relativePath of [
+    'app/api/projects/[id]/route.ts',
+    'app/projects/[id]/page.tsx',
+    'app/play/[id]/page.tsx',
+  ]) {
+    const source = require('node:fs').readFileSync(require('node:path').join(__dirname, '../..', relativePath), 'utf8');
+    assert.match(source, /requireProjectView\(actor, id\)/, `${relativePath} must use centralized project access`);
+  }
 });
 
 test('nested resource types use a closed SQL whitelist keyed by resource ID', async () => {
@@ -255,7 +290,7 @@ test('inherited object keys are rejected as resource types before querying', asy
 test('public DTO omits internal authority fields', () => {
   const dto = toPublicProjectDto(
     {
-      ...project({ visibility: 'public', moderation_status: 'published' }),
+      ...project({ visibility: 'public', is_published: true, moderation_status: 'published' }),
       title: 'Public game',
       description: 'A safe description',
       thumbnail_url: '/thumb.png',

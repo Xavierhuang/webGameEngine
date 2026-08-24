@@ -61,8 +61,9 @@ async function signUp(client, tag) {
       email: `${tag}-${stamp}@example.com`,
       password: 'Authorization!2345',
       username: `${tag}${stamp}`.replace(/[^a-z0-9]/gi, '').slice(0, 24),
-      isParent: true,
-      dateOfBirth: '1980-01-01',
+      // Signup is child-only; use an age that does not require a consent
+      // request so this matrix can exercise an authenticated non-owner.
+      dateOfBirth: '2010-01-01',
     },
   });
   assert.equal(response.status, 200, `${tag} signup failed: ${JSON.stringify(await json(response))}`);
@@ -134,6 +135,70 @@ const createdGuest = await expectStatus(guest, 'create guest project', '/api/pro
   title: `guest create ${stamp}`,
 }, [200]);
 const createdGuestId = (await json(createdGuest)).project.id;
+
+for (const client of [owner, guest, stranger]) {
+  await expectStatus(client, 'world template catalog', '/api/world-templates', 'GET', undefined, [200]);
+}
+await expectStatus(anonymous, 'anonymous world template catalog', '/api/world-templates', 'GET', undefined, [401]);
+
+await expectStatus(owner, 'reject publication fields on blank create', '/api/projects', 'POST', {
+  title: `owner blocked publication ${stamp}`,
+  visibility: 'public',
+}, [422]);
+await expectStatus(owner, 'reject publication fields on world create', '/api/worlds/create', 'POST', {
+  templateId: 'platformer', templateVersion: 1, title: `owner blocked world ${stamp}`, is_published: true,
+}, [422]);
+
+async function createPrivateWorld(client, label) {
+  const response = await expectStatus(client, `create ${label} private world`, '/api/worlds/create', 'POST', {
+    templateId: 'platformer',
+    templateVersion: 1,
+    title: `${label} private world ${stamp}`,
+  }, [201]);
+  return (await json(response)).projectId;
+}
+
+const ownerWorldId = await createPrivateWorld(owner, 'owner');
+const guestWorldId = await createPrivateWorld(guest, 'guest');
+const strangerWorldId = await createPrivateWorld(stranger, 'stranger');
+await expectStatus(anonymous, 'anonymous world creation', '/api/worlds/create', 'POST', {
+  templateId: 'platformer', templateVersion: 1, title: `anonymous private world ${stamp}`,
+}, [401]);
+
+const ownerWorld = await loadProject(owner, ownerWorldId);
+const guestWorld = await loadProject(guest, guestWorldId);
+const ownerWorldObjectId = ownerWorld.scenes[0]?.game_objects[0]?.id;
+const guestWorldObjectId = guestWorld.scenes[0]?.game_objects[0]?.id;
+assert.ok(ownerWorldObjectId && guestWorldObjectId, 'template worlds must materialize editable objects');
+
+for (const [client, id, status] of [
+  [owner, ownerWorldId, 200],
+  [guest, guestWorldId, 200],
+  [stranger, ownerWorldId, 404],
+  [anonymous, ownerWorldId, 404],
+]) {
+  await expectStatus(client, 'private world editor API', `/api/projects/${id}`, 'GET', undefined, [status]);
+}
+
+for (const [client, id, objectId, status] of [
+  [owner, ownerWorldId, ownerWorldObjectId, 200],
+  [guest, guestWorldId, guestWorldObjectId, 200],
+  [stranger, ownerWorldId, ownerWorldObjectId, 404],
+  [anonymous, ownerWorldId, ownerWorldObjectId, 401],
+]) {
+  await expectStatus(client, 'private world mission read', `/api/projects/${id}/world-missions`, 'GET', undefined, [status]);
+  await expectStatus(client, 'private world mission write', `/api/projects/${id}/world-missions`, 'POST', {
+    action: { type: 'object_present', objectId },
+  }, [status]);
+}
+
+for (const path of [`/editor/${ownerWorldId}`, `/play/${ownerWorldId}`]) {
+  await expectStatus(owner, `owner private world ${path}`, path, 'GET', undefined, [200]);
+  await expectStatus(stranger, `stranger private world ${path}`, path, 'GET', undefined, [404]);
+  await expectStatus(anonymous, `anonymous private world ${path}`, path, 'GET', undefined, [404]);
+}
+await expectStatus(guest, 'guest private world editor', `/editor/${guestWorldId}`, 'GET', undefined, [200]);
+await expectStatus(guest, 'guest private world play', `/play/${guestWorldId}`, 'GET', undefined, [200]);
 
 for (const client of [owner, guest, stranger, anonymous]) {
   await expectStatus(client, 'project collection', '/api/projects', 'GET', undefined, [200]);
@@ -284,8 +349,14 @@ for (const client of [owner, stranger, anonymous, guest]) {
 
 const explore = await json(await anonymous.request('/api/projects/explore'));
 assert.ok(Array.isArray(explore.projects), 'explore did not return a project array');
-for (const privateId of [ownerProjectId, guestProjectId, strangerProjectId]) {
+for (const privateId of [ownerProjectId, guestProjectId, strangerProjectId, ownerWorldId, guestWorldId, strangerWorldId]) {
   assert.equal(explore.projects.some((project) => project.id === privateId), false, 'private project leaked into Explore');
+}
+const explorePage = await anonymous.request('/explore');
+assert.equal(explorePage.status, 200, 'Explore page must remain available to an anonymous visitor');
+const exploreHtml = await explorePage.text();
+for (const title of [`owner private world ${stamp}`, `guest private world ${stamp}`, `stranger private world ${stamp}`]) {
+  assert.equal(exploreHtml.includes(title), false, 'private World Builder draft leaked into Explore page');
 }
 for (const project of explore.projects) {
   for (const forbidden of ['owner_id', 'profile_id', 'user_id', 'moderation_notes']) {

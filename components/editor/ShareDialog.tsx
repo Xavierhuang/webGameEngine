@@ -8,22 +8,20 @@ interface ShareDialogProps {
   projectId: string;
   initialVisibility: string;
   initialModerationStatus?: string;
+  isWorldBuilder?: boolean;
   onClose: () => void;
   onVisibilityChange?: (visibility: string, moderationStatus: string) => void;
 }
 
 /**
- * Publish / unpublish a project.
- *
- * `projects.visibility` and `is_published` have existed since the initial
- * schema and were already in the PATCH allowlist, but no component ever set
- * them — so every project was permanently private and the gallery had nothing
- * to show. This dialog is the missing writer.
+ * Publication controls for ordinary projects, or a truthful private-draft
+ * status for Phase 1 World Builder projects.
  */
 export function ShareDialog({
   projectId,
   initialVisibility,
   initialModerationStatus = 'pending',
+  isWorldBuilder = false,
   onClose,
   onVisibilityChange,
 }: ShareDialogProps) {
@@ -35,7 +33,11 @@ export function ShareDialog({
   const [copied, setCopied] = useState(false);
   const [needsAccount, setNeedsAccount] = useState(false);
 
-  const isPublic = visibility === 'public';
+  // A template world is private by construction. Treat the server-provided
+  // identity as authoritative here so stale or forged client metadata cannot
+  // make a release link/control appear in the editor.
+  const isPrivateDraft = isWorldBuilder;
+  const isPublic = !isPrivateDraft && visibility === 'public';
   const shareUrl =
     typeof window !== 'undefined' ? `${window.location.origin}/play/${projectId}` : '';
 
@@ -90,7 +92,9 @@ export function ShareDialog({
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h2 className="text-base font-semibold text-slate-900">{t('share.title')}</h2>
+          <h2 className="text-base font-semibold text-slate-900">
+            {isPrivateDraft ? 'Private draft' : t('share.title')}
+          </h2>
           <button
             onClick={onClose}
             className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
@@ -109,10 +113,12 @@ export function ShareDialog({
             )}
             <div className="text-sm">
               <div className="font-semibold text-slate-900">
-                {isPublic ? t('share.public') : t('share.private')}
+                {isPrivateDraft ? 'Private draft' : isPublic ? t('share.public') : t('share.private')}
               </div>
               <p className="mt-0.5 leading-relaxed text-slate-600">
-                {isPublic
+                {isPrivateDraft
+                  ? 'World Builder worlds stay private while public release is unavailable. You can test and keep building here.'
+                  : isPublic
                   ? t('share.publicBody')
                   : t('share.privateBody')}
               </p>
@@ -157,17 +163,19 @@ export function ShareDialog({
             </div>
           )}
 
-          <button
-            onClick={() => setPublished(!isPublic)}
-            disabled={busy}
-            className={`w-full rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60 ${
-              isPublic
-                ? 'border border-slate-200 text-slate-700 hover:border-slate-300'
-                : 'bg-slate-900 text-white hover:bg-slate-800'
-            }`}
-          >
-            {busy ? 'Working…' : isPublic ? t('share.makePrivate') : t('share.makePublic')}
-          </button>
+          {!isPrivateDraft && (
+            <button
+              onClick={() => setPublished(!isPublic)}
+              disabled={busy}
+              className={`w-full rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60 ${
+                isPublic
+                  ? 'border border-slate-200 text-slate-700 hover:border-slate-300'
+                  : 'bg-slate-900 text-white hover:bg-slate-800'
+              }`}
+            >
+              {busy ? 'Working…' : isPublic ? t('share.makePrivate') : t('share.makePublic')}
+            </button>
+          )}
 
           {/* Export gives you a portable copy of the whole project — there was
               previously no way to get a project out of the product at all. */}

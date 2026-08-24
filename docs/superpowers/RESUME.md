@@ -12,6 +12,15 @@ session's endpoint.
 
 ## State snapshot
 
+### World Builder Phase 1 boundary
+
+World Builder template worlds are **private-phase only**. They always start as
+private drafts and are owner-editable/playable, but do not appear in Explore or
+anonymous play. Neither project-creation endpoint accepts publication fields,
+and the World Builder share surface contains no public-release control. Public
+release remains blocked pending the later candidate, asset-quarantine,
+approval, and reviewer phases; do not enable `new_publication` as a workaround.
+
 - **Branch:** `main` on both local and `origin` (github.com/Xavierhuang/webGameEngine)
 - **HEAD:** `1bdfde6 checkpoint: batch in-progress editor + i18n + examples work`
 - **Live at play.lingcode.dev:** through commit `657421a` (the last `./deploy.sh` run).

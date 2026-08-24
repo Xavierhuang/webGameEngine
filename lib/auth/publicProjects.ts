@@ -27,7 +27,11 @@ export async function listPublicProjects(options: {
     ? (options.sort as PublicProjectSort)
     : 'newest';
   const limit = Math.min(Math.max(Number(options.limit) || 24, 1), 60);
-  const where = ["p.visibility = 'public'", "p.moderation_status = 'published'"];
+  // Public discovery is a release boundary, not a visibility preference.
+  // Private World Builder drafts always have is_published=FALSE and draft
+  // moderation, so they cannot appear here even if another write path is
+  // later audited or changed.
+  const where = ["p.visibility = 'public'", 'p.is_published = TRUE', "p.moderation_status = 'published'"];
   const values: unknown[] = [];
 
   if (search) {
@@ -50,8 +54,9 @@ export async function listPublicProjects(options: {
        FROM projects p
        LEFT JOIN profiles author ON author.id = p.owner_id
        LEFT JOIN projects parent
-         ON parent.id = p.remixed_from
+        ON parent.id = p.remixed_from
         AND parent.visibility = 'public'
+        AND parent.is_published = TRUE
         AND parent.moderation_status = 'published'
       WHERE ${where.join(' AND ')}
       ORDER BY ${SORTS[sort]}

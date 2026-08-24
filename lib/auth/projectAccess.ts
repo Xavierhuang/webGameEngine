@@ -9,6 +9,7 @@ export interface ProjectRow {
   id?: string;
   owner_id: string;
   visibility?: string | null;
+  is_published?: boolean | number | null;
   moderation_status?: string | null;
 }
 
@@ -83,7 +84,9 @@ export function decideAccess(
   }
 
   const published =
-    project.visibility === 'public' && project.moderation_status === 'published';
+    project.visibility === 'public' &&
+    (project.is_published === true || project.is_published === 1) &&
+    project.moderation_status === 'published';
   if (published) {
     return {
       canView: true,

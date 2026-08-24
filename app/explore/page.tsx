@@ -19,7 +19,8 @@ const SORTS: Record<string, { labelKey: 'explore.sort.newest' | 'explore.sort.lo
  *
  * Until now the only "gallery" was six hardcoded fake cards on the landing page
  * that linked to /projects/new. This is the real thing: it lists projects that
- * are both shared publicly AND have cleared moderation.
+ * are fully released: public, published, and cleared by moderation. Private
+ * World Builder drafts stay owner-only until the later release workflow.
  */
 export default async function ExplorePage(props: {
   searchParams?: Promise<{ q?: string; sort?: string }>;

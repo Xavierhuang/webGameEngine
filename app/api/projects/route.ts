@@ -52,10 +52,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Guest session required' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const rawTitle = typeof body.title === 'string' ? sanitizeUserInput(body.title) : '';
-    const rawDescription = typeof body.description === 'string' ? sanitizeUserInput(body.description) : '';
-    const genre = typeof body.genre === 'string' ? body.genre.substring(0, 100) : null;
+    const body: unknown = await request.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Invalid project request' }, { status: 422 });
+    }
+    const candidate = body as Record<string, unknown>;
+    // Project creation is deliberately metadata-only. In particular, a caller
+    // cannot turn a new draft into a public project by adding legacy
+    // publication fields to this request.
+    const allowedFields = new Set(['title', 'description', 'genre']);
+    if (Object.keys(candidate).some((key) => !allowedFields.has(key))) {
+      return NextResponse.json({ error: 'Invalid project request' }, { status: 422 });
+    }
+    const rawTitle = typeof candidate.title === 'string' ? sanitizeUserInput(candidate.title) : '';
+    const rawDescription = typeof candidate.description === 'string' ? sanitizeUserInput(candidate.description) : '';
+    const genre = typeof candidate.genre === 'string' ? candidate.genre.substring(0, 100) : null;
 
     // Validate input
     if (!rawTitle || rawTitle.length > 50) {

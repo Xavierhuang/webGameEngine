@@ -11,7 +11,13 @@ test('project page gates the displayed parent in the parent join itself', () => 
 
   assert.match(projectQuery, /LEFT JOIN projects parent\s+ON parent\.id = p\.remixed_from/);
   assert.match(projectQuery, /parent\.visibility = 'public'/);
+  assert.match(projectQuery, /parent\.is_published = TRUE/);
   assert.match(projectQuery, /parent\.moderation_status = 'published'/);
+
+  const remixesQuery = source.match(/const remixes = await query[\s\S]*?\n\s*\[id\]\n\s*\);/)?.[0] ?? '';
+  assert.match(remixesQuery, /visibility = 'public'/);
+  assert.match(remixesQuery, /is_published = TRUE/);
+  assert.match(remixesQuery, /moderation_status = 'published'/);
 });
 
 test('hidden parents clear both the parent DTO and raw remixed_from lineage', () => {

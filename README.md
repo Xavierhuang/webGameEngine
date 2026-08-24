@@ -146,6 +146,10 @@ This is a product for children, and the safety paths are load-bearing:
 - **Access** — editing is owner-only and `visibility === 'public'` never grants
   write. Guests are identified by cookie, which is what made those checks
   possible at all.
+- **World Builder is private-phase only** — template worlds start as private
+  drafts and can be edited and played only by their owner. Public release is
+  blocked until the later candidate, asset-quarantine, approval, and reviewer
+  phases are implemented.
 
 ## Deliberate omissions
 
