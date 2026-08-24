@@ -5,6 +5,8 @@ import { requireProjectEdit } from '@/lib/auth/access';
 import GameEditor from '@/components/editor/GameEditor';
 import { MobileEditorGate } from '@/components/editor/MobileEditorGate';
 import { CollaborationProvider } from '@/components/realtime/CollaborationProvider';
+import { getWorldTemplate } from '@/lib/worlds/templates';
+import { getMissionProgress, type MissionProgress } from '@/lib/worlds/missionService';
 
 interface EditorPageProps {
   params: Promise<{
@@ -41,10 +43,28 @@ export default async function EditorPage({ params }: EditorPageProps) {
     like_count: number;
     moderation_status: string;
     moderation_notes: string | null;
+    revision: number | string;
   }>('SELECT * FROM projects WHERE id = ?', [id]);
 
   if (!project) {
     notFound();
+  }
+
+  const worldIdentity = await queryOne<{ template_id: string; template_version: number | string }>(
+    'SELECT template_id, template_version FROM project_worlds WHERE project_id = ?',
+    [id],
+  );
+  const template = worldIdentity
+    ? getWorldTemplate(worldIdentity.template_id, Number(worldIdentity.template_version))
+    : null;
+  let missionProgress: MissionProgress[] = [];
+  if (template) {
+    try {
+      missionProgress = await getMissionProgress({ actor, projectId: id });
+    } catch {
+      // The editor has already passed the centralized edit check. Keep a
+      // private draft editable if optional guidance cannot load.
+    }
   }
 
   // Fetch related data
@@ -168,7 +188,15 @@ export default async function EditorPage({ params }: EditorPageProps) {
         userId={userId}
         username={username}
       >
-        <GameEditor projectId={id} initialData={projectWithRelations} />
+        <GameEditor
+          projectId={id}
+          initialData={projectWithRelations}
+          worldBuilder={template ? {
+            templateTitle: template.title,
+            revision: Number(project.revision),
+            missions: missionProgress,
+          } : undefined}
+        />
       </CollaborationProvider>
     </MobileEditorGate>
   );

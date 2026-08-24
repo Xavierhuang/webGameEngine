@@ -118,9 +118,11 @@ interface GamePlayerProps {
    * Scratch has always shown the stage next to the blocks; this is that.
    */
   compact?: boolean;
+  /** Present only for a private World Builder player session. */
+  missionReporting?: { projectId: string; revision: number; snapshotId: string };
 }
 
-export default function GamePlayer({ project, compact = false }: GamePlayerProps) {
+export default function GamePlayer({ project, compact = false, missionReporting }: GamePlayerProps) {
   // Prime AudioManager eagerly so its user-gesture unlock listener is armed
   // before the first click in the play window. Without this the very first
   // click that fires `on_start` → play_sound races the AudioContext resume
@@ -188,6 +190,34 @@ export default function GamePlayer({ project, compact = false }: GamePlayerProps
   const [banner, setBanner] = useState<string | null>(null);
   const [askDraft, setAskDraft] = useState('');
   const stageRef = useRef<HTMLDivElement | null>(null);
+
+  const reportMissionAction = useCallback(async (action: Record<string, string>) => {
+    if (!missionReporting) return;
+    try {
+      await fetch(`/api/projects/${missionReporting.projectId}/world-missions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+    } catch {
+      // Mission guidance is optional and must not interrupt play.
+    }
+  }, [missionReporting]);
+
+  const startMissionSession = useCallback(async () => {
+    if (compact || !missionReporting) return;
+    try {
+      const session = await fetch(`/api/projects/${missionReporting.projectId}/world-missions/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ snapshotId: missionReporting.snapshotId }),
+      });
+      if (!session.ok) return;
+      await reportMissionAction({ type: 'play_started', snapshotId: missionReporting.snapshotId });
+    } catch {
+      // The runtime can still begin if a snapshot cannot be created.
+    }
+  }, [compact, missionReporting, reportMissionAction]);
 
   useEffect(() => {
     world.onSwitchScene = (name: string) => {
@@ -308,6 +338,7 @@ export default function GamePlayer({ project, compact = false }: GamePlayerProps
     setSceneIndex(0);
     setRunNonce((n) => n + 1);
     world.started = true;
+    void startMissionSession();
   };
 
   /**
@@ -479,6 +510,7 @@ export default function GamePlayer({ project, compact = false }: GamePlayerProps
                 try { AudioManager.get(); } catch { /* noop */ }
                 world.started = true;
                 setShowStartSplash(false);
+                void startMissionSession();
               }}
               className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-slate-900/85 text-white hover:bg-slate-900/75 transition-colors"
               aria-label="Start game"

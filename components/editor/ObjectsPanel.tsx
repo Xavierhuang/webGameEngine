@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Box, Circle, Star, User, Image, Copy, ChevronUp, ChevronDown } from 'lucide-react';
 import { useTranslator } from '../common/LocaleProvider';
 
@@ -10,6 +11,7 @@ interface ObjectsPanelProps {
   onDuplicate?: (obj: any) => void;
   /** Move a sprite up or down in the list. */
   onReorder?: (obj: any, direction: -1 | 1) => void;
+  missionPanel?: ReactNode;
 }
 
 const typeToIcon: Record<string, any> = {
@@ -21,7 +23,7 @@ const typeToIcon: Record<string, any> = {
   sound: Circle,
 };
 
-export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplicate, onReorder }: ObjectsPanelProps) {
+export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplicate, onReorder, missionPanel }: ObjectsPanelProps) {
   const t = useTranslator();
   const objects = scene?.game_objects || [];
   return (
@@ -86,8 +88,8 @@ export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplic
           })}
         </ul>
       )}
+      {missionPanel}
     </div>
   );
 }
-
 

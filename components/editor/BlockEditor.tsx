@@ -42,6 +42,7 @@ interface BlockEditorProps {
     revisionRef: { current: number };
     editingSessionId: string;
   };
+  onBlocksPersisted?: (objectId: string) => void;
 }
 
 /** "My Blocks" flyout: one define block plus a caller per existing definition. */
@@ -116,7 +117,7 @@ function createPreviewContext(): RuntimeContext {
   };
 }
 
-export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames, recordedSounds, writeAdapter }: BlockEditorProps) {
+export default function BlockEditor({ objectId, objectName, initialBlocks, objectNames, recordedSounds, writeAdapter, onBlocksPersisted }: BlockEditorProps) {
   const locale = useLocale();
   const t = useTranslator();
   const hostRef = useRef<HTMLDivElement>(null);
@@ -223,6 +224,7 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
               body: JSON.stringify({ blocks }),
             });
         setStatus(res.ok ? 'saved' : 'error');
+        if (res.ok) onBlocksPersisted?.(objectId);
       } catch (e) {
         logger.warn('[BlockEditor] Save failed:', e);
         setStatus('error');

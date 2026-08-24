@@ -36,6 +36,9 @@ import {
   type LightingPresetId,
 } from '@/lib/scene/lightingPresets';
 import { commandWrite, commandServiceCall, newEditingSessionId, newObjectId } from '@/lib/editor/commandWrite';
+import WorldDraftStatus from '@/components/worlds/WorldDraftStatus';
+import WorldMissionPanel from '@/components/worlds/WorldMissionPanel';
+import type { MissionProgress } from '@/lib/worlds/missionService';
 
 // Blockly needs the DOM — load the block editor client-side only.
 /**
@@ -71,6 +74,7 @@ const BlockEditor = dynamic(() => import('./BlockEditor'), {
 interface GameEditorProps {
   projectId: string;
   initialData?: any;
+  worldBuilder?: { templateTitle: string; revision: number; missions: MissionProgress[] };
 }
 
 // Helper function to get default properties for each object type
@@ -126,15 +130,40 @@ const getObjectDefaults = (type: string) => {
 /** Marks that the first-run tutorial nudge has been shown. */
 const FIRST_RUN_KEY = 'lingplay-tutorials-introduced';
 
-export default function GameEditor({ projectId, initialData }: GameEditorProps) {
+export default function GameEditor({ projectId, initialData, worldBuilder }: GameEditorProps) {
   const t = useTranslator();
   const [project, setProject] = useState<any>(initialData);
+  const [missionProgress, setMissionProgress] = useState<MissionProgress[]>(worldBuilder?.missions ?? []);
   // Task 4 compat: every project-graph write sends `If-Match: "<revision>"`.
   // useRef gives us the exact `{ current: number }` shape `commandWrite`
   // expects, and its identity is stable across renders so the ref can be
   // mutated in place from the server response.
   const revisionRef = useRef<number>(initialData?.revision ?? 0);
   const editingSessionIdRef = useRef<string>(newEditingSessionId());
+  const reportMissionAction = useCallback(async (action: { type: string; [key: string]: string }) => {
+    if (!worldBuilder) return;
+    try {
+      const response = await fetch(`/api/projects/${projectId}/world-missions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }),
+      });
+      if (!response.ok) return;
+      const body = await response.json();
+      if (Array.isArray(body?.missions)) setMissionProgress(body.missions);
+    } catch {
+      // Guidance is optional; edits and play remain usable offline.
+    }
+  }, [projectId, worldBuilder]);
+  const observedObjectIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = new Set<string>();
+    for (const scene of project?.scenes ?? []) for (const object of scene?.game_objects ?? []) ids.add(object.id);
+    if (observedObjectIds.current === null) {
+      observedObjectIds.current = ids;
+      return;
+    }
+    for (const id of ids) if (!observedObjectIds.current.has(id)) void reportMissionAction({ type: 'object_present', objectId: id });
+    observedObjectIds.current = ids;
+  }, [project?.scenes, reportMissionAction]);
   const [currentScene, setCurrentScene] = useState<any>(null);
   const [selectedObject, setSelectedObject] = useState<any>(null);
   const [editorMode, setEditorMode] = useState<'scene' | 'logic'>('scene');
@@ -828,6 +857,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
               {project?.title || 'My Game'}
             </h1>
           </div>
+          {worldBuilder && <WorldDraftStatus templateTitle={worldBuilder.templateTitle} revision={revisionRef.current} />}
           {/* Scene / Logic mode toggle */}
           <div
             className="ml-4 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200"
@@ -1082,6 +1112,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
             onSelect={setSelectedObject}
             onDuplicate={duplicateObject}
             onReorder={reorderObject}
+            missionPanel={worldBuilder ? <WorldMissionPanel projectId={projectId} initialMissions={missionProgress} /> : undefined}
           />
         </div>
 
@@ -1352,6 +1383,7 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                         revisionRef,
                         editingSessionId: editingSessionIdRef.current,
                       }}
+                      onBlocksPersisted={(objectId) => void reportMissionAction({ type: 'block_present', objectId })}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-slate-50">
@@ -1394,7 +1426,10 @@ export default function GameEditor({ projectId, initialData }: GameEditorProps) 
                     </button>
                   </div>
                   <div className="min-h-0 flex-1">
-                    <StagePreview key={stageNonce} project={project} />
+                    <StagePreview
+                      key={stageNonce}
+                      project={project}
+                    />
                   </div>
                 </div>
               </div>

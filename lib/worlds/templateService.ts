@@ -98,11 +98,25 @@ function catalogMetadata(template: WorldTemplate) {
   };
 }
 
-function worldMetadata(template: WorldTemplate) {
+function countTemplateBlockTypes(blocks: readonly WorldTemplateBlock[], counts: Record<string, number> = {}): Record<string, number> {
+  for (const block of blocks) {
+    counts[block.block_type] = (counts[block.block_type] ?? 0) + 1;
+    if (block.children) countTemplateBlockTypes(block.children, counts);
+    if (block.elseChildren) countTemplateBlockTypes(block.elseChildren, counts);
+  }
+  return counts;
+}
+
+function worldMetadata(template: WorldTemplate, initialObjectIds: readonly string[]) {
   return {
     templateTitle: template.title,
     templateGenre: template.genre,
     missionIds: template.missions.map((mission) => mission.id),
+    baselineRevision: 0,
+    initialObjectIds,
+    baselineBlockTypeCounts: countTemplateBlockTypes(
+      template.scenes.flatMap((scene) => scene.objects.flatMap((object) => object.blocks)),
+    ),
   };
 }
 
@@ -221,12 +235,7 @@ export async function createWorldFromTemplate(
        VALUES (?, ?, ?, ?, ?, 'private', FALSE, 'draft', 0)`,
       [projectId, actor.profileId, title, description || null, template.genre],
     );
-    await connection.execute(
-      `INSERT INTO project_worlds (project_id, template_id, template_version, world_metadata)
-       VALUES (?, ?, ?, ?)`,
-      [projectId, template.id, template.version, JSON.stringify(worldMetadata(template))],
-    );
-
+    const initialObjectIds: string[] = [];
     for (const [sceneOrder, scene] of template.scenes.entries()) {
       const sceneId = randomUUID();
       await connection.execute(
@@ -236,6 +245,7 @@ export async function createWorldFromTemplate(
       );
       for (const [objectOrder, object] of scene.objects.entries()) {
         const objectId = randomUUID();
+        initialObjectIds.push(objectId);
         await connection.execute(
           `INSERT INTO game_objects
              (id, scene_id, type, name, position_x, position_y, position_z, color, properties, order_index)
@@ -260,6 +270,11 @@ export async function createWorldFromTemplate(
         await insertBlocks({ connection, blocks: object.blocks, projectId, sceneId, objectId });
       }
     }
+    await connection.execute(
+      `INSERT INTO project_worlds (project_id, template_id, template_version, world_metadata)
+       VALUES (?, ?, ?, ?)`,
+      [projectId, template.id, template.version, JSON.stringify(worldMetadata(template, initialObjectIds))],
+    );
   }, options?.pool ? { pool: options.pool } : undefined);
 
   return { projectId, revision: 0, templateId: template.id, templateVersion: template.version };

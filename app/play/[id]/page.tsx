@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
 import { ArrowLeft, Ghost, Lock } from 'lucide-react';
+import { CommandServiceError, writePlaySnapshot } from '@/lib/projects/commandService';
+import type { ProjectSnapshot } from '@/lib/projects/projectSnapshot';
 
 interface PlayPageProps {
   params: Promise<{ id: string }>;
@@ -23,23 +25,13 @@ export default async function PlayPage({ params }: PlayPageProps) {
     notFound();
   }
 
-  // Fetch project data
-  const project = await queryOne<{
-    id: string;
-    owner_id: string;
-    title: string;
-    description: string | null;
-    visibility: string;
-    moderation_status: string;
-  }>(
-    `SELECT id, title, description, visibility, moderation_status
-       FROM projects WHERE id = ?`,
-    [id]
-  );
+  const rendered = await createRenderedPlaySnapshot(id);
+  if (!rendered) notFound();
 
-  if (!project) {
-    notFound();
-  }
+  const worldIdentity = await queryOne<{ project_id: string }>(
+    'SELECT project_id FROM project_worlds WHERE project_id = ?',
+    [id],
+  );
 
   // Count the play. `play_count` and `last_played_at` have been rendered in the
   // UI since the initial schema but nothing ever wrote to them. Owners playing
@@ -55,99 +47,49 @@ export default async function PlayPage({ params }: PlayPageProps) {
     }
   }
 
-  // Fetch scenes
-  const scenes = await query<{
-    id: string;
-    project_id: string;
-    name: string;
-    order_index: number;
-    background_color: string;
-    background_image_url: string | null;
-    lighting_preset: string | null;
-    physics_enabled: boolean;
-    gravity_y: number;
-  }>(
-    `SELECT id, project_id, name, order_index, background_color,
-            background_image_url, lighting_preset, physics_enabled, gravity_y
-       FROM scenes WHERE project_id = ? ORDER BY order_index`,
-    [id]
-  );
-
-  // Fetch game objects
-  const sceneIds = scenes.map((s) => s.id);
-  const gameObjects = sceneIds.length > 0
-    ? await query<{
-        id: string;
-        scene_id: string;
-        type: string;
-        name: string;
-        position_x: number;
-        position_y: number;
-        position_z: number;
-        rotation: number;
-        scale_x: number;
-        scale_y: number;
-        sprite_url: string | null;
-        color: string | null;
-        width: number | null;
-        height: number | null;
-        has_physics: boolean;
-        is_static: boolean;
-        mass: number;
-        properties: any;
-      }>(
-        `SELECT id, scene_id, type, name, position_x, position_y, position_z,
-                rotation, scale_x, scale_y, sprite_url, color, width, height,
-                has_physics, is_static, mass, properties
-           FROM game_objects
-          WHERE scene_id IN (${sceneIds.map(() => '?').join(',')})
-          ORDER BY order_index, created_at`,
-        sceneIds
-      )
-    : [];
-
-  // Fetch logic blocks
-  const gameObjectIds = gameObjects.map((go) => go.id);
-  const logicBlocks = gameObjectIds.length > 0
-    ? await query<{
-        id: string;
-        game_object_id: string | null;
-        project_id: string | null;
-        block_type: string;
-        category: string;
-        order_index: number;
-        block_data: any;
-      }>(
-        // ORDER BY is load-bearing, not tidiness. A script is a flat ordered
-        // array — a hat block owns the blocks that follow it — so unordered
-        // rows are a shuffled program. MySQL returned them in roughly primary
-        // key order, which for a UUID key is arbitrary, so every published
-        // game and every project opened in the editor ran its blocks in a
-        // random order. It looked like a working game that behaved oddly.
-        `SELECT id, game_object_id, block_type, category, order_index, block_data
-           FROM logic_blocks WHERE game_object_id IN (${gameObjectIds.map(() => '?').join(',')})
-         ORDER BY game_object_id, order_index`,
-        gameObjectIds
-      )
-    : [];
-
-  // Structure the data
   const projectData = {
-    ...project,
-    scenes: scenes.map((scene) => ({
+    ...rendered.snapshot.project,
+    scenes: rendered.snapshot.scenes.map((scene) => ({
       ...scene,
-      game_objects: gameObjects
-        .filter((go) => go.scene_id === scene.id)
-        .map((go) => ({
-          ...go,
-          logic_blocks: logicBlocks.filter(
-            (lb) => lb.game_object_id === go.id
-          ),
-        })),
+      game_objects: scene.objects,
     })),
   };
 
-  return <GamePlayer project={projectData as unknown as Project} />;
+  return (
+    <GamePlayer
+      project={projectData as unknown as Project}
+      missionReporting={worldIdentity ? { projectId: id, revision: rendered.revision, snapshotId: rendered.snapshotId } : undefined}
+    />
+  );
+}
+
+async function createRenderedPlaySnapshot(projectId: string): Promise<{
+  snapshotId: string;
+  revision: number;
+  snapshot: ProjectSnapshot;
+} | null> {
+  // The revision read is merely the optimistic precondition; writePlaySnapshot
+  // locks it, captures one immutable graph, and reports a conflict if an edit
+  // won the race. Rendering always reads that captured graph, never live rows.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const project = await queryOne<{ revision: number | string }>('SELECT revision FROM projects WHERE id = ?', [projectId]);
+    if (!project) return null;
+    try {
+      const written = await writePlaySnapshot({ projectId, expectedRevision: Number(project.revision) });
+      const row = await queryOne<{ snapshot_json: unknown }>(
+        'SELECT snapshot_json FROM project_play_snapshots WHERE id = ? AND project_id = ?',
+        [written.snapshotId, projectId],
+      );
+      if (!row) return null;
+      const snapshot = typeof row.snapshot_json === 'string' ? JSON.parse(row.snapshot_json) : row.snapshot_json;
+      if (!snapshot || typeof snapshot !== 'object') return null;
+      return { snapshotId: written.snapshotId, revision: written.revision, snapshot: snapshot as ProjectSnapshot };
+    } catch (error) {
+      if (error instanceof CommandServiceError && error.httpStatus === 409) continue;
+      throw error;
+    }
+  }
+  return null;
 }
 
 function PlayerErrorScreen({

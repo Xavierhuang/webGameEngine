@@ -197,6 +197,9 @@ await step('the template editor has the expected private draft graph', async () 
   for (const expected of ['Hero', 'Starting Platform', 'Goal Star']) {
     if (!names.includes(expected)) throw new Error(`template export is missing ${expected}`);
   }
+  await worldPage.locator('text=/Private draft · Platformer · Revision 0/').waitFor({ timeout: 15000 });
+  await worldPage.locator('text=/Build missions/').waitFor({ timeout: 15000 });
+  await worldPage.locator('text=/Play your world/').waitFor({ timeout: 15000 });
   await worldPage.close();
   worldPage = null;
 });

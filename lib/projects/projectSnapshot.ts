@@ -45,6 +45,19 @@ export interface SnapshotSceneObject {
   mass: number;
   properties: unknown;
   order_index: number;
+  logic_blocks: SnapshotLogicBlock[];
+}
+
+export interface SnapshotLogicBlock {
+  id: string;
+  game_object_id: string | null;
+  project_id: string | null;
+  scene_id: string | null;
+  block_type: string;
+  category: string;
+  parent_block_id: string | null;
+  order_index: number;
+  block_data: unknown;
 }
 
 export interface SnapshotScene {
@@ -111,10 +124,12 @@ interface SceneRow {
   gravity_y: number;
 }
 
-interface ObjectRow extends SnapshotSceneObject {
+interface ObjectRow extends Omit<SnapshotSceneObject, 'logic_blocks'> {
   has_physics: boolean;
   is_static: boolean;
 }
+
+interface LogicBlockRow extends SnapshotLogicBlock {}
 
 interface AssetRow {
   id: string;
@@ -164,6 +179,21 @@ export async function loadProjectSnapshot(
       sceneIds,
     );
     objects = objectRows as ObjectRow[];
+  }
+
+  const objectIds = objects.map((object) => object.id);
+  let logicBlocks: LogicBlockRow[] = [];
+  if (objectIds.length > 0) {
+    const placeholders = objectIds.map(() => '?').join(',');
+    const [logicBlockRows] = await connection.execute(
+      `SELECT id, game_object_id, project_id, scene_id, block_type, category,
+              parent_block_id, order_index, block_data
+         FROM logic_blocks
+        WHERE game_object_id IN (${placeholders})
+        ORDER BY game_object_id, order_index, id`,
+      objectIds,
+    );
+    logicBlocks = logicBlockRows as LogicBlockRow[];
   }
 
   const [assetRows] = await connection.execute(
@@ -220,6 +250,19 @@ export async function loadProjectSnapshot(
           mass: o.mass,
           properties: o.properties,
           order_index: o.order_index,
+          logic_blocks: logicBlocks
+            .filter((block) => block.game_object_id === o.id)
+            .map((block) => ({
+              id: block.id,
+              game_object_id: block.game_object_id,
+              project_id: block.project_id,
+              scene_id: block.scene_id,
+              block_type: block.block_type,
+              category: block.category,
+              parent_block_id: block.parent_block_id,
+              order_index: block.order_index,
+              block_data: block.block_data,
+            })),
         })),
     })),
     assets: assets.map((a) => ({
