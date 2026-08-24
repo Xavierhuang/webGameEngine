@@ -53,11 +53,21 @@ function issueCodes(template) {
   return validateWorldTemplate(template).map((issue) => issue.code);
 }
 
-test('catalog contains exactly the five approved template families', () => {
+test('catalog contains both Sky Steps versions and one version for every other approved family', () => {
   assert.deepStrictEqual(
-    WORLD_TEMPLATES.map((template) => template.id).sort(),
+    [...new Set(WORLD_TEMPLATES.map((template) => template.id))].sort(),
     [...REQUIRED_TEMPLATE_IDS].sort(),
   );
+  assert.deepStrictEqual(
+    WORLD_TEMPLATES
+      .filter((template) => template.id === 'platformer')
+      .map((template) => template.version)
+      .sort((left, right) => left - right),
+    [1, 2],
+  );
+  for (const id of REQUIRED_TEMPLATE_IDS.filter((id) => id !== 'platformer')) {
+    assert.strictEqual(WORLD_TEMPLATES.filter((template) => template.id === id).length, 1, `${id}: exactly one version`);
+  }
 });
 
 test('every catalog template is playable, local, and palette-supported', () => {
@@ -115,7 +125,7 @@ test('template lookup returns an immutable independent copy', () => {
   assert.ok(Object.isFrozen(first.scenes), 'nested scene list is frozen');
   assert.throws(() => first.scenes.push({}), TypeError, 'copy cannot be mutated');
   assert.strictEqual(getWorldTemplate('not-a-template', 1), null, 'unknown template is absent');
-  assert.strictEqual(getWorldTemplate('platformer', 2), null, 'unknown version is absent');
+  assert.strictEqual(getWorldTemplate('platformer', 3), null, 'unknown version is absent');
 });
 
 test('validation rejects duplicate ids anywhere in the graph', () => {
