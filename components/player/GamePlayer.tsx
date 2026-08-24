@@ -40,6 +40,12 @@ import { VideoSensing, type VideoSensingHandle } from './VideoSensing';
 import { ParticleField, type ParticleController } from './ParticleField';
 import { ParticleEmitter } from '../three/ParticleEmitter';
 import { CameraDirector } from './CameraDirector';
+import {
+  platformTopSurface,
+  toPlayerPosition,
+  type PlatformSurface,
+} from '../../lib/player/platformerWorld';
+import { advancePlatformerMotion, requestPlatformerJump } from '../../lib/player/platformerMotion';
 
 // -----------------------------------------------------------------------------
 // Per-extension mesh components. Each one always calls exactly one loader hook,
@@ -120,9 +126,11 @@ interface GamePlayerProps {
   compact?: boolean;
   /** Present only for a private World Builder player session. */
   missionReporting?: { projectId: string; revision: number; snapshotId: string };
+  /** Template identity decides whether authored raised platform heights apply. */
+  worldIdentity?: { templateId: string; templateVersion: number | string };
 }
 
-export default function GamePlayer({ project, compact = false, missionReporting }: GamePlayerProps) {
+export default function GamePlayer({ project, compact = false, missionReporting, worldIdentity }: GamePlayerProps) {
   // Prime AudioManager eagerly so its user-gesture unlock listener is armed
   // before the first click in the play window. Without this the very first
   // click that fires `on_start` → play_sound races the AudioContext resume
@@ -139,6 +147,10 @@ export default function GamePlayer({ project, compact = false, missionReporting 
   const scenes = project.scenes ?? [];
   const [sceneIndex, setSceneIndex] = useState(0);
   const scene = scenes[Math.min(sceneIndex, Math.max(scenes.length - 1, 0))];
+  const legacyGround = !(
+    worldIdentity?.templateId === 'platformer'
+    && Number(worldIdentity.templateVersion) >= 2
+  );
   // Shared runtime world: variables, broadcasts, and touch/click sensing.
   /**
    * Handle onto the camera, populated by <VideoSensing/> once it mounts.
@@ -586,6 +598,7 @@ export default function GamePlayer({ project, compact = false, missionReporting 
               scene={scene}
               keys={keys}
               world={world}
+              legacyGround={legacyGround}
             />
           )}
             </Canvas>
@@ -689,13 +702,68 @@ function SkyDome() {
   );
 }
 
-const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { game_objects?: GameObject[]; background_color?: string; background_image_url?: string | null }; keys: KeyState; world: RuntimeWorld  }) {
+function isPlatformObject(object: GameObject) {
+  const properties = typeof object.properties === 'string' ? safeParseProperties(object.properties) : object.properties ?? {};
+  return object.type === 'platform' || properties.shape === 'plane';
+}
+
+function safeParseProperties(raw: string) {
+  try { return JSON.parse(raw || '{}'); } catch { return {}; }
+}
+
+function designPosition(object: GameObject): [number, number, number] {
+  return [
+    Number(object.position_x ?? 0),
+    Number(object.position_y ?? 0),
+    Number(object.position_z ?? 0),
+  ];
+}
+
+function legacyPlayerPosition(object: GameObject): [number, number, number] {
+  const [x, y, z] = designPosition(object);
+  const legacyX = x === 0 ? 500 : x;
+  const legacyY = y === 0 ? 300 : y;
+  return [(legacyX / 100) - 5, -(legacyY / 100) + 3, z];
+}
+
+function playerPositionForObject(object: GameObject, legacyGround: boolean): [number, number, number] {
+  if (!legacyGround) {
+    const point = toPlayerPosition(designPosition(object), { legacyGround: false });
+    return [point.x, point.y, point.z];
+  }
+
+  const legacyPosition = legacyPlayerPosition(object);
+  if (!isPlatformObject(object)) return legacyPosition;
+  const point = toPlayerPosition(legacyPosition, { legacyGround: true });
+  return [point.x, point.y, point.z];
+}
+
+function platformSurfaceForObject(object: GameObject, legacyGround: boolean): PlatformSurface | null {
+  if (!isPlatformObject(object)) return null;
+  return platformTopSurface({
+    id: object.id,
+    type: object.type,
+    position: legacyGround ? legacyPlayerPosition(object) : designPosition(object),
+    properties: object.properties,
+  }, { legacyGround });
+}
+
+const GameScene = memo(function GameScene({ scene, keys, world, legacyGround }: { scene: { game_objects?: GameObject[]; background_color?: string; background_image_url?: string | null }; keys: KeyState; world: RuntimeWorld; legacyGround: boolean }) {
   const { scene: threeScene, camera } = useThree();
   const skyBlueColor = useRef(new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR));
   const checkCount = useRef(0);
   const skyDomeRef = useRef<THREE.Mesh>(null);
   const backdropTextureRef = useRef<THREE.Texture | null>(null);
   const characterPositionRef = useRef<THREE.Vector3 | null>(null);
+  const platformSurfaces = useMemo(
+    () => legacyGround
+      ? []
+      : (scene.game_objects ?? []).flatMap((object) => {
+          const surface = platformSurfaceForObject(object, legacyGround);
+          return surface ? [surface] : [];
+        }),
+    [scene.game_objects, legacyGround],
+  );
   // Live clones spawned by create_clone_of blocks
   const [clones, setClones] = useState<{ cloneId: string; sourceId: string }[]>([]);
 
@@ -909,6 +977,8 @@ const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { gam
           keys={keys}
           world={world}
           camera={camera}
+          legacyGround={legacyGround}
+          platformSurfaces={platformSurfaces}
           onPositionUpdate={obj.type === 'character' ? (pos) => {
             characterPositionRef.current = pos;
           } : undefined}
@@ -924,6 +994,8 @@ const GameScene = memo(function GameScene({ scene, keys, world }: { scene: { gam
             keys={keys}
             world={world}
             cloneId={c.cloneId}
+            legacyGround={legacyGround}
+            platformSurfaces={platformSurfaces}
           />
         );
       })}
@@ -937,12 +1009,16 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   keys,
   world,
   camera,
+  legacyGround,
+  platformSurfaces,
   onPositionUpdate
 }: {
   object: GameObject;
   keys: KeyState;
   world: RuntimeWorld;
   camera: THREE.Camera;
+  legacyGround: boolean;
+  platformSurfaces: PlatformSurface[];
   onPositionUpdate?: (pos: THREE.Vector3) => void;
 }) {
   const [isVisible, setIsVisible] = useState(true);
@@ -953,14 +1029,8 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   
   useFrame(() => {
     // Update object position from database
-    const posX = object.position_x || 0;
-    const posY = object.position_y || 0;
-    const posZ = object.position_z || 0;
-    objectPosition.current.set(
-      (posX / 100) - 5,
-      -(posY / 100) + 3,
-      posZ || 0
-    );
+    const [x, y, z] = playerPositionForObject(object, legacyGround);
+    objectPosition.current.set(x, y, z);
     
     // Get object size for bounding box
     const properties = typeof object.properties === 'string' 
@@ -1012,6 +1082,8 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
         object={object}
         keys={keys}
         world={world}
+        legacyGround={legacyGround}
+        platformSurfaces={platformSurfaces}
         onPositionUpdate={onPositionUpdate}
       />
     );
@@ -1027,6 +1099,8 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
       object={object}
       keys={keys}
       world={world}
+      legacyGround={legacyGround}
+      platformSurfaces={platformSurfaces}
       onPositionUpdate={onPositionUpdate}
     />
   );
@@ -1080,12 +1154,13 @@ function FollowerBubble({
   );
 }
 
-const GameObject = memo(function GameObject({ object, keys, world, onPositionUpdate, cloneId }: { object: GameObject; keys: KeyState; world: RuntimeWorld; onPositionUpdate?: (pos: THREE.Vector3) => void; cloneId?: string }) {
+const GameObject = memo(function GameObject({ object, keys, world, legacyGround, platformSurfaces, onPositionUpdate, cloneId }: { object: GameObject; keys: KeyState; world: RuntimeWorld; legacyGround: boolean; platformSurfaces: PlatformSurface[]; onPositionUpdate?: (pos: THREE.Vector3) => void; cloneId?: string }) {
   // Clones register/run under their clone id but render the source object's looks.
   const objectId = cloneId ?? object.id;
   const meshRef = useRef<THREE.Mesh>(null);
   const velocityRef = useRef({ x: 0, y: 0, z: 0 });
   const isGroundedRef = useRef(false);
+  const groundedSurfaceIdRef = useRef<string | undefined>(undefined);
   // A jump requested while not grounded (typically an `on_start → jump` that
   // fires on frame 1 before the useFrame ground check has run) gets queued
   // and applied on the first grounded frame. Without this the jump silently
@@ -1176,8 +1251,16 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
       },
       jump: () => {
         if (isGroundedRef.current) {
-          velocityRef.current.y = PHYSICS.JUMP_FORCE;
-          isGroundedRef.current = false;
+          const jumped = requestPlatformerJump({
+            position: { ...positionRef.current },
+            velocity: { ...velocityRef.current },
+            radius: radiusRef.current,
+            grounded: true,
+            groundedSurfaceId: groundedSurfaceIdRef.current,
+          });
+          velocityRef.current.y = jumped.velocity.y;
+          isGroundedRef.current = jumped.grounded;
+          groundedSurfaceIdRef.current = jumped.groundedSurfaceId;
         } else {
           // Not grounded — remember it and fire on the next landed frame.
           // Covers the `on_start → jump` timing race and the natural "click
@@ -1226,6 +1309,7 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         velocityRef.current.y = 0;
         velocityRef.current.z = 0;
         isGroundedRef.current = false;
+        groundedSurfaceIdRef.current = undefined;
       },
       changePosition: (dx, dy, dz) => {
         positionRef.current.x += dx;
@@ -1239,6 +1323,7 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         if (dy !== 0) {
           velocityRef.current.y = 0;
           isGroundedRef.current = false;
+          groundedSurfaceIdRef.current = undefined;
         }
       },
       setPositionAxis: (axis, v) => {
@@ -1247,6 +1332,7 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         if (axis === 'y') {
           velocityRef.current.y = 0;
           isGroundedRef.current = false;
+          groundedSurfaceIdRef.current = undefined;
         }
       },
       setRotation: (xDeg, yDeg, zDeg) => {
@@ -1426,21 +1512,16 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
     : 'idle';
   const [animationState, setAnimationState] = useState<'idle' | 'walk' | 'run' | 'jump' | 'fall' | null>(initialAnimationState);
   const lastMoveStateRef = useRef({ wasMoving: false, wasJumping: false, wasFalling: false });
-  // Default center position: (500, 300) in pixels = (0, 0) in 3D
-  // Treat (0, 0) as center for backward compatibility
-  const defaultX = 500;
-  const defaultY = 300;
-  const posX = (object.position_x === 0 || object.position_x == null) ? defaultX : object.position_x;
-  const posY = (object.position_y === 0 || object.position_y == null) ? defaultY : object.position_y;
   // Clones spawn at the source object's live position.
   const spawnPos = cloneId ? world.getObjectPosition(object.id) : null;
+  const initialPosition = playerPositionForObject(object, legacyGround);
   const positionRef = useRef(
     spawnPos
       ? { x: spawnPos.x, y: spawnPos.y, z: spawnPos.z }
       : {
-          x: (posX / 100) - 5,
-          y: -(posY / 100) + 3,
-          z: object.position_z || 0,
+          x: initialPosition[0],
+          y: initialPosition[1],
+          z: initialPosition[2],
         }
   );
 
@@ -1621,67 +1702,10 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
     }
 
     if (shouldHavePhysics) {
-      // Simple gravity - always apply if not grounded
-      if (!isGroundedRef.current) {
-        velocityRef.current.y -= PHYSICS.GRAVITY * delta;
-        // Clamp to terminal velocity
-        if (velocityRef.current.y < -PHYSICS.TERMINAL_VELOCITY) {
-          velocityRef.current.y = -PHYSICS.TERMINAL_VELOCITY;
-        }
-        // Debug: log falling state
-        if (isCharacter && Math.abs(velocityRef.current.y) > 0.1) {
-          logger.debug(`[GamePlayer] Character "${object.name}" falling: velocity.y=${velocityRef.current.y.toFixed(2)}, position.y=${meshRef.current.position.y.toFixed(2)}`);
-        }
-      }
-
-      // Ground collision (simple check)
-      // Ground is at Y=-2 (platform level)
-      // IMPORTANT: Most 3D character models have their pivot at the FEET (bottom)
-      // So meshRef.position.y IS the feet position for characters
-      // For other objects, assume pivot is at center
-      const groundY = PHYSICS.GROUND_Y;
-      let objectBottomY: number;
-      
-      if (isCharacter) {
-        // For characters, meshRef position IS at the feet (model pivot is at feet)
-        // No offset needed - the position is already the feet position
-        objectBottomY = meshRef.current.position.y;
-      } else {
-        // For other objects, assume pivot is at center
-        objectBottomY = meshRef.current.position.y - scaleValue / 2;
-      }
-      
-      if (objectBottomY <= groundY + PHYSICS.GROUND_TOLERANCE) {
-        // Object hit the ground - position it so bottom touches ground
-        if (isCharacter) {
-          // For characters, position is at feet, so set directly to ground level
-          meshRef.current.position.y = groundY;
-        } else {
-          // For other objects, set center position so bottom touches ground
-          meshRef.current.position.y = groundY + scaleValue / 2;
-        }
-        velocityRef.current.y = 0;
-        isGroundedRef.current = true;
-        // Consume a jump that was requested while airborne (typically the
-        // `on_start → jump` script that fires before the character has
-        // landed). Doing this here means the first grounded frame is
-        // exactly when the queued jump lifts off, which is what the child
-        // asked for and never got.
-        if (pendingJumpRef.current) {
-          pendingJumpRef.current = false;
-          velocityRef.current.y = PHYSICS.JUMP_FORCE;
-          isGroundedRef.current = false;
-        }
-      } else {
-        isGroundedRef.current = false;
-      }
-
       // Execute logic blocks via the interpreter (coroutines stepped once per frame)
       let moveX = 0;
-      const moveY = 0;
       let moveZ = 0;
       const moveSpeed = PHYSICS.MOVE_SPEED;
-      const jumpForce = PHYSICS.JUMP_FORCE;
 
       // Gate on world.started so on_start hats don't fire until the
       // click-to-start splash has unlocked audio in this window. Motion,
@@ -1712,8 +1736,16 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
 
         // Jump (only if not using arrow up for forward movement)
         if (keys[' '] && isGroundedRef.current) {
-          velocityRef.current.y = jumpForce;
-          isGroundedRef.current = false;
+          const jumped = requestPlatformerJump({
+            position: { ...meshRef.current.position },
+            velocity: { ...velocityRef.current },
+            radius: radiusRef.current,
+            grounded: isGroundedRef.current,
+            groundedSurfaceId: groundedSurfaceIdRef.current,
+          });
+          velocityRef.current.y = jumped.velocity.y;
+          isGroundedRef.current = jumped.grounded;
+          groundedSurfaceIdRef.current = jumped.groundedSurfaceId;
         }
       }
 
@@ -1734,8 +1766,33 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
         meshRef.current.position.z += velocityRef.current.z * delta;
       }
 
-      // Apply vertical velocity (for jumping/gravity) - always applied
-      meshRef.current.position.y += velocityRef.current.y * delta;
+      const footOffset = isCharacter ? 0 : scaleValue / 2;
+      const motion = advancePlatformerMotion({
+        position: {
+          x: meshRef.current.position.x,
+          y: meshRef.current.position.y - footOffset,
+          z: meshRef.current.position.z,
+        },
+        velocity: { ...velocityRef.current },
+        radius: radiusRef.current,
+        grounded: isGroundedRef.current,
+        groundedSurfaceId: groundedSurfaceIdRef.current,
+      }, delta, platformSurfaces);
+      meshRef.current.position.y = motion.position.y + footOffset;
+      velocityRef.current.y = motion.velocity.y;
+      isGroundedRef.current = motion.grounded;
+      groundedSurfaceIdRef.current = motion.groundedSurfaceId;
+
+      // Keep legacy queued script jumps: an on-start jump requested before
+      // the first landing lifts off on the grounded frame, while direct
+      // airborne jump requests still cannot change vertical velocity.
+      if (isGroundedRef.current && pendingJumpRef.current) {
+        pendingJumpRef.current = false;
+        const jumped = requestPlatformerJump(motion);
+        velocityRef.current.y = jumped.velocity.y;
+        isGroundedRef.current = jumped.grounded;
+        groundedSurfaceIdRef.current = jumped.groundedSurfaceId;
+      }
 
       // Update position ref to match mesh position
       positionRef.current.x = meshRef.current.position.x;
@@ -1921,10 +1978,10 @@ const GameObject = memo(function GameObject({ object, keys, world, onPositionUpd
   }
 
   if (isPlatform || shape === 'plane') {
-    // For platforms, ensure they're at ground level (negative Y)
-    // Ground level is Y=-2 in 3D coordinates
-    const platformPosition: [number, number, number] = [position[0], PHYSICS.GROUND_Y, position[2]];
-    logger.debug(`[GamePlayer] Platform "${object.name}" at Y=${PHYSICS.GROUND_Y} with rotation X=-90°`);
+    // `position` came through the shared converter: legacy surfaces stay at
+    // fixed ground, while platformer v2 renders its authored top height.
+    const platformPosition = position;
+    logger.debug(`[GamePlayer] Platform "${object.name}" at Y=${platformPosition[1]} with rotation X=-90°`);
     
     // Platforms don't have physics, so use position prop
     // Using a group to isolate the mesh from useFrame rotation updates

@@ -28,8 +28,8 @@ export default async function PlayPage({ params }: PlayPageProps) {
   const rendered = await createRenderedPlaySnapshot(id);
   if (!rendered) notFound();
 
-  const worldIdentity = await queryOne<{ project_id: string }>(
-    'SELECT project_id FROM project_worlds WHERE project_id = ?',
+  const worldIdentity = await queryOne<{ project_id: string; template_id: string; template_version: number | string }>(
+    'SELECT project_id, template_id, template_version FROM project_worlds WHERE project_id = ?',
     [id],
   );
 
@@ -59,6 +59,10 @@ export default async function PlayPage({ params }: PlayPageProps) {
     <GamePlayer
       project={projectData as unknown as Project}
       missionReporting={worldIdentity ? { projectId: id, revision: rendered.revision, snapshotId: rendered.snapshotId } : undefined}
+      worldIdentity={worldIdentity ? {
+        templateId: worldIdentity.template_id,
+        templateVersion: worldIdentity.template_version,
+      } : undefined}
     />
   );
 }
