@@ -61,7 +61,7 @@ export interface WorldTemplate {
   id: string;
   version: number;
   /** Only the latest approved version is offered by the normal catalog picker. */
-  active?: boolean;
+  active: boolean;
   title: string;
   description: string;
   genre: string;
@@ -99,6 +99,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
   {
     id: 'platformer',
     version: 1,
+    active: false,
     title: 'Sky Steps',
     description: 'Leap from platform to platform and grab the bright star.',
     genre: 'Platformer',
@@ -232,6 +233,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
   {
     id: 'obby',
     version: 1,
+    active: true,
     title: 'Rainbow Obby',
     description: 'Dash along a colorful obstacle path and touch the finish star.',
     genre: 'Obstacle course',
@@ -263,6 +265,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
   {
     id: 'racing',
     version: 1,
+    active: true,
     title: 'Turbo Track',
     description: 'Drive a speedy car around the track and cross the finish line.',
     genre: 'Racing',
@@ -291,6 +294,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
   {
     id: 'story',
     version: 1,
+    active: true,
     title: 'Castle Story',
     description: 'Guide a brave explorer through a castle story and find the treasure.',
     genre: 'Story adventure',
@@ -323,6 +327,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
   {
     id: 'pet',
     version: 1,
+    active: true,
     title: 'Happy Pet Park',
     description: 'Take a playful puppy through the park and fetch a sparkling ball.',
     genre: 'Pet world',

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/auth/actor';
-import { createWorldFromTemplate, WorldTemplateCreationError } from '@/lib/worlds/templateService';
+import { createWorldFromTemplate, isWorldTemplateActive, WorldTemplateCreationError } from '@/lib/worlds/templateService';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,6 +25,9 @@ export async function POST(request: NextRequest) {
       || (candidate.description !== undefined && typeof candidate.description !== 'string')
     ) {
       return NextResponse.json({ error: 'Invalid world request' }, { status: 422 });
+    }
+    if (!isWorldTemplateActive(candidate.templateId, candidate.templateVersion)) {
+      return NextResponse.json({ error: 'Unknown template' }, { status: 422 });
     }
     const created = await createWorldFromTemplate({
       actor,

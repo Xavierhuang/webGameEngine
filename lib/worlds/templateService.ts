@@ -55,7 +55,13 @@ export interface WorldTemplateDto {
 
 /** Safe catalog projection for the template chooser; object graphs stay server-only. */
 export function listWorldTemplateDtos(): WorldTemplateDto[] {
-  return WORLD_TEMPLATES.map((template) => ({
+  const latestActiveTemplates = new Map<string, WorldTemplate>();
+  for (const template of WORLD_TEMPLATES) {
+    if (!template.active) continue;
+    const current = latestActiveTemplates.get(template.id);
+    if (!current || template.version > current.version) latestActiveTemplates.set(template.id, template);
+  }
+  return [...latestActiveTemplates.values()].map((template) => ({
     id: template.id,
     version: template.version,
     title: template.title,
@@ -65,6 +71,11 @@ export function listWorldTemplateDtos(): WorldTemplateDto[] {
     budgets: template.budgets,
     missions: template.missions,
   }));
+}
+
+/** The ordinary creation route accepts only versions its picker can offer. */
+export function isWorldTemplateActive(templateId: string, templateVersion: number): boolean {
+  return getWorldTemplate(templateId, templateVersion)?.active === true;
 }
 
 function requireNonAnonymousActor(actor: Actor): WorldActor {
@@ -225,9 +236,9 @@ export async function createWorldFromTemplate(
   await withTransaction(async (connection) => {
     await connection.execute(
       `INSERT INTO world_templates (template_id, version, catalog_metadata, active)
-       VALUES (?, ?, ?, TRUE)
-       ON DUPLICATE KEY UPDATE catalog_metadata = VALUES(catalog_metadata), active = TRUE`,
-      [template.id, template.version, JSON.stringify(catalogMetadata(template))],
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE catalog_metadata = VALUES(catalog_metadata), active = VALUES(active)`,
+      [template.id, template.version, JSON.stringify(catalogMetadata(template)), template.active],
     );
     await connection.execute(
       `INSERT INTO projects

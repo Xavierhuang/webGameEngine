@@ -12,6 +12,15 @@ interface TemplateResponse {
   error?: string;
 }
 
+function latestTemplatePerId(catalog: WorldTemplateCardData[]): WorldTemplateCardData[] {
+  const latest = new Map<string, WorldTemplateCardData>();
+  for (const template of catalog) {
+    const current = latest.get(template.id);
+    if (!current || template.version > current.version) latest.set(template.id, template);
+  }
+  return [...latest.values()];
+}
+
 export default function WorldTemplatePicker() {
   const t = useTranslator();
   const router = useRouter();
@@ -32,7 +41,7 @@ export default function WorldTemplatePicker() {
         const response = await fetch('/api/world-templates');
         const data = await response.json() as TemplateResponse;
         if (!response.ok || !Array.isArray(data.templates)) throw new Error(data.error || catalogError);
-        if (active) setTemplates(data.templates);
+        if (active) setTemplates(latestTemplatePerId(data.templates));
       } catch (err) {
         if (active) setError(err instanceof Error ? err.message : catalogError);
       } finally {

@@ -16,7 +16,7 @@ function actor(kind = 'guest') {
     : { kind: 'guest', profileId: '11111111-1111-4111-8111-111111111111', sessionId: '22222222-2222-4222-8222-222222222222' };
 }
 
-function loadRoutes({ resolvedActor = actor(), createResult, createError, onCreate } = {}) {
+function loadRoutes({ resolvedActor = actor(), createResult, createError, onCreate, isTemplateActive } = {}) {
   const servicePath = path.join(BUILD_ROOT, 'lib/worlds/templateService.js');
   const actorPath = path.join(BUILD_ROOT, 'lib/auth/actor.js');
   for (const key of Object.keys(require.cache)) {
@@ -30,6 +30,7 @@ function loadRoutes({ resolvedActor = actor(), createResult, createError, onCrea
           id: 'platformer', version: 1, title: 'Sky Steps', description: 'A safe starter.', genre: 'Platformer',
           cardArt: '/backdrops/blue-sky.svg', budgets: {}, missions: [],
         }],
+        isWorldTemplateActive: isTemplateActive ?? ((templateId, templateVersion) => templateId === 'platformer' && templateVersion === 2),
         createWorldFromTemplate: async (input) => {
           onCreate?.(input);
           if (createError) throw createError;
@@ -109,6 +110,33 @@ test('invalid client template input is rejected with 422 before world creation',
   const { createRoute } = loadRoutes();
   const response = await createRoute.POST(request({ templateId: 'platformer', templateVersion: 0, title: '<script>bad</script>' }));
   assert.equal(response.status, 422);
+});
+
+test('ordinary creation rejects an inactive catalog version before it reaches the materializer', async () => {
+  let received;
+  const { createRoute } = loadRoutes({
+    onCreate: (input) => { received = input; },
+    isTemplateActive: () => false,
+  });
+
+  const response = await createRoute.POST(request({ templateId: 'platformer', templateVersion: 1, title: 'Old Sky Steps' }));
+  assert.equal(response.status, 422);
+  assert.equal(received, undefined, 'only private compatibility callers may materialize inactive versions');
+});
+
+test('ordinary creation forwards the active picker version to the materializer', async () => {
+  let received;
+  const { createRoute } = loadRoutes({
+    onCreate: (input) => { received = input; },
+    isTemplateActive: (templateId, templateVersion) => templateId === 'platformer' && templateVersion === 2,
+    createResult: { projectId: 'sky-project', revision: 0, templateId: 'platformer', templateVersion: 2 },
+  });
+
+  const response = await createRoute.POST(request({ templateId: 'platformer', templateVersion: 2, title: 'New Sky Steps' }));
+  assert.equal(response.status, 201);
+  assert.deepEqual(received, {
+    actor: actor(), templateId: 'platformer', templateVersion: 2, title: 'New Sky Steps', description: undefined,
+  });
 });
 
 test('route source has no client-controlled graph or remote asset input path', () => {

@@ -8,9 +8,9 @@ const WorldDraftStatus = DraftStatusModule.default?.default ?? DraftStatusModule
 const WorldMissionPanel = MissionPanelModule.default?.default ?? MissionPanelModule.default ?? MissionPanelModule;
 
 const status = renderToStaticMarkup(React.createElement(WorldDraftStatus, {
-  templateTitle: 'Platformer', revision: 12,
+  templateTitle: 'Sky Steps', templateVersion: 2, revision: 12,
 }));
-assert.match(status, /Private draft · Platformer · Revision 12/);
+assert.match(status, /Private draft · Sky Steps v2 · Revision 12/);
 assert.doesNotMatch(status, /publish/i, 'draft status never offers a publish control');
 
 const missions = renderToStaticMarkup(React.createElement(WorldMissionPanel, {

@@ -10,14 +10,15 @@ import WorldTemplateCardModule from '../.build/components/worlds/WorldTemplateCa
 const WorldTemplateCard = WorldTemplateCardModule.default ?? WorldTemplateCardModule;
 
 const templates = [
-  ['platformer', 'Sky Steps'],
+  ['platformer', 'Sky Steps', 1],
+  ['platformer', 'Sky Steps', 2],
   ['obby', 'Rainbow Run'],
   ['racing', 'Turbo Track'],
   ['story', 'Castle Story'],
   ['pet', 'Happy Pet Park'],
-].map(([id, title]) => ({
+].map(([id, title, version = 1]) => ({
   id,
-  version: 1,
+  version,
   title,
   description: `A safe ${title} starter world.`,
   genre: 'Adventure',
@@ -44,6 +45,14 @@ for (const template of templates) {
   assert.doesNotMatch(markup, /<button[^>]*>[\s\S]*<(?:div|h2|p)\b/, `${template.id} keeps card content outside its native button`);
   assert.doesNotMatch(markup, /https?:\/\//, `${template.id} does not render external artwork`);
 }
+
+assert.equal(
+  (renderToStaticMarkup(React.createElement(WorldTemplateCard, {
+    template: templates[1], selected: true, onSelect: () => {},
+  })).match(/Sky Steps/g) ?? []).length > 0,
+  true,
+  'the active card continues to render its Sky Steps label',
+);
 
 const selectedMarkup = renderToStaticMarkup(
   React.createElement(WorldTemplateCard, {
@@ -121,6 +130,12 @@ await act(async () => {
 });
 await act(async () => {});
 
+assert.equal(
+  document.querySelectorAll('button[aria-label="Choose Sky Steps"]').length,
+  1,
+  'the chooser shows only one Sky Steps card even if a stale catalog response includes v1',
+);
+
 const submit = () => document.querySelector('button[type="submit"]');
 assert.equal(submit().disabled, true, 'submit is disabled before a template and title are selected');
 
@@ -143,7 +158,7 @@ await act(async () => {
   submit().click();
 });
 assert.deepEqual(createRequestBody, {
-  templateId: 'platformer', templateVersion: 1, title: 'My Sky Adventure', description: '',
+  templateId: 'platformer', templateVersion: 2, title: 'My Sky Adventure', description: '',
 }, 'creation sends only the narrow world request payload');
 assert.equal(document.querySelector('input').value, 'My Sky Adventure', 'a network error keeps the title');
 assert.equal(document.querySelector('button[aria-label="Choose Sky Steps"]').getAttribute('aria-pressed'), 'true', 'a network error keeps the selected template');

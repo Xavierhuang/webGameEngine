@@ -170,6 +170,14 @@ await step('the nudge does not come back on reload', async () => {
 await step('create a private Platformer world', async () => {
   worldPage = await context.newPage();
   await worldPage.goto(`${BASE}/worlds/new`, { waitUntil: 'networkidle' });
+  const catalog = await worldPage.evaluate(async () => (await (await fetch('/api/world-templates')).json()));
+  const platformers = catalog.templates?.filter((template) => template.id === 'platformer') ?? [];
+  if (platformers.length !== 1 || platformers[0].version !== 2) {
+    throw new Error(`the new-world catalog did not offer only Sky Steps v2: ${JSON.stringify(platformers)}`);
+  }
+  if (await worldPage.locator('button[aria-label="Choose Sky Steps"]').count() !== 1) {
+    throw new Error('the picker rendered more than one Sky Steps card');
+  }
   await worldPage.locator('button[aria-label="Choose Sky Steps"]').click({ timeout: 15000 });
   await worldPage.locator('input').fill(`Sky Journey ${STAMP}`);
   await worldPage.locator('button[type="submit"]').click();
@@ -194,12 +202,68 @@ await step('the template editor has the expected private draft graph', async () 
     throw new Error(`world is not a private draft: ${JSON.stringify(metadata)}`);
   }
   const names = JSON.stringify(state.project);
-  for (const expected of ['Hero', 'Starting Platform', 'Goal Star']) {
+  for (const expected of ['Hero', 'Starting Island', 'Sky Step One', 'Sky Step Two', 'Sky Step Three', 'Sky Star One', 'Sky Star Two', 'Sky Star Three', 'Sky Cloud', 'Sky Portal']) {
     if (!names.includes(expected)) throw new Error(`template export is missing ${expected}`);
   }
-  await worldPage.locator('text=/Private draft · Platformer · Revision 0/').waitFor({ timeout: 15000 });
+  await worldPage.reload({ waitUntil: 'networkidle' });
+  await worldPage.locator('text=/Private draft · Sky Steps v2 · Revision 0/').waitFor({ timeout: 15000 });
   await worldPage.locator('text=/Build missions/').waitFor({ timeout: 15000 });
-  await worldPage.locator('text=/Play your world/').waitFor({ timeout: 15000 });
+  await worldPage.locator('text=/Play Sky Steps/').waitFor({ timeout: 15000 });
+  await worldPage.goto(`${BASE}/play/${worldId}`, { waitUntil: 'networkidle' });
+  await worldPage.locator('button[aria-label="Start game"]').click({ timeout: 15000 });
+  await worldPage.locator('text=/Space to jump/').waitFor({ timeout: 15000 });
+
+  const runtimeState = worldPage.locator('[data-testid="game-runtime-state"]');
+  await runtimeState.waitFor({ timeout: 15000 });
+  const waitForLanding = async (platformName) => {
+    await worldPage.waitForFunction((name) => {
+      const state = document.querySelector('[data-testid="game-runtime-state"]');
+      return state?.getAttribute('data-on-raised-platform') === 'true'
+        && state.getAttribute('data-grounded-platform-name') === name;
+    }, platformName, { timeout: 10000 });
+  };
+  const moveRightFor = async (milliseconds) => {
+    await worldPage.keyboard.down('ArrowRight');
+    await worldPage.waitForTimeout(milliseconds);
+    await worldPage.keyboard.up('ArrowRight');
+  };
+  const jump = async () => {
+    await worldPage.keyboard.down('Space');
+    await worldPage.waitForTimeout(120);
+    await worldPage.keyboard.up('Space');
+  };
+
+  // First move under the landing zone, then jump. The live runtime state must
+  // report the real collision surface instead of merely trusting a template.
+  await moveRightFor(2300);
+  await jump();
+  await waitForLanding('Sky Step One');
+
+  await moveRightFor(900);
+  await worldPage.locator('text=Star collected!').waitFor({ timeout: 10000 });
+  await worldPage.waitForFunction(() => {
+    const state = document.querySelector('[data-testid="game-runtime-state"]');
+    return state?.getAttribute('data-collected-star-count') === '1'
+      && !(state.getAttribute('data-visible-star-names') ?? '').includes('Sky Star One');
+  }, undefined, { timeout: 10000 });
+  await worldPage.waitForTimeout(2200);
+  if (await worldPage.locator('text=Star collected!').count() !== 0) {
+    throw new Error('Sky Star One left a feedback bubble after the star was hidden');
+  }
+
+  await moveRightFor(2300);
+  await jump();
+  await waitForLanding('Sky Step Two');
+  await moveRightFor(3200);
+  await jump();
+  await waitForLanding('Sky Step Three');
+  await moveRightFor(1000);
+  await worldPage.locator('text=You climbed every Sky Step!').waitFor({ timeout: 10000 });
+  await worldPage.waitForFunction(() => {
+    const state = document.querySelector('[data-testid="game-runtime-state"]');
+    return state?.getAttribute('data-outcome-state') === 'won'
+      && state.getAttribute('data-outcome-message') === 'You climbed every Sky Step!';
+  }, undefined, { timeout: 10000 });
   await worldPage.close();
   worldPage = null;
 });

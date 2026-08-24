@@ -46,6 +46,8 @@ import {
   type PlatformSurface,
 } from '../../lib/player/platformerWorld';
 import { advancePlatformerMotion, requestPlatformerJump } from '../../lib/player/platformerMotion';
+import { hasSpaceJumpScript } from '../../lib/player/jumpHint';
+import { bubbleForVisibility } from '../../lib/player/objectPresentation';
 
 // -----------------------------------------------------------------------------
 // Per-extension mesh components. Each one always calls exactly one loader hook,
@@ -201,7 +203,27 @@ export default function GamePlayer({ project, compact = false, missionReporting,
   });
   const [banner, setBanner] = useState<string | null>(null);
   const [askDraft, setAskDraft] = useState('');
+  const [playerRuntime, setPlayerRuntime] = useState<{ groundedPlatformName?: string; onRaisedPlatform: boolean }>({
+    onRaisedPlatform: false,
+  });
+  const [collectedStarNames, setCollectedStarNames] = useState<string[]>([]);
   const stageRef = useRef<HTMLDivElement | null>(null);
+
+  const reportPlayerMotion = useCallback((next: { groundedPlatformName?: string; onRaisedPlatform: boolean }) => {
+    setPlayerRuntime((previous) =>
+      previous.groundedPlatformName === next.groundedPlatformName && previous.onRaisedPlatform === next.onRaisedPlatform
+        ? previous
+        : next,
+    );
+  }, []);
+
+  const reportStarVisibility = useCallback((starName: string, visible: boolean) => {
+    setCollectedStarNames((previous) => {
+      const includesStar = previous.includes(starName);
+      if (visible) return includesStar ? previous.filter((name) => name !== starName) : previous;
+      return includesStar ? previous : [...previous, starName];
+    });
+  }, []);
 
   const reportMissionAction = useCallback(async (action: Record<string, string>) => {
     if (!missionReporting) return;
@@ -318,6 +340,24 @@ export default function GamePlayer({ project, compact = false, missionReporting,
     try { return JSON.parse(raw || '{}'); } catch { return {}; }
   }
 
+  const showSpaceJumpHint = useMemo(() => {
+    const player = (scene?.game_objects ?? []).find((object) => {
+      const properties = typeof object.properties === 'string'
+        ? safeParse(object.properties)
+        : object.properties;
+      return properties?.playerControlled === true;
+    });
+    return hasSpaceJumpScript(player?.logic_blocks);
+  }, [scene]);
+
+  const visibleStarNames = useMemo(
+    () => (scene?.game_objects ?? [])
+      .filter((object) => object.type === 'collectible' && /star/i.test(object.name))
+      .map((object) => object.name)
+      .filter((name) => !collectedStarNames.includes(name)),
+    [scene, collectedStarNames],
+  );
+
   /*
    * Poll the world for the outcome and any banner.
    *
@@ -344,6 +384,8 @@ export default function GamePlayer({ project, compact = false, missionReporting,
     world.resetOutcome();
     setOutcome({ state: 'playing', message: '' });
     setBanner(null);
+    setPlayerRuntime({ onRaisedPlatform: false });
+    setCollectedStarNames([]);
     world.resetTimer(0);
     world.setAnswer('');
     setAskPrompt(null);
@@ -436,6 +478,20 @@ export default function GamePlayer({ project, compact = false, missionReporting,
         >
           <FPSCounter position="top-right" />
           <VariableWatchers vars={vars} />
+          <output
+            data-testid="game-runtime-state"
+            className="sr-only"
+            aria-live="polite"
+            aria-label={t('player.controls')}
+            data-grounded-platform-name={playerRuntime.groundedPlatformName ?? ''}
+            data-on-raised-platform={String(playerRuntime.onRaisedPlatform)}
+            data-collected-star-count={collectedStarNames.length}
+            data-visible-star-names={visibleStarNames.join(' | ')}
+            data-outcome-state={outcome.state}
+            data-outcome-message={outcome.message}
+          >
+            {[playerRuntime.groundedPlatformName, ...collectedStarNames, outcome.message].filter(Boolean).join('. ')}
+          </output>
           {/* Renders nothing; captures frames only after a script turns video on. */}
           <VideoSensing
             handleRef={videoHandleRef}
@@ -599,6 +655,8 @@ export default function GamePlayer({ project, compact = false, missionReporting,
               keys={keys}
               world={world}
               legacyGround={legacyGround}
+              onPlayerMotion={reportPlayerMotion}
+              onStarVisibilityChange={reportStarVisibility}
             />
           )}
             </Canvas>
@@ -640,7 +698,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
 
         <div className="mt-3 text-center text-sm text-white">
           <p>{t('player.controls')}</p>
-          <p className="text-gray-400">{t('player.jump')}</p>
+          {showSpaceJumpHint && <p className="text-gray-400">{t('player.jump')}</p>}
         </div>
       </div>
     </ErrorBoundary>
@@ -748,7 +806,14 @@ function platformSurfaceForObject(object: GameObject, legacyGround: boolean): Pl
   }, { legacyGround });
 }
 
-const GameScene = memo(function GameScene({ scene, keys, world, legacyGround }: { scene: { game_objects?: GameObject[]; background_color?: string; background_image_url?: string | null }; keys: KeyState; world: RuntimeWorld; legacyGround: boolean }) {
+const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, onPlayerMotion, onStarVisibilityChange }: {
+  scene: { game_objects?: GameObject[]; background_color?: string; background_image_url?: string | null };
+  keys: KeyState;
+  world: RuntimeWorld;
+  legacyGround: boolean;
+  onPlayerMotion: (state: { groundedPlatformName?: string; onRaisedPlatform: boolean }) => void;
+  onStarVisibilityChange: (starName: string, visible: boolean) => void;
+}) {
   const { scene: threeScene, camera } = useThree();
   const skyBlueColor = useRef(new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR));
   const checkCount = useRef(0);
@@ -764,6 +829,14 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround }: 
         }),
     [scene.game_objects, legacyGround],
   );
+  const objectsById = useMemo(
+    () => new Map((scene.game_objects ?? []).map((object) => [object.id, object])),
+    [scene.game_objects],
+  );
+  const reportObjectVisibility = useCallback((objectId: string, visible: boolean) => {
+    const object = objectsById.get(objectId);
+    if (object?.type === 'collectible' && /star/i.test(object.name)) onStarVisibilityChange(object.name, visible);
+  }, [objectsById, onStarVisibilityChange]);
   // Live clones spawned by create_clone_of blocks
   const [clones, setClones] = useState<{ cloneId: string; sourceId: string }[]>([]);
 
@@ -979,9 +1052,15 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround }: 
           camera={camera}
           legacyGround={legacyGround}
           platformSurfaces={platformSurfaces}
-          onPositionUpdate={obj.type === 'character' ? (pos) => {
+          onPositionUpdate={obj.type === 'character' ? (pos, motion) => {
             characterPositionRef.current = pos;
+            const groundedPlatform = motion.groundedSurfaceId ? objectsById.get(motion.groundedSurfaceId) : undefined;
+            onPlayerMotion({
+              groundedPlatformName: groundedPlatform?.name,
+              onRaisedPlatform: groundedPlatform?.type === 'platform' && !legacyGround,
+            });
           } : undefined}
+          onVisibilityChange={reportObjectVisibility}
         />
       ))}
       {clones.map((c) => {
@@ -996,6 +1075,7 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround }: 
             cloneId={c.cloneId}
             legacyGround={legacyGround}
             platformSurfaces={platformSurfaces}
+            onVisibilityChange={reportObjectVisibility}
           />
         );
       })}
@@ -1011,7 +1091,8 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   camera,
   legacyGround,
   platformSurfaces,
-  onPositionUpdate
+  onPositionUpdate,
+  onVisibilityChange,
 }: {
   object: GameObject;
   keys: KeyState;
@@ -1019,7 +1100,8 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   camera: THREE.Camera;
   legacyGround: boolean;
   platformSurfaces: PlatformSurface[];
-  onPositionUpdate?: (pos: THREE.Vector3) => void;
+  onPositionUpdate?: (pos: THREE.Vector3, motion: { groundedSurfaceId?: string }) => void;
+  onVisibilityChange: (objectId: string, visible: boolean) => void;
 }) {
   const [isVisible, setIsVisible] = useState(true);
   const frustum = useMemo(() => new THREE.Frustum(), []);
@@ -1085,6 +1167,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
         legacyGround={legacyGround}
         platformSurfaces={platformSurfaces}
         onPositionUpdate={onPositionUpdate}
+        onVisibilityChange={onVisibilityChange}
       />
     );
   }
@@ -1102,6 +1185,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
       legacyGround={legacyGround}
       platformSurfaces={platformSurfaces}
       onPositionUpdate={onPositionUpdate}
+      onVisibilityChange={onVisibilityChange}
     />
   );
 });
@@ -1154,7 +1238,16 @@ function FollowerBubble({
   );
 }
 
-const GameObject = memo(function GameObject({ object, keys, world, legacyGround, platformSurfaces, onPositionUpdate, cloneId }: { object: GameObject; keys: KeyState; world: RuntimeWorld; legacyGround: boolean; platformSurfaces: PlatformSurface[]; onPositionUpdate?: (pos: THREE.Vector3) => void; cloneId?: string }) {
+const GameObject = memo(function GameObject({ object, keys, world, legacyGround, platformSurfaces, onPositionUpdate, onVisibilityChange, cloneId }: {
+  object: GameObject;
+  keys: KeyState;
+  world: RuntimeWorld;
+  legacyGround: boolean;
+  platformSurfaces: PlatformSurface[];
+  onPositionUpdate?: (pos: THREE.Vector3, motion: { groundedSurfaceId?: string }) => void;
+  onVisibilityChange?: (objectId: string, visible: boolean) => void;
+  cloneId?: string;
+}) {
   // Clones register/run under their clone id but render the source object's looks.
   const objectId = cloneId ?? object.id;
   const meshRef = useRef<THREE.Mesh>(null);
@@ -1357,7 +1450,13 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
       },
       // Phase 5b: looks basics
       getVisible: () => visibleRef.current,
-      setVisible: (v) => { visibleRef.current = v; },
+      setVisible: (v) => {
+        const nextBubble = bubbleForVisibility(bubbleRef.current, v);
+        if (visibleRef.current === v && bubbleRef.current === nextBubble) return;
+        visibleRef.current = v;
+        if (bubbleRef.current !== nextBubble) setBubble(nextBubble);
+        onVisibilityChange?.(objectId, v);
+      },
       getSize: () => sizeMultiplierRef.current * 100,
       setSize: (pct) => { sizeMultiplierRef.current = Math.max(0, pct) / 100; },
       changeSizeBy: (deltaPct) => { sizeMultiplierRef.current = Math.max(0, sizeMultiplierRef.current * 100 + deltaPct) / 100; },
@@ -1802,7 +1901,7 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
       
       // Notify parent of position update for camera following (only once per frame)
       if (onPositionUpdate && meshRef.current) {
-        onPositionUpdate(meshRef.current.position);
+        onPositionUpdate(meshRef.current.position, { groundedSurfaceId: groundedSurfaceIdRef.current });
       }
 
       // Calculate movement state (always, for tracking)

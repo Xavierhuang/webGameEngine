@@ -129,6 +129,21 @@ test('serialized template block data preserves child and else branches for the e
   assert.equal(reloadedParent.elseChildren[0].block_type, 'say');
 });
 
+test('lists only the active Sky Steps version while keeping v1 resolvable for existing worlds', async () => {
+  const { isWorldTemplateActive, listWorldTemplateDtos } = await import('../.build/lib/worlds/templateService.js');
+  const { getWorldTemplate } = await import('../.build/lib/worlds/templates.js');
+  const platformers = listWorldTemplateDtos().filter((template) => template.id === 'platformer');
+
+  assert.deepEqual(
+    platformers.map(({ id, version }) => ({ id, version })),
+    [{ id: 'platformer', version: 2 }],
+    'the normal creation catalog offers only the current Sky Steps version',
+  );
+  assert.equal(getWorldTemplate('platformer', 1)?.version, 1, 'existing v1 projects still resolve by their persisted version');
+  assert.equal(isWorldTemplateActive('platformer', 1), false, 'v1 is never offered for ordinary creation');
+  assert.equal(isWorldTemplateActive('platformer', 2), true, 'v2 is accepted by ordinary creation');
+});
+
 test('materializes an approved template as a private draft with its complete graph', async (t) => {
   if (!requireMysql(t)) return;
   const { createWorldFromTemplate } = await import('../.build/lib/worlds/templateService.js');
@@ -162,6 +177,10 @@ test('materializes an approved template as a private draft with its complete gra
   );
   assert.equal(projectWorld.template_id, 'platformer');
   assert.equal(Number(projectWorld.template_version), 1);
+  const [[catalogRow]] = await pool.query(
+    'SELECT active FROM world_templates WHERE template_id = ? AND version = ?', ['platformer', 1],
+  );
+  assert.equal(Number(catalogRow.active), 0, 'a direct compatibility materialization keeps Sky Steps v1 inactive');
 
   const [[sceneCount]] = await pool.query('SELECT COUNT(*) AS count FROM scenes WHERE project_id = ?', [created.projectId]);
   const [[objectCount]] = await pool.query(
@@ -175,6 +194,53 @@ test('materializes an approved template as a private draft with its complete gra
     Number(blockCount.count),
     countTopLevelTemplateBlocks(template),
   );
+});
+
+test('materializes the active Sky Steps v2 route with raised steps and its goal objects', async (t) => {
+  if (!requireMysql(t)) return;
+  const { createWorldFromTemplate } = await import('../.build/lib/worlds/templateService.js');
+  const actor = await makeActor();
+  const created = await createWorldFromTemplate({
+    actor,
+    templateId: 'platformer',
+    templateVersion: 2,
+    title: 'Fresh Sky Steps',
+  }, { pool });
+  createdProjectIds.push(created.projectId);
+
+  assert.deepEqual(
+    { templateId: created.templateId, templateVersion: created.templateVersion },
+    { templateId: 'platformer', templateVersion: 2 },
+  );
+  const [[identity]] = await pool.query(
+    'SELECT template_id, template_version FROM project_worlds WHERE project_id = ?', [created.projectId],
+  );
+  assert.deepEqual(
+    { templateId: identity.template_id, templateVersion: Number(identity.template_version) },
+    { templateId: 'platformer', templateVersion: 2 },
+  );
+  const [[catalogRow]] = await pool.query(
+    'SELECT active FROM world_templates WHERE template_id = ? AND version = ?', ['platformer', 2],
+  );
+  assert.equal(Number(catalogRow.active), 1, 'the active Sky Steps catalog row stays active after materialization');
+
+  const [objects] = await pool.query(
+    `SELECT name, type, position_y
+       FROM game_objects
+       WHERE scene_id IN (SELECT id FROM scenes WHERE project_id = ?)
+       ORDER BY order_index`,
+    [created.projectId],
+  );
+  const byName = new Map(objects.map((object) => [object.name, object]));
+  for (const name of ['Sky Step One', 'Sky Step Two', 'Sky Step Three']) {
+    assert.equal(byName.get(name)?.type, 'platform', `${name} is a platform`);
+  }
+  assert.ok(Number(byName.get('Sky Step One')?.position_y) > -2, 'the first Sky Step is raised above the start island');
+  for (const name of ['Sky Star One', 'Sky Star Two', 'Sky Star Three']) {
+    assert.equal(byName.get(name)?.type, 'collectible', `${name} is materialized`);
+  }
+  assert.equal(byName.get('Sky Cloud')?.type, 'obstacle');
+  assert.equal(byName.get('Sky Portal')?.type, 'sprite');
 });
 
 test('Obby forever block reloads its rotate child from persisted block_data', async (t) => {

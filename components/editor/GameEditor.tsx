@@ -74,7 +74,7 @@ const BlockEditor = dynamic(() => import('./BlockEditor'), {
 interface GameEditorProps {
   projectId: string;
   initialData?: any;
-  worldBuilder?: { templateTitle: string; revision: number; missions: MissionProgress[] };
+  worldBuilder?: { templateTitle: string; templateVersion: number; revision: number; missions: MissionProgress[] };
 }
 
 // Helper function to get default properties for each object type
@@ -857,7 +857,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
               {project?.title || 'My Game'}
             </h1>
           </div>
-          {worldBuilder && <WorldDraftStatus templateTitle={worldBuilder.templateTitle} revision={revisionRef.current} />}
+          {worldBuilder && <WorldDraftStatus templateTitle={worldBuilder.templateTitle} templateVersion={worldBuilder.templateVersion} revision={revisionRef.current} />}
           {/* Scene / Logic mode toggle */}
           <div
             className="ml-4 flex items-center gap-0.5 p-0.5 rounded-lg bg-slate-100 border border-slate-200"

@@ -43,6 +43,7 @@ const isPendingKey = (k) =>
 
 const worldKeys = baseKeys.filter((key) => key.startsWith('worlds.'));
 eq(worldKeys.length > 0, true, 'the World Builder catalog has keys');
+const playerHintKeys = ['player.controls', 'player.jump'];
 
 for (const locale of LOCALES) {
   const keys = Object.keys(MESSAGES[locale]).sort();
@@ -55,6 +56,8 @@ for (const locale of LOCALES) {
   eq(extra.length, 0, `${locale}: no orphan keys${extra.length ? ` (${extra.join(', ')})` : ''}`);
   const missingWorldKeys = worldKeys.filter((key) => !keys.includes(key));
   eq(missingWorldKeys.length, 0, `${locale}: all World Builder keys are translated${missingWorldKeys.length ? ` (${missingWorldKeys.join(', ')})` : ''}`);
+  const missingPlayerHintKeys = playerHintKeys.filter((key) => !keys.includes(key));
+  eq(missingPlayerHintKeys.length, 0, `${locale}: all player hint keys are translated${missingPlayerHintKeys.length ? ` (${missingPlayerHintKeys.join(', ')})` : ''}`);
 }
 
 // --- no empty or untranslated-looking strings -------------------------------
