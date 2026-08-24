@@ -48,6 +48,7 @@ const ALLOWED_BYPASSES = new Map([
   ['app/api/projects/route.ts', 'creation: project + default scene, no prior revision (Task 4 wrapped in txn)'],
   ['app/api/projects/import/route.ts', 'creation: import writes whole subtree, no prior revision (Task 4 wrapped in txn)'],
   ['app/api/projects/[id]/remix/route.ts', 'creation: remix copies whole subtree, no prior revision (Task 4 wrapped in txn)'],
+  ['lib/worlds/templateService.ts', 'creation: validated server-owned template materialization, no prior revision (World Builder Task 2)'],
 
   // Lifecycle writers: delete / publication that are owned by later
   // durable-work / trust-boundary tasks. Wrapped in transactions in
