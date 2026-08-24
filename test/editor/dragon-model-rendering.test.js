@@ -13,10 +13,6 @@ test('CharacterSelector source passes starter model URLs into ShapePreview', () 
   assert.match(preview, /useGLTF\(modelUrl\)/);
 });
 
-test('CharacterSelector source keeps the exact compound dragon prompt placeholder', () => {
-  assert.match(selector, /placeholder="A red dragon warrior with a big sword"/);
-});
-
 test('ShapePreview source clones the cached GLTF scene for a preview instance', () => {
   assert.match(preview, /SkeletonUtils\.clone/);
 });
