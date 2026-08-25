@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { forwardRef, useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
   classifyPart,
@@ -181,14 +181,15 @@ function GLTFAnimatedModelInstance({
   const { actions } = useAnimations(animations, instance);
   const groupRef = useRef<THREE.Group>(null);
 
-  // Procedural fallback for models with no embedded clips — which is every
-  // starter GLB. Without this the Idle/Walk/Run dropdown selects a clip that
-  // doesn't exist and nothing moves.
-  const hasClips = animations.length > 0;
+  // An authored clip only wins when it describes the requested semantic state.
+  // A model with an unrelated clip still needs a readable idle/walk/jump/fall
+  // fallback rather than playing arbitrary movement.
+  const matchingAnimationName = findAnimationName(animationState ?? 'idle', animations.map((clip) => clip.name));
+  const hasMatchingClip = Boolean(matchingAnimationName);
   const restPoseRef = useRef<Map<THREE.Object3D, { rot: THREE.Euler; posY: number; kind: PartKind }> | null>(null);
 
   useEffect(() => {
-    if (hasClips) { restPoseRef.current = null; return; }
+    if (hasMatchingClip) { restPoseRef.current = null; return; }
     // Capture the rest pose once so offsets are applied on top of it rather
     // than accumulating frame over frame.
     const rest = new Map<THREE.Object3D, { rot: THREE.Euler; posY: number; kind: PartKind }>();
@@ -207,7 +208,7 @@ function GLTFAnimatedModelInstance({
       }
       restPoseRef.current = null;
     };
-  }, [instance, hasClips]);
+  }, [instance, hasMatchingClip]);
 
   useFrame((state) => {
     const rest = restPoseRef.current;
@@ -239,18 +240,10 @@ function GLTFAnimatedModelInstance({
     }
     
     // Try to find matching animation
-    const animationName = findAnimationName(animationState, Object.keys(actions));
-    if (animationName && actions[animationName]) {
-      const action = actions[animationName];
+    if (matchingAnimationName && actions[matchingAnimationName]) {
+      const action = actions[matchingAnimationName];
       action.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat, Infinity).play();
-      logger.debug(`[GLTF/GLB] Playing animation: "${animationName}" (looping)`);
-    } else if (Object.keys(actions).length > 0) {
-      // Fallback to first available animation
-      const firstAction = Object.values(actions)[0];
-      if (firstAction) {
-        firstAction.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat, Infinity).play();
-        logger.debug(`[GLTF/GLB] Playing first available animation (looping)`);
-      }
+      logger.debug(`[GLTF/GLB] Playing animation: "${matchingAnimationName}" (looping)`);
     }
     
     return () => {
@@ -258,14 +251,14 @@ function GLTFAnimatedModelInstance({
         if (action) action.fadeOut(0.2);
       });
     };
-  }, [actions, animationState, playAnimation]);
+  }, [actions, animationState, matchingAnimationName, playAnimation]);
   
   // Rotation is handled by the parent group in SceneView, so we don't apply it here
   // This ensures TransformControls rotates around the correct pivot point
   return (
     <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale} onClick={onClick}>
       <VisualFallbackMotion
-        enabled={!hasClips && Boolean(playAnimation)}
+        enabled={!hasMatchingClip && Boolean(playAnimation)}
         animationState={animationState}
         reducedMotion={reducedMotion}
       >
@@ -280,17 +273,19 @@ function GLTFAnimatedModelInstance({
  * player's physics/touch group, so the procedural transform can never move a
  * collider or alter the runtime world position.
  */
-function VisualFallbackMotion({
+type VisualFallbackMotionProps = {
+  enabled: boolean;
+  animationState?: string | null;
+  reducedMotion: boolean;
+  children?: React.ReactNode;
+};
+
+const VisualFallbackMotion = forwardRef<THREE.Group, VisualFallbackMotionProps>(function VisualFallbackMotion({
   enabled,
   animationState,
   reducedMotion,
   children,
-}: {
-  enabled: boolean;
-  animationState?: string | null;
-  reducedMotion: boolean;
-  children: React.ReactNode;
-}) {
+}, forwardedRef) {
   const visualRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
@@ -302,8 +297,12 @@ function VisualFallbackMotion({
     visualRef.current?.scale.set(1, motion.scaleY, 1);
   });
 
-  return <group ref={visualRef}>{children}</group>;
-}
+  return <group ref={(node) => {
+    visualRef.current = node;
+    if (typeof forwardedRef === 'function') forwardedRef(node);
+    else if (forwardedRef) forwardedRef.current = node;
+  }}>{children}</group>;
+});
 
 function FBXAnimatedModel({
   url,
@@ -316,11 +315,14 @@ function FBXAnimatedModel({
   onLoad,
   onError,
   onClick,
+  reducedMotion = false,
 }: AnimatedModelProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const visualRef = useRef<THREE.Group>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const currentActionRef = useRef<THREE.AnimationAction | null>(null);
   const animationsRef = useRef<THREE.AnimationClip[]>([]);
+  const [hasMatchingClip, setHasMatchingClip] = useState(false);
   const loadHandlersRef = useRef<AsyncResourceHandlers<CachedModelResource>>({
     onLoad: () => {},
   });
@@ -331,15 +333,16 @@ function FBXAnimatedModel({
       repairMinionMaterials(fbx, url);
       const animations = cachedAnimations ? [...cachedAnimations] : [];
 
-      if (!groupRef.current) return;
+      if (!visualRef.current) return;
 
-      while (groupRef.current.children.length > 0) {
-        groupRef.current.remove(groupRef.current.children[0]);
+      while (visualRef.current.children.length > 0) {
+        visualRef.current.remove(visualRef.current.children[0]);
       }
-      groupRef.current.add(fbx);
+      visualRef.current.add(fbx);
       onLoad?.();
 
       animationsRef.current = animations;
+      setHasMatchingClip(Boolean(findAnimationName(animationState ?? 'idle', animations.map((clip) => clip.name))));
       if (animations.length > 0) {
         const animationNames = animations.map((clip: THREE.AnimationClip) => clip.name);
         logger.info(`[FBX Model] Found ${animationNames.length} animation(s):`, animationNames);
@@ -366,6 +369,7 @@ function FBXAnimatedModel({
   useEffect(() => {
     animationsRef.current = [];
     mixerRef.current = null;
+    setHasMatchingClip(false);
 
     const stopLifecycle = startAsyncResourceLifecycle(
       () => modelCache.acquire(url, async () => {
@@ -400,6 +404,9 @@ function FBXAnimatedModel({
   const lastAnimationStateRef = useRef<string | null>(null);
   
   useEffect(() => {
+    const animationName = findAnimationName(animationState ?? 'idle', animationsRef.current.map((clip) => clip.name));
+    setHasMatchingClip(Boolean(animationName));
+
     if (!playAnimation) {
       logger.debug('[FBX] Animation playback disabled');
       // Stop any running animation
@@ -463,22 +470,10 @@ function FBXAnimatedModel({
       currentActionRef.current = null;
     }
     
-    // Find matching animation
-    const animationNames = animationsRef.current.map((clip) => clip.name);
-    const animationName = findAnimationName(animationState, animationNames);
+    // Find only a semantic match. An unrelated authored clip is not a fallback.
     logger.debug(`[FBX] Matched animation name: "${animationName}"`);
     
-    // If no match found but we want "walk" and there's only one animation, use it
-    let clip = animationsRef.current.find((clip) => clip.name === animationName);
-    if (!clip && animationState === 'walk' && animationsRef.current.length === 1) {
-      clip = animationsRef.current[0];
-      logger.debug(`[FBX] Using single available animation "${clip.name}" for walk state`);
-    }
-    // Fallback to first animation
-    if (!clip) {
-      clip = animationsRef.current[0];
-      logger.debug(`[FBX] Using first available animation "${clip.name}" as fallback`);
-    }
+    const clip = animationsRef.current.find((candidate) => candidate.name === animationName);
     
     if (clip && mixerRef.current) {
       // Create new action (don't reuse existing actions to avoid binding issues)
@@ -538,7 +533,7 @@ function FBXAnimatedModel({
       // Don't stop animation on cleanup if we're just changing states
       // Only stop if component is unmounting
     };
-  }, [animationState, playAnimation]);
+  }, [animationState, hasMatchingClip, playAnimation]);
   
   useFrame((state, delta) => {
     if (mixerRef.current) {
@@ -582,7 +577,14 @@ function FBXAnimatedModel({
   return (
     // Rotation is handled by the parent group in SceneView, so we don't apply it here
     // This ensures TransformControls rotates around the correct pivot point
-    <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale} onClick={onClick} />
+    <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale} onClick={onClick}>
+      <VisualFallbackMotion
+        ref={visualRef}
+        enabled={!hasMatchingClip && Boolean(playAnimation)}
+        animationState={animationState}
+        reducedMotion={reducedMotion}
+      />
+    </group>
   );
 }
 
@@ -604,8 +606,10 @@ function findAnimationName(state: string, availableAnimations: string[]): string
   // Try partial matches (more flexible)
   const partialMatch = availableAnimations.find((name) => {
     const nameLower = name.toLowerCase();
-    // Check if state is contained in name or vice versa
-    if (nameLower.includes(stateLower) || stateLower.includes(nameLower)) {
+    // A semantic state may be part of a descriptive clip name ("WalkCycle"),
+    // but a short arbitrary clip name must not match by being a substring of
+    // the requested state (for example, "id" is not an idle animation).
+    if (nameLower.includes(stateLower)) {
       return true;
     }
     // Also check for common variations like "walking" vs "walk"
@@ -641,13 +645,6 @@ function findAnimationName(state: string, availableAnimations: string[]): string
         return match;
       }
     }
-  }
-  
-  // If no match found and we're looking for "walk" and there's only one animation,
-  // assume it's the walking animation (common case for single-animation FBX files)
-  if (stateLower === 'walk' && availableAnimations.length === 1) {
-    logger.debug(`[findAnimationName] Using single available animation as walk: "${availableAnimations[0]}"`);
-    return availableAnimations[0];
   }
   
   logger.debug(`[findAnimationName] No match found for "${state}"`);

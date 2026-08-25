@@ -705,6 +705,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
               a stranger loading a shared game sees what the owner picked;
               fall back to localStorage for scenes last touched before 010. */}
           <SceneLights
+            scale={isSkyStepsV2 ? 1.12 : 1}
             preset={
               coerceLightingPreset((scene as any)?.lighting_preset as string | null | undefined)
               ?? (scene?.id ? readScenePreset(scene.id) : undefined)
@@ -743,6 +744,9 @@ export default function GamePlayer({ project, compact = false, missionReporting,
               onPlayerMotion={reportPlayerMotion}
               onStarVisibilityChange={reportStarVisibility}
               reducedMotion={reducedMotion}
+              skyStepsV2={isSkyStepsV2}
+              skyStepsWon={outcome.state === 'won'}
+              collectedStarNames={collectedStarNames}
             />
           )}
             </Canvas>
@@ -892,7 +896,7 @@ function platformSurfaceForObject(object: GameObject, legacyGround: boolean): Pl
   }, { legacyGround });
 }
 
-const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, onPlayerMotion, onStarVisibilityChange, reducedMotion }: {
+const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, onPlayerMotion, onStarVisibilityChange, reducedMotion, skyStepsV2, skyStepsWon, collectedStarNames }: {
   scene: { game_objects?: GameObject[]; background_color?: string; background_image_url?: string | null };
   keys: KeyState;
   world: RuntimeWorld;
@@ -900,6 +904,9 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
   onPlayerMotion: (state: { groundedPlatformName?: string; onRaisedPlatform: boolean }) => void;
   onStarVisibilityChange: (starName: string, visible: boolean) => void;
   reducedMotion: boolean;
+  skyStepsV2: boolean;
+  skyStepsWon: boolean;
+  collectedStarNames: string[];
 }) {
   const { scene: threeScene, camera } = useThree();
   const skyBlueColor = useRef(new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR));
@@ -907,6 +914,8 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
   const skyDomeRef = useRef<THREE.Mesh>(null);
   const backdropTextureRef = useRef<THREE.Texture | null>(null);
   const characterPositionRef = useRef<THREE.Vector3 | null>(null);
+  const characterVelocityRef = useRef({ x: 0, z: 0 });
+  const landingBumpRef = useRef(0);
   const platformSurfaces = useMemo(
     () => legacyGround
       ? []
@@ -1111,9 +1120,10 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
     }
   }, [scene]);
   
-  // Camera follow logic - update camera to follow character
+  // Non-flagship games keep the straightforward follow camera. Sky Steps gets
+  // its bounded decorative lookahead in a separate presentation component.
   useFrame((state, delta) => {
-    if (characterPositionRef.current) {
+    if (!skyStepsV2 && characterPositionRef.current) {
       const charPos = characterPositionRef.current;
       // Camera follows character with offset: behind and above
       const cameraOffset = new THREE.Vector3(...CAMERA.FOLLOW_OFFSET);
@@ -1141,6 +1151,8 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
           platformSurfaces={platformSurfaces}
           onPositionUpdate={obj.type === 'character' ? (pos, motion) => {
             characterPositionRef.current = pos;
+            characterVelocityRef.current = motion.horizontalVelocity;
+            if (motion.landed) landingBumpRef.current = 1;
             const groundedPlatform = motion.groundedSurfaceId ? objectsById.get(motion.groundedSurfaceId) : undefined;
             onPlayerMotion({
               groundedPlatformName: groundedPlatform?.name,
@@ -1149,6 +1161,7 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
           } : undefined}
           onVisibilityChange={reportObjectVisibility}
           reducedMotion={reducedMotion}
+          skyStepsV2={skyStepsV2}
         />
       ))}
       {clones.map((c) => {
@@ -1165,12 +1178,136 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
             platformSurfaces={platformSurfaces}
             onVisibilityChange={reportObjectVisibility}
             reducedMotion={reducedMotion}
+            skyStepsV2={skyStepsV2}
           />
         );
       })}
+      {skyStepsV2 && (
+        <SkyStepsWorldPresentation
+          objects={scene.game_objects ?? []}
+          legacyGround={legacyGround}
+          reducedMotion={reducedMotion}
+          collectedStarNames={collectedStarNames}
+        />
+      )}
+      {skyStepsV2 && (
+        <SkyStepsCameraPresentation
+          camera={camera}
+          characterPositionRef={characterPositionRef}
+          characterVelocityRef={characterVelocityRef}
+          landingBumpRef={landingBumpRef}
+          won={skyStepsWon}
+          reducedMotion={reducedMotion}
+        />
+      )}
     </>
   );
 });
+
+/** Purely visual Sky Steps decoration; no child here is registered with the runtime. */
+function SkyStepsWorldPresentation({
+  objects,
+  legacyGround,
+  reducedMotion,
+  collectedStarNames,
+}: {
+  objects: GameObject[];
+  legacyGround: boolean;
+  reducedMotion: boolean;
+  collectedStarNames: string[];
+}) {
+  const stars = objects.filter((object) => object.type === 'collectible' && /star/i.test(object.name) && !collectedStarNames.includes(object.name));
+  const portal = objects.find((object) => /sky portal/i.test(object.name));
+  return (
+    <>
+      <fog attach="fog" args={['#bae6fd', 12, 32]} />
+      {!reducedMotion && stars.map((star) => (
+        <SkyStepsStarDecoration key={star.id} position={playerPositionForObject(star, legacyGround)} />
+      ))}
+      {!reducedMotion && portal && (
+        <SkyStepsPortalDecoration position={playerPositionForObject(portal, legacyGround)} />
+      )}
+    </>
+  );
+}
+
+function SkyStepsStarDecoration({ position }: { position: [number, number, number] }) {
+  const visualRef = useRef<THREE.Group>(null);
+  useFrame((state) => {
+    if (!visualRef.current) return;
+    visualRef.current.position.y = 0.11 * Math.sin(state.clock.elapsedTime * 2.4);
+    visualRef.current.rotation.y = state.clock.elapsedTime * 1.7;
+  });
+  return (
+    <group position={position} renderOrder={2}>
+      <group ref={visualRef}>
+        <mesh scale={0.27}>
+          <octahedronGeometry args={[1, 0]} />
+          <meshStandardMaterial color="#facc15" emissive="#f59e0b" emissiveIntensity={1.5} roughness={0.3} />
+        </mesh>
+        <pointLight color="#fde68a" intensity={1.2} distance={2.4} />
+      </group>
+    </group>
+  );
+}
+
+function SkyStepsPortalDecoration({ position }: { position: [number, number, number] }) {
+  const visualRef = useRef<THREE.Group>(null);
+  useFrame((state) => {
+    if (!visualRef.current) return;
+    const pulse = 1 + 0.08 * Math.sin(state.clock.elapsedTime * 2);
+    visualRef.current.rotation.y = state.clock.elapsedTime * 0.45;
+    visualRef.current.scale.setScalar(pulse);
+  });
+  return (
+    <group position={position} renderOrder={2}>
+      <group ref={visualRef}>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.58, 0.06, 10, 32]} />
+          <meshStandardMaterial color="#a855f7" emissive="#7e22ce" emissiveIntensity={1.7} roughness={0.22} />
+        </mesh>
+        <pointLight color="#d8b4fe" intensity={1.5} distance={3} />
+      </group>
+    </group>
+  );
+}
+
+function SkyStepsCameraPresentation({
+  camera,
+  characterPositionRef,
+  characterVelocityRef,
+  landingBumpRef,
+  won,
+  reducedMotion,
+}: {
+  camera: THREE.Camera;
+  characterPositionRef: React.MutableRefObject<THREE.Vector3 | null>;
+  characterVelocityRef: React.MutableRefObject<{ x: number; z: number }>;
+  landingBumpRef: React.MutableRefObject<number>;
+  won: boolean;
+  reducedMotion: boolean;
+}) {
+  const wasWonRef = useRef(false);
+  const winEmphasisRef = useRef(0);
+  useFrame((_, delta) => {
+    const characterPosition = characterPositionRef.current;
+    if (!characterPosition) return;
+    const velocity = characterVelocityRef.current;
+    const lookAhead = reducedMotion ? 0 : THREE.MathUtils.clamp(velocity.x * 0.16, -0.65, 0.65);
+    if (!reducedMotion && landingBumpRef.current > 0) landingBumpRef.current = Math.max(0, landingBumpRef.current - delta * 3.5);
+    if (!reducedMotion && won && !wasWonRef.current) winEmphasisRef.current = 1;
+    wasWonRef.current = won;
+    if (!reducedMotion && winEmphasisRef.current > 0) winEmphasisRef.current = Math.max(0, winEmphasisRef.current - delta * 1.8);
+    const landingLift = reducedMotion ? 0 : landingBumpRef.current * 0.13;
+    const winLift = reducedMotion ? 0 : winEmphasisRef.current * 0.28;
+    const target = new THREE.Vector3(...CAMERA.FOLLOW_OFFSET).add(characterPosition);
+    target.x += lookAhead;
+    target.y += landingLift + winLift;
+    camera.position.lerp(target, delta * CAMERA.FOLLOW_LERP_SPEED);
+    camera.lookAt(characterPosition.x + lookAhead * 0.65, characterPosition.y + winLift * 0.3, characterPosition.z);
+  });
+  return null;
+}
 
 // Frustum culling wrapper - only renders GameObject if it's in the camera's view
 const FrustumCulledObject = memo(function FrustumCulledObject({
@@ -1183,6 +1320,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   onPositionUpdate,
   onVisibilityChange,
   reducedMotion,
+  skyStepsV2,
 }: {
   object: GameObject;
   keys: KeyState;
@@ -1190,9 +1328,10 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   camera: THREE.Camera;
   legacyGround: boolean;
   platformSurfaces: PlatformSurface[];
-  onPositionUpdate?: (pos: THREE.Vector3, motion: { groundedSurfaceId?: string }) => void;
+  onPositionUpdate?: (pos: THREE.Vector3, motion: { groundedSurfaceId?: string; horizontalVelocity: { x: number; z: number }; landed: boolean }) => void;
   onVisibilityChange: (objectId: string, visible: boolean) => void;
   reducedMotion: boolean;
+  skyStepsV2: boolean;
 }) {
   const [isVisible, setIsVisible] = useState(true);
   const frustum = useMemo(() => new THREE.Frustum(), []);
@@ -1260,6 +1399,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
         onPositionUpdate={onPositionUpdate}
         onVisibilityChange={onVisibilityChange}
         reducedMotion={reducedMotion}
+        skyStepsV2={skyStepsV2}
       />
     );
   }
@@ -1279,6 +1419,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
       onPositionUpdate={onPositionUpdate}
       onVisibilityChange={onVisibilityChange}
       reducedMotion={reducedMotion}
+      skyStepsV2={skyStepsV2}
     />
   );
 });
@@ -1331,16 +1472,17 @@ function FollowerBubble({
   );
 }
 
-const GameObject = memo(function GameObject({ object, keys, world, legacyGround, platformSurfaces, onPositionUpdate, onVisibilityChange, cloneId, reducedMotion = false }: {
+const GameObject = memo(function GameObject({ object, keys, world, legacyGround, platformSurfaces, onPositionUpdate, onVisibilityChange, cloneId, reducedMotion = false, skyStepsV2 = false }: {
   object: GameObject;
   keys: KeyState;
   world: RuntimeWorld;
   legacyGround: boolean;
   platformSurfaces: PlatformSurface[];
-  onPositionUpdate?: (pos: THREE.Vector3, motion: { groundedSurfaceId?: string }) => void;
+  onPositionUpdate?: (pos: THREE.Vector3, motion: { groundedSurfaceId?: string; horizontalVelocity: { x: number; z: number }; landed: boolean }) => void;
   onVisibilityChange?: (objectId: string, visible: boolean) => void;
   cloneId?: string;
   reducedMotion?: boolean;
+  skyStepsV2?: boolean;
 }) {
   // Clones register/run under their clone id but render the source object's looks.
   const objectId = cloneId ?? object.id;
@@ -1961,6 +2103,7 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
       }
 
       const footOffset = isCharacter ? 0 : scaleValue / 2;
+      const wasGrounded = isGroundedRef.current;
       const motion = advancePlatformerMotion({
         position: {
           x: meshRef.current.position.x,
@@ -1995,7 +2138,14 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
       
       // Notify parent of position update for camera following (only once per frame)
       if (onPositionUpdate && meshRef.current) {
-        onPositionUpdate(meshRef.current.position, { groundedSurfaceId: groundedSurfaceIdRef.current });
+        onPositionUpdate(meshRef.current.position, {
+          groundedSurfaceId: groundedSurfaceIdRef.current,
+          horizontalVelocity: {
+            x: delta > 0 ? moveX / delta : 0,
+            z: delta > 0 ? moveZ / delta : 0,
+          },
+          landed: !wasGrounded && isGroundedRef.current,
+        });
       }
 
       // Calculate movement state (always, for tracking)
@@ -2189,7 +2339,12 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
           onClick={() => world.notifyClicked(objectId)}
         >
           <planeGeometry args={[1, 1]} />
-          <meshStandardMaterial color={color} />
+          <meshStandardMaterial
+            color={skyStepsV2 ? '#2563eb' : color}
+            emissive={skyStepsV2 ? '#1d4ed8' : '#000000'}
+            emissiveIntensity={skyStepsV2 ? 0.16 : 0}
+            roughness={skyStepsV2 ? 0.38 : 0.7}
+          />
         </mesh>
       </group>
     );
