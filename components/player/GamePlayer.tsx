@@ -10,6 +10,7 @@ import { beatsToSeconds } from '../../lib/audio/music';
 import { applyTexture } from '../../lib/models/textureMaterial';
 import { useTranslator, useLocale } from '../common/LocaleProvider';
 import * as THREE from 'three';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
@@ -86,7 +87,11 @@ type ExtModelProps = {
 
 function GLTFExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
   const gltf = useGLTF(modelUrl) as any;
-  return <primitive ref={meshRef} object={gltf.scene} position={position} rotation={rotation} scale={scale} />;
+  // useGLTF caches one source scene per URL. A collectible can share its URL
+  // with siblings, but Three.js can parent one Object3D only once; cloning
+  // keeps each render and touch collider at its own authored position.
+  const instance = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
+  return <primitive ref={meshRef} object={instance} position={position} rotation={rotation} scale={scale} />;
 }
 function OBJExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
   const obj = useLoader(OBJLoader as any, modelUrl);
