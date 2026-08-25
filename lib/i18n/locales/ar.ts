@@ -9,7 +9,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'العودة إلى ألعابي', 'worlds.eyebrow': 'صانع العوالم', 'worlds.title': 'أنشئ عالماً',
   'worlds.subtitle': 'اختر عالماً جاهزاً ثم اجعله عالمك باستخدام الكتل.', 'worlds.loading': 'جارٍ العثور على عوالمك الجاهزة…',
-  'worlds.chooseTemplate': 'اختر عالماً جاهزاً', 'worlds.card.choose': 'اختر', 'worlds.card.missions': '{count} مهمات',
+  'worlds.chooseTemplate': 'اختر عالماً جاهزاً', 'worlds.card.choose': 'اختر', 'worlds.card.missions': '{count} مهمات', 'worlds.card.preview': 'معاينة',
   'worlds.field.title': 'عنوان العالم', 'worlds.field.titlePlaceholder': 'عالمي الرائع',
   'worlds.field.description': 'الوصف (اختياري)', 'worlds.field.descriptionPlaceholder': 'ماذا يحدث في عالمك؟',
   'worlds.privateDraft': 'يبدأ عالمك خاصاً. يمكنك اختباره ومواصلة البناء.', 'worlds.create': 'أنشئ عالماً',

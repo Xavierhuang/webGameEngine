@@ -92,6 +92,8 @@ Module._load = function patchedLoad(request, parent, isMain) {
         'worlds.chooseTemplate': 'Choose a starter world',
         'worlds.card.choose': 'Choose',
         'worlds.card.missions': '{count} missions',
+        'worlds.card.preview': 'Preview',
+        'worlds.preview.close': 'Close preview',
         'worlds.field.title': 'World title',
         'worlds.field.titlePlaceholder': 'My amazing world',
         'worlds.field.description': 'Description (optional)',
@@ -103,6 +105,22 @@ Module._load = function patchedLoad(request, parent, isMain) {
     };
   }
   if (request === 'next/navigation') return { useRouter: () => ({ push: (url) => { pushedTo = url; } }) };
+  if (request === '@/components/player/GamePlayer') {
+    return {
+      __esModule: true,
+      default: () => React.createElement('div', { 'data-testid': 'template-preview-stage' }, 'Preview stage'),
+    };
+  }
+  if (request === '@/lib/worlds/templates') {
+    return {
+      getWorldTemplate: () => ({ id: 'platformer', version: 2, title: 'Sky Steps', description: 'Preview world', scenes: [] }),
+    };
+  }
+  if (request === '@/lib/worlds/previewProject') {
+    return {
+      previewProjectFromTemplate: () => ({ id: 'preview', owner_id: 'template-preview', title: 'Sky Steps', scenes: [] }),
+    };
+  }
   return originalLoad(request, parent, isMain);
 };
 
@@ -116,8 +134,13 @@ try {
 
 const root = createRoot(document.getElementById('root'));
 let createRequestBody = null;
+let previewRequests = 0;
 globalThis.fetch = async (url, options) => {
   if (url === '/api/world-templates') return new Response(JSON.stringify({ templates }), { status: 200 });
+  if (url === '/api/world-templates/platformer/preview?version=2') {
+    previewRequests++;
+    return new Response(JSON.stringify({ preview: { id: 'preview', owner_id: 'template-preview', title: 'Sky Steps', scenes: [] } }), { status: 200 });
+  }
   if (url === '/api/worlds/create') {
     createRequestBody = JSON.parse(options.body);
     return new Response(JSON.stringify({ error: 'The server is taking a nap.' }), { status: 500 });
@@ -135,6 +158,15 @@ assert.equal(
   1,
   'the chooser shows only one Sky Steps card even if a stale catalog response includes v1',
 );
+
+const previewButton = document.querySelector('button[aria-label="Preview Sky Steps"]');
+assert.ok(previewButton, 'Sky Steps offers a named preview before a world is created');
+await act(async () => {
+  previewButton.click();
+});
+assert.equal(previewRequests, 1, 'opening a preview requests only the guarded read-only preview route');
+assert.equal(document.querySelector('[role="dialog"]')?.getAttribute('aria-label'), 'Preview Sky Steps', 'preview opens in a named modal');
+assert.equal(createRequestBody, null, 'opening a preview never creates a world');
 
 const submit = () => document.querySelector('button[type="submit"]');
 assert.equal(submit().disabled, true, 'submit is disabled before a template and title are selected');

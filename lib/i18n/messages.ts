@@ -781,6 +781,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
     'worlds.chooseTemplate': 'Choose a starter world',
     'worlds.card.choose': 'Choose',
     'worlds.card.missions': '{count} missions',
+    'worlds.card.preview': 'Preview',
     'worlds.field.title': 'World title',
     'worlds.field.titlePlaceholder': 'My amazing world',
     'worlds.field.description': 'Description (optional)',
@@ -1539,6 +1540,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
     'worlds.chooseTemplate': '选择一个起始世界',
     'worlds.card.choose': '选择',
     'worlds.card.missions': '{count} 个任务',
+    'worlds.card.preview': '预览',
     'worlds.field.title': '世界名称',
     'worlds.field.titlePlaceholder': '我的精彩世界',
     'worlds.field.description': '介绍（可选）',
@@ -1557,7 +1559,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
   es: {
     'worlds.back': 'Volver a Mis juegos', 'worlds.eyebrow': 'Creador de mundos', 'worlds.title': 'Crea un mundo',
     'worlds.subtitle': 'Elige un mundo inicial y hazlo tuyo con bloques.', 'worlds.loading': 'Buscando tus mundos iniciales…',
-    'worlds.chooseTemplate': 'Elige un mundo inicial', 'worlds.card.choose': 'Elegir', 'worlds.card.missions': '{count} misiones',
+    'worlds.chooseTemplate': 'Elige un mundo inicial', 'worlds.card.choose': 'Elegir', 'worlds.card.missions': '{count} misiones', 'worlds.card.preview': 'Vista previa',
     'worlds.field.title': 'Título del mundo', 'worlds.field.titlePlaceholder': 'Mi mundo increíble',
     'worlds.field.description': 'Descripción (opcional)', 'worlds.field.descriptionPlaceholder': '¿Qué sucede en tu mundo?',
     'worlds.privateDraft': 'Tu mundo empieza en privado. Puedes probarlo y seguir construyendo.', 'worlds.create': 'Crea un mundo',
@@ -1718,7 +1720,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
   fr: {
     'worlds.back': 'Retour à mes jeux', 'worlds.eyebrow': 'Créateur de mondes', 'worlds.title': 'Crée un monde',
     'worlds.subtitle': 'Choisis un monde de départ, puis fais-en le tien avec des blocs.', 'worlds.loading': 'Recherche de tes mondes de départ…',
-    'worlds.chooseTemplate': 'Choisis un monde de départ', 'worlds.card.choose': 'Choisir', 'worlds.card.missions': '{count} missions à accomplir',
+    'worlds.chooseTemplate': 'Choisis un monde de départ', 'worlds.card.choose': 'Choisir', 'worlds.card.missions': '{count} missions à accomplir', 'worlds.card.preview': 'Aperçu',
     'worlds.field.title': 'Titre du monde', 'worlds.field.titlePlaceholder': 'Mon monde incroyable',
     'worlds.field.description': 'Description (facultative)', 'worlds.field.descriptionPlaceholder': 'Que se passe-t-il dans ton monde ?',
     'worlds.privateDraft': 'Ton monde commence en privé. Tu peux le tester et continuer à construire.', 'worlds.create': 'Crée un monde',
@@ -1879,7 +1881,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
   pt: {
     'worlds.back': 'Voltar aos meus jogos', 'worlds.eyebrow': 'Construtor de mundos', 'worlds.title': 'Crie um mundo',
     'worlds.subtitle': 'Escolha um mundo inicial e deixe-o com a sua cara usando blocos.', 'worlds.loading': 'Procurando seus mundos iniciais…',
-    'worlds.chooseTemplate': 'Escolha um mundo inicial', 'worlds.card.choose': 'Escolher', 'worlds.card.missions': '{count} missões',
+    'worlds.chooseTemplate': 'Escolha um mundo inicial', 'worlds.card.choose': 'Escolher', 'worlds.card.missions': '{count} missões', 'worlds.card.preview': 'Prévia',
     'worlds.field.title': 'Título do mundo', 'worlds.field.titlePlaceholder': 'Meu mundo incrível',
     'worlds.field.description': 'Descrição (opcional)', 'worlds.field.descriptionPlaceholder': 'O que acontece no seu mundo?',
     'worlds.privateDraft': 'Seu mundo começa privado. Você pode testá-lo e continuar construindo.', 'worlds.create': 'Crie um mundo',
@@ -2040,7 +2042,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
   de: {
     'worlds.back': 'Zurück zu meinen Spielen', 'worlds.eyebrow': 'Weltenbauer', 'worlds.title': 'Erschaffe eine Welt',
     'worlds.subtitle': 'Wähle eine Starterwelt und mache sie mit Blöcken zu deiner eigenen.', 'worlds.loading': 'Starterwelten werden gesucht…',
-    'worlds.chooseTemplate': 'Wähle eine Starterwelt', 'worlds.card.choose': 'Auswählen', 'worlds.card.missions': '{count} Missionen',
+    'worlds.chooseTemplate': 'Wähle eine Starterwelt', 'worlds.card.choose': 'Auswählen', 'worlds.card.missions': '{count} Missionen', 'worlds.card.preview': 'Vorschau',
     'worlds.field.title': 'Welttitel', 'worlds.field.titlePlaceholder': 'Meine tolle Welt',
     'worlds.field.description': 'Beschreibung (optional)', 'worlds.field.descriptionPlaceholder': 'Was passiert in deiner Welt?',
     'worlds.privateDraft': 'Deine Welt startet privat. Du kannst sie testen und weiterbauen.', 'worlds.create': 'Erschaffe eine Welt',
@@ -2201,7 +2203,7 @@ const INLINE_MESSAGES: Record<string, Record<string, string>> = {
   ja: {
     'worlds.back': 'マイゲームに戻る', 'worlds.eyebrow': 'ワールドビルダー', 'worlds.title': 'ワールドをつくる',
     'worlds.subtitle': 'はじめのワールドをえらんで、ブロックで自分だけのものにしよう。', 'worlds.loading': 'はじめのワールドをさがしています…',
-    'worlds.chooseTemplate': 'はじめのワールドをえらぶ', 'worlds.card.choose': 'えらぶ', 'worlds.card.missions': '{count} 個のミッション',
+    'worlds.chooseTemplate': 'はじめのワールドをえらぶ', 'worlds.card.choose': 'えらぶ', 'worlds.card.missions': '{count} 個のミッション', 'worlds.card.preview': 'プレビュー',
     'worlds.field.title': 'ワールドの名前', 'worlds.field.titlePlaceholder': 'わたしのすてきなワールド',
     'worlds.field.description': '説明（任意）', 'worlds.field.descriptionPlaceholder': 'あなたのワールドでは何が起きる？',
     'worlds.privateDraft': 'ワールドは最初は非公開です。遊んでためして、作り続けられます。', 'worlds.create': 'ワールドをつくる',

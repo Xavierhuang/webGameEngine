@@ -7,7 +7,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'Повернутися до моїх ігор', 'worlds.eyebrow': 'Будівник світів', 'worlds.title': 'Створи світ',
   'worlds.subtitle': 'Вибери стартовий світ, а потім зроби його своїм за допомогою блоків.', 'worlds.loading': 'Шукаємо стартові світи…',
-  'worlds.chooseTemplate': 'Вибери стартовий світ', 'worlds.card.choose': 'Вибрати', 'worlds.card.missions': '{count} місій',
+  'worlds.chooseTemplate': 'Вибери стартовий світ', 'worlds.card.choose': 'Вибрати', 'worlds.card.missions': '{count} місій', 'worlds.card.preview': 'Попередній перегляд',
   'worlds.field.title': 'Назва світу', 'worlds.field.titlePlaceholder': 'Мій дивовижний світ',
   'worlds.field.description': 'Опис (необов’язково)', 'worlds.field.descriptionPlaceholder': 'Що відбувається у твоєму світі?',
   'worlds.privateDraft': 'Твій світ починається як приватний. Його можна тестувати й продовжувати будувати.', 'worlds.create': 'Створи світ',

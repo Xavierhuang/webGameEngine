@@ -1,5 +1,7 @@
 'use client';
 
+import { Play } from 'lucide-react';
+
 export interface WorldTemplateCardData {
   id: string;
   version: number;
@@ -22,13 +24,17 @@ export default function WorldTemplateCard({
   template,
   selected,
   onSelect,
+  onPreview,
   selectLabel = 'Choose',
+  previewLabel = 'Preview',
   missionLabel = '{count} missions',
 }: {
   template: WorldTemplateCardData;
   selected: boolean;
   onSelect: (template: WorldTemplateCardData) => void;
+  onPreview?: (template: WorldTemplateCardData) => void;
   selectLabel?: string;
+  previewLabel?: string;
   missionLabel?: string;
 }) {
   const art = ART[template.id] ?? { emoji: '🎮', gradient: 'from-slate-300 via-slate-200 to-slate-100' };
@@ -56,6 +62,20 @@ export default function WorldTemplateCard({
             {missionCount}
           </span>
         </div>
+        {onPreview && (
+          <button
+            type="button"
+            aria-label={`${previewLabel} ${template.title}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onPreview(template);
+            }}
+            className="relative z-10 mt-4 inline-flex items-center gap-1.5 rounded-full bg-sky-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-200"
+          >
+            <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+            {previewLabel}
+          </button>
+        )}
       </div>
       <p id={descriptionId} className="sr-only">
         {template.title}. {template.description}. {template.genre}. {missionCount}.
@@ -66,7 +86,7 @@ export default function WorldTemplateCard({
         aria-describedby={descriptionId}
         aria-pressed={selected}
         onClick={() => onSelect(template)}
-        className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-4 focus:ring-slate-300"
+        className="absolute inset-0 z-0 rounded-2xl focus:outline-none focus:ring-4 focus:ring-slate-300"
       >
         <span className="sr-only">{selectLabel} {template.title}</span>
       </button>

@@ -11,7 +11,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': '내 게임으로 돌아가기', 'worlds.eyebrow': '월드 만들기', 'worlds.title': '월드 만들기',
   'worlds.subtitle': '시작 월드를 고르고 블록으로 나만의 월드를 만들어 봐요.', 'worlds.loading': '시작 월드를 찾고 있어요…',
-  'worlds.chooseTemplate': '시작 월드 고르기', 'worlds.card.choose': '고르기', 'worlds.card.missions': '{count}개 미션',
+  'worlds.chooseTemplate': '시작 월드 고르기', 'worlds.card.choose': '고르기', 'worlds.card.missions': '{count}개 미션', 'worlds.card.preview': '미리 보기',
   'worlds.field.title': '월드 제목', 'worlds.field.titlePlaceholder': '나의 멋진 월드',
   'worlds.field.description': '설명 (선택 사항)', 'worlds.field.descriptionPlaceholder': '내 월드에서는 어떤 일이 일어나나요?',
   'worlds.privateDraft': '월드는 비공개로 시작해요. 테스트하고 계속 만들 수 있어요.', 'worlds.create': '월드 만들기',

@@ -22,7 +22,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'मेरे गेम पर वापस', 'worlds.eyebrow': 'वर्ल्ड बिल्डर', 'worlds.title': 'एक दुनिया बनाएं',
   'worlds.subtitle': 'शुरुआती दुनिया चुनें, फिर ब्लॉकों से उसे अपना बनाएं।', 'worlds.loading': 'आपकी शुरुआती दुनियाएँ खोजी जा रही हैं…',
-  'worlds.chooseTemplate': 'शुरुआती दुनिया चुनें', 'worlds.card.choose': 'चुनें', 'worlds.card.missions': '{count} मिशन',
+  'worlds.chooseTemplate': 'शुरुआती दुनिया चुनें', 'worlds.card.choose': 'चुनें', 'worlds.card.missions': '{count} मिशन', 'worlds.card.preview': 'झलक',
   'worlds.field.title': 'दुनिया का शीर्षक', 'worlds.field.titlePlaceholder': 'मेरी शानदार दुनिया',
   'worlds.field.description': 'विवरण (वैकल्पिक)', 'worlds.field.descriptionPlaceholder': 'आपकी दुनिया में क्या होता है?',
   'worlds.privateDraft': 'आपकी दुनिया निजी रूप से शुरू होती है। आप उसे आज़मा सकते हैं और बनाते रह सकते हैं।', 'worlds.create': 'एक दुनिया बनाएं',

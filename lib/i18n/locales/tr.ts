@@ -7,7 +7,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'Oyunlarıma dön', 'worlds.eyebrow': 'Dünya kurucu', 'worlds.title': 'Dünya oluştur',
   'worlds.subtitle': 'Başlangıç dünyasını seç, sonra bloklarla onu kendine göre yap.', 'worlds.loading': 'Başlangıç dünyaların aranıyor…',
-  'worlds.chooseTemplate': 'Başlangıç dünyası seç', 'worlds.card.choose': 'Seç', 'worlds.card.missions': '{count} görev',
+  'worlds.chooseTemplate': 'Başlangıç dünyası seç', 'worlds.card.choose': 'Seç', 'worlds.card.missions': '{count} görev', 'worlds.card.preview': 'Önizleme',
   'worlds.field.title': 'Dünya başlığı', 'worlds.field.titlePlaceholder': 'Harika dünyam',
   'worlds.field.description': 'Açıklama (isteğe bağlı)', 'worlds.field.descriptionPlaceholder': 'Dünyanda ne oluyor?',
   'worlds.privateDraft': 'Dünyan gizli olarak başlar. Onu deneyebilir ve kurmaya devam edebilirsin.', 'worlds.create': 'Dünya oluştur',

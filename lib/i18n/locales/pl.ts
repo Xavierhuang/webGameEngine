@@ -7,7 +7,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'Wróć do moich gier', 'worlds.eyebrow': 'Kreator światów', 'worlds.title': 'Stwórz świat',
   'worlds.subtitle': 'Wybierz świat na start, a potem zbuduj własny za pomocą bloków.', 'worlds.loading': 'Szukamy światów na start…',
-  'worlds.chooseTemplate': 'Wybierz świat na start', 'worlds.card.choose': 'Wybierz', 'worlds.card.missions': '{count} misje',
+  'worlds.chooseTemplate': 'Wybierz świat na start', 'worlds.card.choose': 'Wybierz', 'worlds.card.missions': '{count} misje', 'worlds.card.preview': 'Podgląd',
   'worlds.field.title': 'Tytuł świata', 'worlds.field.titlePlaceholder': 'Mój wspaniały świat',
   'worlds.field.description': 'Opis (opcjonalnie)', 'worlds.field.descriptionPlaceholder': 'Co dzieje się w twoim świecie?',
   'worlds.privateDraft': 'Twój świat zaczyna jako prywatny. Możesz go testować i dalej budować.', 'worlds.create': 'Stwórz świat',

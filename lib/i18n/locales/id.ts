@@ -7,7 +7,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'Kembali ke Game Saya', 'worlds.eyebrow': 'Pembuat Dunia', 'worlds.title': 'Buat Dunia',
   'worlds.subtitle': 'Pilih dunia awal, lalu jadikan milikmu dengan blok.', 'worlds.loading': 'Mencari dunia awalmu…',
-  'worlds.chooseTemplate': 'Pilih dunia awal', 'worlds.card.choose': 'Pilih', 'worlds.card.missions': '{count} misi',
+  'worlds.chooseTemplate': 'Pilih dunia awal', 'worlds.card.choose': 'Pilih', 'worlds.card.missions': '{count} misi', 'worlds.card.preview': 'Pratinjau',
   'worlds.field.title': 'Judul dunia', 'worlds.field.titlePlaceholder': 'Duniaku yang hebat',
   'worlds.field.description': 'Deskripsi (opsional)', 'worlds.field.descriptionPlaceholder': 'Apa yang terjadi di duniamu?',
   'worlds.privateDraft': 'Duniamu dimulai secara pribadi. Kamu dapat mencobanya dan terus membangun.', 'worlds.create': 'Buat Dunia',

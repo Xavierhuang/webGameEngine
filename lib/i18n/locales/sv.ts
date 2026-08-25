@@ -7,7 +7,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'Tillbaka till mina spel', 'worlds.eyebrow': 'Världsbyggare', 'worlds.title': 'Skapa en värld',
   'worlds.subtitle': 'Välj en startvärld och gör den till din med block.', 'worlds.loading': 'Letar efter dina startvärldar…',
-  'worlds.chooseTemplate': 'Välj en startvärld', 'worlds.card.choose': 'Välj', 'worlds.card.missions': '{count} uppdrag',
+  'worlds.chooseTemplate': 'Välj en startvärld', 'worlds.card.choose': 'Välj', 'worlds.card.missions': '{count} uppdrag', 'worlds.card.preview': 'Förhandsvisa',
   'worlds.field.title': 'Världstitel', 'worlds.field.titlePlaceholder': 'Min fantastiska värld',
   'worlds.field.description': 'Beskrivning (valfritt)', 'worlds.field.descriptionPlaceholder': 'Vad händer i din värld?',
   'worlds.privateDraft': 'Din värld börjar privat. Du kan testa den och fortsätta bygga.', 'worlds.create': 'Skapa en värld',

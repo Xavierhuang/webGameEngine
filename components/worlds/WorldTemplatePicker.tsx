@@ -5,10 +5,17 @@ import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { ensureGuestSession } from '@/lib/auth/guestSessionClient';
 import { useTranslator } from '@/components/common/LocaleProvider';
+import type { Project } from '@/types/game';
 import WorldTemplateCard, { type WorldTemplateCardData } from './WorldTemplateCard';
+import WorldTemplatePreview from './WorldTemplatePreview';
 
 interface TemplateResponse {
   templates?: WorldTemplateCardData[];
+  error?: string;
+}
+
+interface PreviewResponse {
+  preview?: Project;
   error?: string;
 }
 
@@ -26,6 +33,8 @@ export default function WorldTemplatePicker() {
   const router = useRouter();
   const [templates, setTemplates] = useState<WorldTemplateCardData[]>([]);
   const [selected, setSelected] = useState<WorldTemplateCardData | null>(null);
+  const [preview, setPreview] = useState<{ template: WorldTemplateCardData; project: Project } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(true);
@@ -81,6 +90,22 @@ export default function WorldTemplatePicker() {
     }
   };
 
+  const previewTemplate = async (template: WorldTemplateCardData) => {
+    if (previewing) return;
+    setPreviewing(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/world-templates/${encodeURIComponent(template.id)}/preview?version=${template.version}`);
+      const data = await response.json() as PreviewResponse;
+      if (!response.ok || !data.preview) throw new Error(data.error || catalogError);
+      setPreview({ template, project: data.preview });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : catalogError);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
       <div className="max-w-2xl">
@@ -102,7 +127,9 @@ export default function WorldTemplatePicker() {
                   template={template}
                   selected={selected?.id === template.id && selected.version === template.version}
                   onSelect={setSelected}
+                  onPreview={template.id === 'platformer' ? previewTemplate : undefined}
                   selectLabel={t('worlds.card.choose')}
+                  previewLabel={t('worlds.card.preview')}
                   missionLabel={t('worlds.card.missions')}
                 />
               ))}
@@ -150,6 +177,15 @@ export default function WorldTemplatePicker() {
             {submitting ? t('worlds.createLoading') : t('worlds.create')}
           </button>
         </form>
+      )}
+      {preview && (
+        <WorldTemplatePreview
+          template={preview.template}
+          project={preview.project}
+          onClose={() => setPreview(null)}
+          closeLabel={t('common.close')}
+          previewLabel={t('worlds.card.preview')}
+        />
       )}
     </section>
   );

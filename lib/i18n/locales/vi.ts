@@ -7,7 +7,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'Quay lại trò chơi của tôi', 'worlds.eyebrow': 'Trình tạo thế giới', 'worlds.title': 'Tạo một thế giới',
   'worlds.subtitle': 'Chọn một thế giới khởi đầu rồi biến nó thành của em bằng các khối lệnh.', 'worlds.loading': 'Đang tìm thế giới khởi đầu của em…',
-  'worlds.chooseTemplate': 'Chọn một thế giới khởi đầu', 'worlds.card.choose': 'Chọn', 'worlds.card.missions': '{count} nhiệm vụ',
+  'worlds.chooseTemplate': 'Chọn một thế giới khởi đầu', 'worlds.card.choose': 'Chọn', 'worlds.card.missions': '{count} nhiệm vụ', 'worlds.card.preview': 'Xem trước',
   'worlds.field.title': 'Tên thế giới', 'worlds.field.titlePlaceholder': 'Thế giới tuyệt vời của em',
   'worlds.field.description': 'Mô tả (không bắt buộc)', 'worlds.field.descriptionPlaceholder': 'Điều gì xảy ra trong thế giới của em?',
   'worlds.privateDraft': 'Thế giới của em bắt đầu ở chế độ riêng tư. Em có thể thử và tiếp tục xây dựng.', 'worlds.create': 'Tạo một thế giới',

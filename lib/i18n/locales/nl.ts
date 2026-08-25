@@ -7,7 +7,7 @@
 export const ui: Record<string, string> = {
   'worlds.back': 'Terug naar mijn spellen', 'worlds.eyebrow': 'Wereldenbouwer', 'worlds.title': 'Maak een wereld',
   'worlds.subtitle': 'Kies een startwereld en maak die van jou met blokken.', 'worlds.loading': 'Je startwerelden worden gezocht…',
-  'worlds.chooseTemplate': 'Kies een startwereld', 'worlds.card.choose': 'Kiezen', 'worlds.card.missions': '{count} missies',
+  'worlds.chooseTemplate': 'Kies een startwereld', 'worlds.card.choose': 'Kiezen', 'worlds.card.missions': '{count} missies', 'worlds.card.preview': 'Voorbeeld',
   'worlds.field.title': 'Wereldtitel', 'worlds.field.titlePlaceholder': 'Mijn geweldige wereld',
   'worlds.field.description': 'Beschrijving (optioneel)', 'worlds.field.descriptionPlaceholder': 'Wat gebeurt er in jouw wereld?',
   'worlds.privateDraft': 'Je wereld begint privé. Je kunt hem testen en verder bouwen.', 'worlds.create': 'Maak een wereld',

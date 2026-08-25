@@ -9,6 +9,8 @@ import {
   type WorldTemplate,
   type WorldTemplateBlock,
 } from './templates';
+import { previewProjectFromTemplate } from './previewProject';
+import type { Project } from '../../types/game';
 
 type WorldActor = Exclude<Actor, { kind: 'anonymous' }>;
 
@@ -76,6 +78,16 @@ export function listWorldTemplateDtos(): WorldTemplateDto[] {
 /** The ordinary creation route accepts only versions its picker can offer. */
 export function isWorldTemplateActive(templateId: string, templateVersion: number): boolean {
   return getWorldTemplate(templateId, templateVersion)?.active === true;
+}
+
+/**
+ * Returns a transient runtime projection for a selected starter. The route
+ * caller keeps it in browser memory only; it has no project row or owner.
+ */
+export function previewWorldTemplate(templateId: string, templateVersion: number): Project | null {
+  const template = getWorldTemplate(templateId, templateVersion);
+  if (!template?.active) return null;
+  return previewProjectFromTemplate(template);
 }
 
 function requireNonAnonymousActor(actor: Actor): WorldActor {
