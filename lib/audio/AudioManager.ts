@@ -20,6 +20,8 @@ class AudioManager {
   private isBeatRunning = false;
   /** Live SFX sources so `stop all sounds` can silence them. */
   private activeSources = new Set<AudioScheduledSourceNode>();
+  /** Beat sources stay separate so ending music never cuts off a success SFX. */
+  private activeBeatSources = new Set<AudioScheduledSourceNode>();
   /** Decoded audio files, keyed by URL, so loops don't refetch. */
   private sampleCache = new Map<string, AudioBuffer>();
   /** Music extension state (Scratch keeps tempo and instrument per target). */
@@ -340,6 +342,15 @@ class AudioManager {
       window.clearInterval(this.beatInterval);
       this.beatInterval = null;
     }
+    for (const source of this.activeBeatSources) {
+      try { source.stop(); } catch { /* already stopped */ }
+    }
+    this.activeBeatSources.clear();
+  }
+
+  private trackBeatSource(source: AudioScheduledSourceNode) {
+    this.activeBeatSources.add(source);
+    source.onended = () => this.activeBeatSources.delete(source);
   }
 
   private triggerKick(time: number, length: number) {
@@ -356,6 +367,7 @@ class AudioManager {
     gain.connect(this.masterGain);
     osc.start(time);
     osc.stop(time + length + 0.02);
+    this.trackBeatSource(osc);
   }
 
   private triggerSnare(time: number, length: number) {
@@ -381,6 +393,7 @@ class AudioManager {
     gain.connect(this.masterGain);
     noise.start(time);
     noise.stop(time + length + 0.02);
+    this.trackBeatSource(noise);
   }
 
   private triggerHat(time: number, length: number) {
@@ -396,9 +409,9 @@ class AudioManager {
     gain.connect(this.masterGain);
     osc.start(time);
     osc.stop(time + length + 0.02);
+    this.trackBeatSource(osc);
   }
 }
 
 export default AudioManager;
-
 

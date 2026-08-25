@@ -34,6 +34,7 @@ import VariableWatchers from './VariableWatchers';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { ObjectRuntime, RuntimeWorld, type RuntimeContext } from '../../lib/runtime/interpreter';
 import AudioManager from '../../lib/audio/AudioManager';
+import { shouldRunBackgroundBeat } from '../../lib/audio/backgroundBeatPolicy';
 import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
 import { SceneLights } from '@/components/three/SceneLights';
 import { coerceLightingPreset, readScenePreset } from '@/lib/scene/lightingPresets';
@@ -333,14 +334,18 @@ export default function GamePlayer({ project, compact = false, missionReporting,
    * you picked was silent in the actual game.
    */
   useEffect(() => {
-    if (showStartSplash || !scene) return;
+    if (!scene) return;
     const objects = (scene as any).game_objects ?? [];
     const beatObject = objects.find((o: any) => {
       if (o?.type !== 'sound') return false;
       const props = typeof o.properties === 'string' ? safeParse(o.properties) : o.properties;
       return Boolean(props?.autoplay_beat);
     });
-    if (!beatObject) return;
+    if (!shouldRunBackgroundBeat({
+      hasAutoplayBeat: Boolean(beatObject),
+      showStartSplash,
+      outcomeState: outcome.state,
+    })) return;
 
     const props =
       typeof beatObject.properties === 'string'
@@ -354,7 +359,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
     return () => {
       try { AudioManager.get().stopBeat(); } catch { /* noop */ }
     };
-  }, [runNonce, scene, showStartSplash]);
+  }, [outcome.state, runNonce, scene, showStartSplash]);
 
   const stopRun = () => {
     world.started = false;
