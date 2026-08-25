@@ -10,6 +10,21 @@ import {
 export const GRAVITY = PHYSICS.GRAVITY;
 export const JUMP_FORCE = PHYSICS.JUMP_FORCE;
 
+/**
+ * Convert a horizontal movement vector into the yaw for Lingplay's starter
+ * characters, which face local positive Z. No movement keeps the last direction so a player
+ * character does not snap back to its spawn orientation after each key press.
+ */
+export function facingYawForMovement(moveX: number, moveZ: number, previousYaw = 0): number {
+  const x = Number.isFinite(moveX) ? moveX : 0;
+  const z = Number.isFinite(moveZ) ? moveZ : 0;
+  if (Math.hypot(x, z) < 0.0001) return Number.isFinite(previousYaw) ? previousYaw : 0;
+
+  const yaw = Math.atan2(x, z);
+  if (Object.is(yaw, -0)) return 0;
+  return yaw === -Math.PI ? Math.PI : yaw;
+}
+
 export interface MotionState {
   position: PlayerPoint;
   velocity: PlayerPoint;

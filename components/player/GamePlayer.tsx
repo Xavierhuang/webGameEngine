@@ -45,7 +45,7 @@ import {
   toPlayerPosition,
   type PlatformSurface,
 } from '../../lib/player/platformerWorld';
-import { advancePlatformerMotion, requestPlatformerJump } from '../../lib/player/platformerMotion';
+import { advancePlatformerMotion, facingYawForMovement, requestPlatformerJump } from '../../lib/player/platformerMotion';
 import { hasSpaceJumpScript } from '../../lib/player/jumpHint';
 import { bubbleForVisibility } from '../../lib/player/objectPresentation';
 import { deriveSkyStepsPresentation } from '../../lib/player/skyStepsPresentation';
@@ -1501,6 +1501,8 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
   const frameAccumRef = useRef({ x: 0, z: 0 });
   // Live rotation (radians) applied every frame — mutated by both rotate (add) and setRotation (replace)
   const baseRotationRef = useRef<{ x: number; y: number; z: number } | null>(null);
+  // Player movement updates this heading; authored/script rotation remains the base offset.
+  const movementFacingYawRef = useRef(0);
   // Bounding radius for touch sensing (set each render from computed scale)
   const radiusRef = useRef(0.5);
   // Phase 5b looks state applied each frame
@@ -1917,6 +1919,7 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
     || properties.sprite_data?.shape
     || (modelUrl ? 'model' : 'box');
   const isCharacter = object.type === 'character';
+  const isPlayerControlled = isCharacter && properties.playerControlled === true;
   const modelMetadata = resolveActiveModelMetadata({
     shape,
     baseModelUrl,
@@ -2088,6 +2091,13 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
       if (moveX !== 0 || moveZ !== 0) {
         meshRef.current.position.x += moveX;
         meshRef.current.position.z += moveZ;
+        if (isPlayerControlled) {
+          movementFacingYawRef.current = facingYawForMovement(
+            moveX,
+            moveZ,
+            movementFacingYawRef.current,
+          );
+        }
         // Clear horizontal velocity when moving (movement takes priority)
         velocityRef.current.x = 0;
         velocityRef.current.z = 0;
@@ -2197,7 +2207,11 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
       }
       const base = baseRotationRef.current;
       const animYaw = properties.animate ? state.clock.elapsedTime * 0.01 : 0;
-      meshRef.current.rotation.set(base.x, base.y + animYaw, base.z);
+      meshRef.current.rotation.set(
+        base.x,
+        base.y + animYaw + (isPlayerControlled ? movementFacingYawRef.current : 0),
+        base.z,
+      );
 
       // Phase 5b: apply live looks state each frame.
       meshRef.current.visible = visibleRef.current;

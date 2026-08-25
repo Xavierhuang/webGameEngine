@@ -5,8 +5,20 @@ const assert = require('node:assert/strict');
 const {
   JUMP_FORCE,
   advancePlatformerMotion,
+  facingYawForMovement,
   requestPlatformerJump,
 } = require('../.build/lib/player/platformerMotion.js');
+
+// Regression: without a facing transform, the hero's X/Z position changed but
+// the model kept looking in its old direction, so left/right appeared broken.
+assert.equal(typeof facingYawForMovement, 'function', 'player movement exposes a facing-yaw resolver');
+const previousFacing = 0.42;
+assert.equal(facingYawForMovement(0, 0, previousFacing), previousFacing, 'standing still keeps the last facing direction');
+// Sky Steps' Hero is authored facing local +Z (eyes, mouth, and chest emblem).
+assert.equal(facingYawForMovement(1, 0, 0), Math.PI / 2, 'moving right faces right');
+assert.equal(facingYawForMovement(-1, 0, 0), -Math.PI / 2, 'moving left faces left');
+assert.equal(facingYawForMovement(0, -1, 0), Math.PI, 'moving forward faces forward');
+assert.equal(facingYawForMovement(0, 1, 0), 0, 'moving backward faces backward');
 
 const raised = {
   id: 'raised',
