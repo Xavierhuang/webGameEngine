@@ -1,3 +1,5 @@
+import { STARTER_MODEL_METADATA } from '../prefabs/generatedStarterModels';
+
 export interface ModelVector3 {
   x: number;
   y: number;
@@ -41,6 +43,11 @@ function isFiniteVector(value: unknown): value is ModelVector3 {
   return Number.isFinite(vector.x) && Number.isFinite(vector.y) && Number.isFinite(vector.z);
 }
 
+function shippedStarterMetadata(modelUrl?: string) {
+  if (!modelUrl) return undefined;
+  return Object.values(STARTER_MODEL_METADATA).find((metadata) => metadata.model_url === modelUrl);
+}
+
 export function isModelBounds(value: unknown): value is ModelBounds {
   if (!value || typeof value !== 'object') return false;
   const bounds = value as Partial<ModelBounds>;
@@ -69,16 +76,14 @@ export function resolveActiveModelMetadata({
 }: ActiveModelMetadataInput): ActiveModelMetadata {
   if (shape !== 'model') return {};
 
+  const shippedMetadata = shippedStarterMetadata(modelUrl);
   const rendersBaseModel = modelUrl === baseModelUrl;
-  if (!rendersBaseModel) {
-    return {
-      ...(activeBounds !== undefined ? { bounds: activeBounds } : {}),
-      ...(activeOriginOffset !== undefined ? { originOffset: activeOriginOffset } : {}),
-    };
-  }
-
-  const bounds = activeBounds ?? baseBounds;
-  const originOffset = activeOriginOffset ?? baseOriginOffset;
+  const bounds = activeBounds
+    ?? (rendersBaseModel ? baseBounds : undefined)
+    ?? shippedMetadata?.model_bounds;
+  const originOffset = activeOriginOffset
+    ?? (rendersBaseModel ? baseOriginOffset : undefined)
+    ?? shippedMetadata?.model_origin_offset;
   return {
     ...(bounds !== undefined ? { bounds } : {}),
     ...(originOffset !== undefined ? { originOffset } : {}),

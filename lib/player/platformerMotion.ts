@@ -33,6 +33,27 @@ export interface MotionState {
   groundedSurfaceId?: string;
 }
 
+export interface PlatformerMotionOptions {
+  /** Older worlds use one fixed floor; platformer v2 worlds use surfaces only. */
+  legacyGround?: boolean;
+}
+
+function supportingSurface(state: MotionState, surfaces: PlatformSurface[]): PlatformSurface | null {
+  const radius = Math.max(0, state.radius);
+  const supported = surfaces.filter((surface) => (
+    Math.abs(state.position.y - surface.topY) <= PHYSICS.GROUND_TOLERANCE
+    && state.position.x + radius >= surface.minX
+    && state.position.x - radius <= surface.maxX
+    && state.position.z + radius >= surface.minZ
+    && state.position.z - radius <= surface.maxZ
+ ));
+
+  return supported.reduce<PlatformSurface | null>(
+    (highest, surface) => (highest === null || surface.topY > highest.topY ? surface : highest),
+    null,
+  );
+}
+
 /**
  * Advance only vertical platformer motion. Horizontal movement stays owned by
  * the player runtime, preserving its existing keyboard and script behavior.
@@ -41,20 +62,32 @@ export function advancePlatformerMotion(
   state: MotionState,
   delta: number,
   surfaces: PlatformSurface[],
+  options: PlatformerMotionOptions = {},
 ): MotionState {
-  const groundedSurface = state.groundedSurfaceId
-    ? surfaces.find((surface) => surface.id === state.groundedSurfaceId)
-    : undefined;
-  const stillOnGroundedSurface = groundedSurface
-    && state.position.x + Math.max(0, state.radius) >= groundedSurface.minX
-    && state.position.x - Math.max(0, state.radius) <= groundedSurface.maxX
-    && state.position.z + Math.max(0, state.radius) >= groundedSurface.minZ
-    && state.position.z - Math.max(0, state.radius) <= groundedSurface.maxZ;
+  const legacyGround = options.legacyGround ?? true;
+  const groundedSurface = state.grounded ? supportingSurface(state, surfaces) : null;
 
-  // Fixed legacy ground has no surface id and remains grounded. A raised
-  // platform does not: crossing its horizontal edge resumes gravity.
-  if (state.grounded && (!groundedSurface || stillOnGroundedSurface)) {
-    return { ...state, position: { ...state.position }, velocity: { ...state.velocity } };
+  // A grounded player is supported only when they still overlap a platform.
+  // Resolve this from position rather than trusting an optional prior id so a
+  // character spawned directly on a platform gets its support on frame one.
+  if (groundedSurface) {
+    return {
+      ...state,
+      position: { ...state.position },
+      velocity: { ...state.velocity },
+      groundedSurfaceId: groundedSurface.id,
+    };
+  }
+
+  // Older scenes intentionally use a fixed floor. Platformer v2 has no such
+  // floor: once the player leaves every authored platform, gravity continues.
+  if (state.grounded && legacyGround && state.position.y <= LEGACY_GROUND_Y + PHYSICS.GROUND_TOLERANCE) {
+    return {
+      ...state,
+      position: { ...state.position, y: LEGACY_GROUND_Y },
+      velocity: { ...state.velocity, y: 0 },
+      groundedSurfaceId: undefined,
+    };
   }
 
   const velocityY = Math.max(
@@ -79,7 +112,7 @@ export function advancePlatformerMotion(
     };
   }
 
-  if (nextY <= LEGACY_GROUND_Y + PHYSICS.GROUND_TOLERANCE) {
+  if (legacyGround && nextY <= LEGACY_GROUND_Y + PHYSICS.GROUND_TOLERANCE) {
     return {
       ...state,
       position: { ...state.position, y: LEGACY_GROUND_Y },

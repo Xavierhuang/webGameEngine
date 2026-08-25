@@ -78,6 +78,23 @@ test('model origin offset puts the scaled local minimum on its world anchor', ()
   assert.equal(contract.scaledMinimumY, 0);
 });
 
+test('saved starter models recover their foot offset when world properties omit metadata', () => {
+  const savedSkyStepsHero = resolveActiveModelMetadata({
+    shape: 'model',
+    baseModelUrl: '/models/starters/hero.glb',
+    modelUrl: '/models/starters/hero.glb',
+  });
+  const render = createModelRenderContract(
+    1,
+    savedSkyStepsHero.bounds,
+    savedSkyStepsHero.originOffset,
+  );
+
+  assert.equal(render.innerPosition[1], 0.9399999976158142);
+  assert.equal(render.innerPosition[2], 0.012500002980232239);
+  assert.equal(render.scaledMinimumY, 0, 'Hero feet meet the platform rather than intersecting it');
+});
+
 test('touch radius uses scaled horizontal half-extents with an import fallback', () => {
   const dragon = createModelRenderContract(0.28, expectedBounds, expectedOriginOffset);
   const importedModel = createModelRenderContract(0.28);

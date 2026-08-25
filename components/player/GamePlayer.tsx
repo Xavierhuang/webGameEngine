@@ -2122,7 +2122,7 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
         radius: radiusRef.current,
         grounded: isGroundedRef.current,
         groundedSurfaceId: groundedSurfaceIdRef.current,
-      }, delta, platformSurfaces);
+      }, delta, platformSurfaces, { legacyGround });
       meshRef.current.position.y = motion.position.y + footOffset;
       velocityRef.current.y = motion.velocity.y;
       isGroundedRef.current = motion.grounded;
