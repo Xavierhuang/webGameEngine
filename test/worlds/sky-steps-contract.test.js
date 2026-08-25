@@ -23,8 +23,12 @@ const withUnreachableStep = clone(skySteps);
 objectById(withUnreachableStep, 'sky-step-one').position[1] += 10;
 assert.match(validateSkyStepsFlagship(withUnreachableStep).join('\n'), /reachable/);
 
+const withUnforgivingFirstJump = clone(skySteps);
+objectById(withUnforgivingFirstJump, 'sky-step-one').position[0] += 1;
+assert.match(validateSkyStepsFlagship(withUnforgivingFirstJump).join('\n'), /forgiving first jump/);
+
 const withSlowerHero = clone(skySteps);
-objectById(withSlowerHero, 'sky-hero').blocks.find((block) => block.id === 'sky-hero-move-right').inputs.distance = 120;
+objectById(withSlowerHero, 'sky-hero').blocks.find((block) => block.id === 'sky-hero-move-right').inputs.distance = 50;
 assert.match(validateSkyStepsFlagship(withSlowerHero).join('\n'), /reachable/);
 
 const withStarAboveSurface = clone(skySteps);

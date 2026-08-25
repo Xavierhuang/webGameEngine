@@ -155,14 +155,14 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           ],
         },
         { id: 'sky-start-island', name: 'Starting Island', type: 'platform', position: [0, -2, 0], shape: 'box', color: '#4f8f44', blocks: [] },
-        { id: 'sky-step-one', name: 'Sky Step One', type: 'platform', position: [16, -1, 0], shape: 'box', color: '#74b65d', blocks: [] },
-        { id: 'sky-step-two', name: 'Sky Step Two', type: 'platform', position: [32, 0, 0], shape: 'box', color: '#74b65d', blocks: [] },
-        { id: 'sky-extra-platform', name: 'Sky Step Three', type: 'platform', position: [48, 1, 0], shape: 'box', color: '#74b65d', blocks: [] },
+        { id: 'sky-step-one', name: 'Sky Step One', type: 'platform', position: [12, -1, 0], shape: 'box', color: '#74b65d', blocks: [] },
+        { id: 'sky-step-two', name: 'Sky Step Two', type: 'platform', position: [24, 0, 0], shape: 'box', color: '#74b65d', blocks: [] },
+        { id: 'sky-extra-platform', name: 'Sky Step Three', type: 'platform', position: [36, 1, 0], shape: 'box', color: '#74b65d', blocks: [] },
         {
           id: 'sky-star-one',
           name: 'Sky Star One',
           type: 'collectible',
-          position: [16, -0.75, 0],
+          position: [12, -0.75, 0],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -175,7 +175,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'sky-star-two',
           name: 'Sky Star Two',
           type: 'collectible',
-          position: [32, 0.25, 0],
+          position: [24, 0.25, 0],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -188,7 +188,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'sky-extra-star',
           name: 'Sky Star Three',
           type: 'collectible',
-          position: [48, 1.25, 0],
+          position: [36, 1.25, 0],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -201,7 +201,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'sky-moving-cloud',
           name: 'Moving Cloud',
           type: 'obstacle',
-          position: [36, 2, 1],
+          position: [28, 2, 1],
           shape: 'sphere',
           color: '#ffffff',
           blocks: [{
@@ -214,7 +214,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'sky-portal',
           name: 'Sky Portal',
           type: 'sprite',
-          position: [48, 1.25, 0],
+          position: [36, 1.25, 0],
           shape: 'torus',
           color: '#fbbf24',
           blocks: [

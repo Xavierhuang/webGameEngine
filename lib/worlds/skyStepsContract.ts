@@ -50,6 +50,13 @@ function horizontalLandingDistance(from: PlatformSurface, to: PlatformSurface): 
   return Math.hypot(xGap, zGap);
 }
 
+/** Empty space between platform edges before the Hero's collider extends them. */
+function platformEdgeGap(from: PlatformSurface, to: PlatformSurface): number {
+  const xGap = Math.max(from.minX - to.maxX, to.minX - from.maxX, 0);
+  const zGap = Math.max(from.minZ - to.maxZ, to.minZ - from.maxZ, 0);
+  return Math.hypot(xGap, zGap);
+}
+
 function landingEnvelope(from: PlatformSurface, to: PlatformSurface): { apex: number; horizontal: number } | null {
   const height = to.topY - from.topY;
   const apex = (JUMP_FORCE ** 2) / (2 * GRAVITY);
@@ -127,6 +134,13 @@ export function validateSkyStepsFlagship(template: WorldTemplate): string[] {
       continue;
     }
     route.push(surface);
+  }
+
+  // The opening move is the first thing a young player tries. Keeping its
+  // actual edge-to-edge gap short gives them a broad jump window instead of
+  // requiring frame-perfect timing before they can reach the first star.
+  if (route.length >= 2 && platformEdgeGap(route[0], route[1]) > 2) {
+    issues.push('Sky Steps needs a forgiving first jump gap');
   }
 
   const reachableRoute: PlatformSurface[] = route.length > 0 ? [route[0]] : [];

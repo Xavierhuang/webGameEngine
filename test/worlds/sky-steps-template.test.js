@@ -88,6 +88,10 @@ function horizontalGap(left, right, radius) {
 const touchRadius = createModelRenderContract(1).touchRadius;
 const heroRunSpeed = movementRateForKey(hero.blocks, 'ArrowRight');
 assert.equal(heroRunSpeed, 5, 'Sky Steps uses the generated Hero movement rate used by the runtime');
+assert.ok(
+  route[1].minX - route[0].maxX <= 2,
+  'the first step leaves a forgiving two-unit jump gap for new players',
+);
 for (let index = 1; index < route.length; index += 1) {
   const from = route[index - 1];
   const to = route[index];
