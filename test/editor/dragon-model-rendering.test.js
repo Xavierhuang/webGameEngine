@@ -35,10 +35,13 @@ test('AnimatedModel source delegates GLTF timing to Drei and retains FBX frame u
   assert.doesNotMatch(gltfSection, /new THREE\.AnimationMixer/);
   assert.doesNotMatch(gltfSection, /mixer(Ref\.current)?\??\.update\(/);
 
-  // ...and that fallback must only move parts when the model ships no clips,
-  // or it would fight a real animation.
-  assert.match(gltfSection, /const hasClips = animations\.length > 0/);
-  assert.match(gltfSection, /if \(hasClips\) \{ restPoseRef\.current = null; return; \}/);
+  // ...and that fallback must only move parts when no authored clip matches
+  // the requested state, or it would fight the matching animation. An
+  // unrelated clip (for example idle while walking) must not suppress the
+  // readable procedural fallback.
+  assert.match(gltfSection, /const matchingAnimationName = findAnimationName\(/);
+  assert.match(gltfSection, /const hasMatchingClip = Boolean\(matchingAnimationName\)/);
+  assert.match(gltfSection, /if \(hasMatchingClip\) \{ restPoseRef\.current = null; return; \}/);
 
   assert.match(fbxSection, /useFrame/);
 });
