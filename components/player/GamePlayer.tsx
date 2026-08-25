@@ -53,6 +53,7 @@ import { hasSpaceJumpScript } from '../../lib/player/jumpHint';
 import { bubbleForVisibility } from '../../lib/player/objectPresentation';
 import { deriveSkyStepsPresentation } from '../../lib/player/skyStepsPresentation';
 import { usesLegacyWorldCoordinates } from '../../lib/player/templateCoordinatePolicy';
+import { deriveStarterWorldPresentation } from '../../lib/player/starterWorldPresentation';
 
 function usePrefersReducedMotion() {
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -389,6 +390,10 @@ export default function GamePlayer({ project, compact = false, missionReporting,
   );
   const isSkyStepsV2 = worldIdentity?.templateId === 'platformer'
     && Number(worldIdentity.templateVersion) >= 2;
+  const starterWorldPresentation = useMemo(
+    () => deriveStarterWorldPresentation(worldIdentity),
+    [worldIdentity],
+  );
   const skyStepsPresentation = useMemo(() => deriveSkyStepsPresentation(
     (scene?.game_objects ?? []).map((object) => ({
       name: object.name,
@@ -578,6 +583,24 @@ export default function GamePlayer({ project, compact = false, missionReporting,
               </div>
               <output data-testid="sky-steps-status" className="sr-only" aria-live="polite">
                 {skyStepsStatus}
+              </output>
+            </>
+          )}
+          {starterWorldPresentation && (
+            <>
+              <div
+                data-testid="starter-world-quest"
+                className="pointer-events-none absolute left-3 top-3 z-20 max-w-[min(19rem,calc(100%-1.5rem))] rounded-2xl bg-slate-950/75 px-3 py-2 text-white shadow-lg"
+              >
+                <p className="text-[10px] font-black uppercase tracking-wider text-sky-200">
+                  {starterWorldPresentation.eyebrow}
+                </p>
+                <p className="mt-0.5 text-xs font-semibold leading-4 text-slate-50">
+                  {starterWorldPresentation.goal}
+                </p>
+              </div>
+              <output data-testid="starter-world-quest-status" className="sr-only" aria-live="polite">
+                {starterWorldPresentation.title}. {starterWorldPresentation.goal}
               </output>
             </>
           )}
