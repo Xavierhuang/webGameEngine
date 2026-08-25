@@ -1245,7 +1245,6 @@ function SkyStepsStarDecoration({ position }: { position: [number, number, numbe
           <octahedronGeometry args={[1, 0]} />
           <meshStandardMaterial color="#facc15" emissive="#f59e0b" emissiveIntensity={1.5} roughness={0.3} />
         </mesh>
-        <pointLight color="#fde68a" intensity={1.2} distance={2.4} />
       </group>
     </group>
   );
@@ -1266,7 +1265,6 @@ function SkyStepsPortalDecoration({ position }: { position: [number, number, num
           <torusGeometry args={[0.58, 0.06, 10, 32]} />
           <meshStandardMaterial color="#a855f7" emissive="#7e22ce" emissiveIntensity={1.7} roughness={0.22} />
         </mesh>
-        <pointLight color="#d8b4fe" intensity={1.5} distance={3} />
       </group>
     </group>
   );
