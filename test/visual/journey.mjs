@@ -212,6 +212,9 @@ await step('the template editor has the expected private draft graph', async () 
   await worldPage.goto(`${BASE}/play/${worldId}`, { waitUntil: 'networkidle' });
   await worldPage.locator('button[aria-label="Start game"]').click({ timeout: 15000 });
   await worldPage.locator('text=/Space to jump/').waitFor({ timeout: 15000 });
+  const skyStepsHud = worldPage.locator('[data-testid="sky-steps-hud"]');
+  await skyStepsHud.getByText('Stars 0/3', { exact: true }).waitFor({ timeout: 10000 });
+  await worldPage.locator('[data-testid="sky-steps-status"]').waitFor({ timeout: 10000 });
 
   const runtimeState = worldPage.locator('[data-testid="game-runtime-state"]');
   await runtimeState.waitFor({ timeout: 15000 });
@@ -240,14 +243,20 @@ await step('the template editor has the expected private draft graph', async () 
   await waitForLanding('Sky Step One');
 
   await moveRightFor(900);
-  await worldPage.locator('text=Star collected!').waitFor({ timeout: 10000 });
+  const starFeedback = worldPage.locator('text=Star collected!');
+  await starFeedback.waitFor({ timeout: 10000 });
+  if (await starFeedback.count() !== 1) {
+    throw new Error(`Sky Star One showed ${await starFeedback.count()} collection feedback bubbles instead of one`);
+  }
   await worldPage.waitForFunction(() => {
     const state = document.querySelector('[data-testid="game-runtime-state"]');
     return state?.getAttribute('data-collected-star-count') === '1'
       && !(state.getAttribute('data-visible-star-names') ?? '').includes('Sky Star One');
   }, undefined, { timeout: 10000 });
+  await skyStepsHud.getByText('Stars 1/3', { exact: true }).waitFor({ timeout: 10000 });
+  await worldPage.locator('[data-testid="sky-steps-status"]').getByText('Stars 1/3', { exact: false }).waitFor({ timeout: 10000 });
   await worldPage.waitForTimeout(2200);
-  if (await worldPage.locator('text=Star collected!').count() !== 0) {
+  if (await starFeedback.count() !== 0) {
     throw new Error('Sky Star One left a feedback bubble after the star was hidden');
   }
 
@@ -259,6 +268,14 @@ await step('the template editor has the expected private draft graph', async () 
   await waitForLanding('Sky Step Three');
   await moveRightFor(1000);
   await worldPage.locator('text=You climbed every Sky Step!').waitFor({ timeout: 10000 });
+  const winCard = worldPage.locator('[data-testid="sky-steps-win-card"]');
+  await winCard.waitFor({ timeout: 10000 });
+  if (!(await winCard.textContent())?.includes('You climbed every Sky Step!')) {
+    throw new Error('Sky Steps won without its child-readable win card');
+  }
+  if (!(await worldPage.locator('[data-testid="sky-steps-status"]').textContent())?.includes('You climbed every Sky Step!')) {
+    throw new Error('Sky Steps won without announcing the child-readable win status');
+  }
   await worldPage.waitForFunction(() => {
     const state = document.querySelector('[data-testid="game-runtime-state"]');
     return state?.getAttribute('data-outcome-state') === 'won'
