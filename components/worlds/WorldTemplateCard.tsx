@@ -62,34 +62,33 @@ export default function WorldTemplateCard({
             {missionCount}
           </span>
         </div>
-        {onPreview && (
+        <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
-            aria-label={`${previewLabel} ${template.title}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onPreview(template, event.currentTarget);
-            }}
-            className="relative z-10 mt-4 inline-flex items-center gap-1.5 rounded-full bg-sky-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-200"
+            aria-label={`${selectLabel} ${template.title}`}
+            aria-describedby={descriptionId}
+            aria-pressed={selected}
+            onClick={() => onSelect(template)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-300"
           >
-            <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-            {previewLabel}
+            {selectLabel}
           </button>
-        )}
+          {onPreview && (
+            <button
+              type="button"
+              aria-label={`${previewLabel} ${template.title}`}
+              onClick={(event) => onPreview(template, event.currentTarget)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-sky-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-200"
+            >
+              <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+              {previewLabel}
+            </button>
+          )}
+        </div>
       </div>
       <p id={descriptionId} className="sr-only">
         {template.title}. {template.description}. {template.genre}. {missionCount}.
       </p>
-      <button
-        type="button"
-        aria-label={`${selectLabel} ${template.title}`}
-        aria-describedby={descriptionId}
-        aria-pressed={selected}
-        onClick={() => onSelect(template)}
-        className="absolute inset-0 z-0 rounded-2xl focus:outline-none focus:ring-4 focus:ring-slate-300"
-      >
-        <span className="sr-only">{selectLabel} {template.title}</span>
-      </button>
     </article>
   );
 }

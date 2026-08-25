@@ -42,7 +42,11 @@ for (const template of templates) {
   assert.equal((markup.match(new RegExp(`id="${template.id}-description"`, 'g')) ?? []).length, 1, `${template.id} has one description target`);
   assert.match(markup, /Adventure/, `${template.id} shows its genre`);
   assert.match(markup, /3 missions/, `${template.id} shows its mission count`);
-  assert.doesNotMatch(markup, /<button[^>]*>[\s\S]*<(?:div|h2|p)\b/, `${template.id} keeps card content outside its native button`);
+  assert.equal(
+    new JSDOM(markup).window.document.querySelector('button div, button h2, button p'),
+    null,
+    `${template.id} keeps card content outside its native button`,
+  );
   assert.doesNotMatch(markup, /https?:\/\//, `${template.id} does not render external artwork`);
 }
 
@@ -62,6 +66,9 @@ const selectedMarkup = renderToStaticMarkup(
   }),
 );
 assert.match(selectedMarkup, /aria-pressed="true"/, 'the selected card exposes its selected state');
+const selectActionMarkup = selectedMarkup.match(/<button(?=[^>]*aria-label="Choose Sky Steps")[\s\S]*?<\/button>/)?.[0];
+assert.ok(selectActionMarkup, 'Sky Steps has a choose action');
+assert.doesNotMatch(selectActionMarkup, /sr-only/, 'the choose action is visibly labelled instead of being screen-reader-only');
 
 const DOM = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: 'http://localhost/worlds/new' });
 Object.assign(globalThis, {
