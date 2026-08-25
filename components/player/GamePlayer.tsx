@@ -47,6 +47,7 @@ import {
   type PlatformSurface,
 } from '../../lib/player/platformerWorld';
 import { advancePlatformerMotion, facingYawForMovement, requestPlatformerJump } from '../../lib/player/platformerMotion';
+import { requiresDynamicPhysics } from '../../lib/player/physicsPolicy';
 import { hasSpaceJumpScript } from '../../lib/player/jumpHint';
 import { bubbleForVisibility } from '../../lib/player/objectPresentation';
 import { deriveSkyStepsPresentation } from '../../lib/player/skyStepsPresentation';
@@ -1956,16 +1957,7 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
 
   // Parse logic blocks
   const logicBlocks = object.logic_blocks || [];
-  const hasMovementLogic = logicBlocks.some((block: any) => {
-    const blockData = typeof block.block_data === 'string'
-      ? JSON.parse(block.block_data || '{}')
-      : (block.block_data || {});
-    return block.block_type === 'on_key_press' || 
-           block.block_type === 'move' ||
-           block.category === 'movement' ||
-           block.category === 'input' ||
-           block.category === 'event';
-  });
+  const hasMovementLogic = requiresDynamicPhysics(logicBlocks);
 
   // Debug: Log logic blocks for this object
   if (logicBlocks.length > 0) {
