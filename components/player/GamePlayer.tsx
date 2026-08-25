@@ -48,6 +48,26 @@ import {
 import { advancePlatformerMotion, requestPlatformerJump } from '../../lib/player/platformerMotion';
 import { hasSpaceJumpScript } from '../../lib/player/jumpHint';
 import { bubbleForVisibility } from '../../lib/player/objectPresentation';
+import { deriveSkyStepsPresentation } from '../../lib/player/skyStepsPresentation';
+
+function usePrefersReducedMotion() {
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!query) return;
+    const update = () => setReducedMotion(query.matches);
+    update();
+    query.addEventListener?.('change', update);
+    return () => query.removeEventListener?.('change', update);
+  }, []);
+
+  return reducedMotion;
+}
+
+function formatMessage(message: string, values: Record<string, string | number>) {
+  return message.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? `{${key}}`));
+}
 
 // -----------------------------------------------------------------------------
 // Per-extension mesh components. Each one always calls exactly one loader hook,
@@ -142,6 +162,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
   }, []);
   const t = useTranslator();
   const locale = useLocale();
+  const reducedMotion = usePrefersReducedMotion();
   const [keys, setKeys] = useState<KeyState>({});
   // Scene switching: scenes arrive ordered by order_index; blocks change the
   // active index. Variables/broadcast state persist across switches (Scratch
@@ -357,6 +378,45 @@ export default function GamePlayer({ project, compact = false, missionReporting,
       .filter((name) => !collectedStarNames.includes(name)),
     [scene, collectedStarNames],
   );
+  const isSkyStepsV2 = worldIdentity?.templateId === 'platformer'
+    && Number(worldIdentity.templateVersion) >= 2;
+  const skyStepsPresentation = useMemo(() => deriveSkyStepsPresentation(
+    (scene?.game_objects ?? []).map((object) => ({
+      name: object.name,
+      type: object.type,
+      visible: !collectedStarNames.includes(object.name),
+    })),
+    outcome,
+  ), [scene, collectedStarNames, outcome]);
+  const starHudLabel = formatMessage(t('player.skySteps.stars'), {
+    count: skyStepsPresentation.collectedStars,
+  });
+  const skyStepsStatus = outcome.state === 'won'
+    ? (outcome.message || t('player.skySteps.winStatus'))
+    : `${starHudLabel}. ${t('player.skySteps.portalHint')}`;
+  const shownStarEffectsRef = useRef(new Set<string>());
+  const shownWinEffectRef = useRef(false);
+
+  useEffect(() => {
+    if (!isSkyStepsV2 || reducedMotion) return;
+    for (const name of collectedStarNames) {
+      if (shownStarEffectsRef.current.has(name)) continue;
+      shownStarEffectsRef.current.add(name);
+      const position = world.getObjectPositionByName(name);
+      if (position) {
+        particlesRef.current?.burst('sky-steps-star:' + name, 'sparkle', [position.x, position.y, position.z]);
+      }
+    }
+  }, [collectedStarNames, isSkyStepsV2, reducedMotion, world]);
+
+  useEffect(() => {
+    if (!isSkyStepsV2 || reducedMotion || outcome.state !== 'won' || shownWinEffectRef.current) return;
+    shownWinEffectRef.current = true;
+    const position = world.getObjectPositionByName('Sky Portal');
+    if (position) {
+      particlesRef.current?.burst('sky-steps-win', 'confetti', [position.x, position.y, position.z]);
+    }
+  }, [isSkyStepsV2, outcome.state, reducedMotion, world]);
 
   /*
    * Poll the world for the outcome and any banner.
@@ -386,6 +446,8 @@ export default function GamePlayer({ project, compact = false, missionReporting,
     setBanner(null);
     setPlayerRuntime({ onRaisedPlatform: false });
     setCollectedStarNames([]);
+    shownStarEffectsRef.current.clear();
+    shownWinEffectRef.current = false;
     world.resetTimer(0);
     world.setAnswer('');
     setAskPrompt(null);
@@ -492,6 +554,24 @@ export default function GamePlayer({ project, compact = false, missionReporting,
           >
             {[playerRuntime.groundedPlatformName, ...collectedStarNames, outcome.message].filter(Boolean).join('. ')}
           </output>
+          {isSkyStepsV2 && (
+            <>
+              <div
+                data-testid="sky-steps-hud"
+                className="pointer-events-none absolute left-3 top-3 z-20 rounded-2xl bg-slate-950/75 px-3 py-2 text-sm font-black text-white shadow-lg"
+              >
+                <div>{starHudLabel}</div>
+                {outcome.state === 'playing' && (
+                  <div className="mt-0.5 text-xs font-semibold text-sky-100">
+                    {t('player.skySteps.portalHint')}
+                  </div>
+                )}
+              </div>
+              <output data-testid="sky-steps-status" className="sr-only" aria-live="polite">
+                {skyStepsStatus}
+              </output>
+            </>
+          )}
           {/* Renders nothing; captures frames only after a script turns video on. */}
           <VideoSensing
             handleRef={videoHandleRef}
@@ -518,7 +598,10 @@ export default function GamePlayer({ project, compact = false, missionReporting,
           */}
           {outcome.state !== 'playing' && (
             <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm">
-              <div className="mx-4 max-w-sm rounded-3xl bg-white px-8 py-7 text-center shadow-2xl">
+              <div
+                data-testid={isSkyStepsV2 && outcome.state === 'won' ? 'sky-steps-win-card' : undefined}
+                className="mx-4 max-w-sm rounded-3xl bg-white px-8 py-7 text-center shadow-2xl"
+              >
                 <div className="text-5xl" aria-hidden>
                   {outcome.state === 'won' ? '🎉' : '💥'}
                 </div>
@@ -527,13 +610,15 @@ export default function GamePlayer({ project, compact = false, missionReporting,
                     outcome.state === 'won' ? 'text-emerald-600' : 'text-slate-900'
                   }`}
                 >
-                  {outcome.message || (outcome.state === 'won' ? 'You win!' : 'Game over')}
+                  {outcome.message || (outcome.state === 'won'
+                    ? (isSkyStepsV2 ? t('player.skySteps.win') : t('player.win'))
+                    : t('player.gameOver'))}
                 </h2>
                 <button
                   onClick={restartRun}
                   className="mt-5 inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Play again
+                  {t('player.playAgain')}
                 </button>
               </div>
             </div>
@@ -657,6 +742,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
               legacyGround={legacyGround}
               onPlayerMotion={reportPlayerMotion}
               onStarVisibilityChange={reportStarVisibility}
+              reducedMotion={reducedMotion}
             />
           )}
             </Canvas>
@@ -806,13 +892,14 @@ function platformSurfaceForObject(object: GameObject, legacyGround: boolean): Pl
   }, { legacyGround });
 }
 
-const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, onPlayerMotion, onStarVisibilityChange }: {
+const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, onPlayerMotion, onStarVisibilityChange, reducedMotion }: {
   scene: { game_objects?: GameObject[]; background_color?: string; background_image_url?: string | null };
   keys: KeyState;
   world: RuntimeWorld;
   legacyGround: boolean;
   onPlayerMotion: (state: { groundedPlatformName?: string; onRaisedPlatform: boolean }) => void;
   onStarVisibilityChange: (starName: string, visible: boolean) => void;
+  reducedMotion: boolean;
 }) {
   const { scene: threeScene, camera } = useThree();
   const skyBlueColor = useRef(new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR));
@@ -1061,6 +1148,7 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
             });
           } : undefined}
           onVisibilityChange={reportObjectVisibility}
+          reducedMotion={reducedMotion}
         />
       ))}
       {clones.map((c) => {
@@ -1076,6 +1164,7 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
             legacyGround={legacyGround}
             platformSurfaces={platformSurfaces}
             onVisibilityChange={reportObjectVisibility}
+            reducedMotion={reducedMotion}
           />
         );
       })}
@@ -1093,6 +1182,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   platformSurfaces,
   onPositionUpdate,
   onVisibilityChange,
+  reducedMotion,
 }: {
   object: GameObject;
   keys: KeyState;
@@ -1102,6 +1192,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   platformSurfaces: PlatformSurface[];
   onPositionUpdate?: (pos: THREE.Vector3, motion: { groundedSurfaceId?: string }) => void;
   onVisibilityChange: (objectId: string, visible: boolean) => void;
+  reducedMotion: boolean;
 }) {
   const [isVisible, setIsVisible] = useState(true);
   const frustum = useMemo(() => new THREE.Frustum(), []);
@@ -1168,6 +1259,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
         platformSurfaces={platformSurfaces}
         onPositionUpdate={onPositionUpdate}
         onVisibilityChange={onVisibilityChange}
+        reducedMotion={reducedMotion}
       />
     );
   }
@@ -1186,6 +1278,7 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
       platformSurfaces={platformSurfaces}
       onPositionUpdate={onPositionUpdate}
       onVisibilityChange={onVisibilityChange}
+      reducedMotion={reducedMotion}
     />
   );
 });
@@ -1238,7 +1331,7 @@ function FollowerBubble({
   );
 }
 
-const GameObject = memo(function GameObject({ object, keys, world, legacyGround, platformSurfaces, onPositionUpdate, onVisibilityChange, cloneId }: {
+const GameObject = memo(function GameObject({ object, keys, world, legacyGround, platformSurfaces, onPositionUpdate, onVisibilityChange, cloneId, reducedMotion = false }: {
   object: GameObject;
   keys: KeyState;
   world: RuntimeWorld;
@@ -1247,6 +1340,7 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
   onPositionUpdate?: (pos: THREE.Vector3, motion: { groundedSurfaceId?: string }) => void;
   onVisibilityChange?: (objectId: string, visible: boolean) => void;
   cloneId?: string;
+  reducedMotion?: boolean;
 }) {
   // Clones register/run under their clone id but render the source object's looks.
   const objectId = cloneId ?? object.id;
@@ -2164,6 +2258,7 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
               scale={modelRender.innerScale}
               animationState={finalAnimationState || 'idle'}
               playAnimation={!isAnimationStopped}
+              reducedMotion={reducedMotion}
               // Belt-and-suspenders: the outer group already has onClick, but
               // the group's raycast bounding volume is empty (only children
               // have geometry). Forwarding onClick to the loaded GLTF/FBX

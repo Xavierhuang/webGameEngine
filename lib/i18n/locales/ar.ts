@@ -105,6 +105,9 @@ export const ui: Record<string, string> = {
   'player.unlocksSound': 'يفعّل الصوت في هذه النافذة',
   'player.controls': 'استخدم مفاتيح الأسهم أو WASD للتحرك',
   'player.jump': 'اضغط المسافة للقفز',
+  'player.win': 'لقد فزت!', 'player.gameOver': 'انتهت اللعبة', 'player.playAgain': 'العب مرة أخرى',
+  'player.skySteps.stars': 'النجوم {count}/3', 'player.skySteps.portalHint': 'اجمع كل النجوم ثم وصل إلى بوابة السماء.',
+  'player.skySteps.win': 'وصلت إلى بوابة السماء!', 'player.skySteps.winStatus': 'تسلقت كل درجات السماء!',
 
   'editor.save': 'حفظ',
   'editor.saving': 'جارٍ الحفظ…',

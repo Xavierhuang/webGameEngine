@@ -118,6 +118,9 @@ export const ui: Record<string, string> = {
   'player.unlocksSound': 'इस विंडो में ध्वनि चालू करता है',
   'player.controls': 'चलने के लिए तीर कुंजियाँ या WASD दबाएँ',
   'player.jump': 'कूदने के लिए स्पेस दबाएँ',
+  'player.win': 'तुम जीत गए!', 'player.gameOver': 'खेल समाप्त', 'player.playAgain': 'फिर खेलें',
+  'player.skySteps.stars': 'सितारे {count}/3', 'player.skySteps.portalHint': 'सारे सितारे इकट्ठा करो, फिर आकाश पोर्टल तक पहुँचो।',
+  'player.skySteps.win': 'तुम आकाश पोर्टल तक पहुँच गए!', 'player.skySteps.winStatus': 'तुम हर आकाश सीढ़ी चढ़ गए!',
 
   'editor.save': 'सहेजें',
   'editor.saving': 'सहेजा जा रहा है…',

@@ -24,6 +24,7 @@ import {
   mountOwnedMaterialScene,
   type OwnedMaterialScene,
 } from './modelMaterialOwnership';
+import { proceduralMotion } from '../../lib/player/presentationMotion';
 
 interface AnimatedModelProps {
   url: string;
@@ -40,6 +41,8 @@ interface AnimatedModelProps {
   // volume around it. Without this, click-to-jump silently no-ops on any
   // GLB/FBX character.
   onClick?: (e: any) => void;
+  /** Disables decorative fallback movement without affecting the model's parent physics group. */
+  reducedMotion?: boolean;
 }
 
 export default function AnimatedModel({
@@ -53,6 +56,7 @@ export default function AnimatedModel({
   onLoad,
   onError,
   onClick,
+  reducedMotion = false,
 }: AnimatedModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const ext = (url.split('.').pop() || '').toLowerCase();
@@ -70,6 +74,7 @@ export default function AnimatedModel({
       onLoad={onLoad}
       onError={onError}
       onClick={onClick}
+      reducedMotion={reducedMotion}
     />;
 
     if (onError) {
@@ -96,6 +101,7 @@ export default function AnimatedModel({
       onLoad={onLoad}
       onError={onError}
       onClick={onClick}
+      reducedMotion={reducedMotion}
     />;
   }
   
@@ -114,6 +120,7 @@ function GLTFAnimatedModel({
   onLoad,
   onError,
   onClick,
+  reducedMotion,
 }: AnimatedModelProps) {
   const { scene: sourceScene, animations } = useGLTF(url);
   const [committedInstance, setCommittedInstance] = useState<{
@@ -153,6 +160,7 @@ function GLTFAnimatedModel({
       animationState={animationState}
       playAnimation={playAnimation}
       onClick={onClick}
+      reducedMotion={reducedMotion}
     />
   );
 }
@@ -165,6 +173,7 @@ function GLTFAnimatedModelInstance({
   animationState,
   playAnimation,
   onClick,
+  reducedMotion = false,
 }: AnimatedModelProps & {
   instance: THREE.Group;
   animations: THREE.AnimationClip[];
@@ -203,7 +212,7 @@ function GLTFAnimatedModelInstance({
   useFrame((state) => {
     const rest = restPoseRef.current;
     if (!rest) return;
-    const active = playAnimation && isAnimating(animationState);
+    const active = playAnimation && !reducedMotion && isAnimating(animationState);
     const t = state.clock.elapsedTime;
     for (const [node, r] of rest) {
       const d = active ? partTransform(r.kind, animationState ?? 'idle', t) : REST;
@@ -255,9 +264,45 @@ function GLTFAnimatedModelInstance({
   // This ensures TransformControls rotates around the correct pivot point
   return (
     <group ref={groupRef} position={position} rotation={[0, 0, 0]} scale={scale} onClick={onClick}>
-      <primitive object={instance} dispose={null} onClick={onClick} />
+      <VisualFallbackMotion
+        enabled={!hasClips && Boolean(playAnimation)}
+        animationState={animationState}
+        reducedMotion={reducedMotion}
+      >
+        <primitive object={instance} dispose={null} onClick={onClick} />
+      </VisualFallbackMotion>
     </group>
   );
+}
+
+/**
+ * A render-only child wrapper for unanimated assets. Its parent remains the
+ * player's physics/touch group, so the procedural transform can never move a
+ * collider or alter the runtime world position.
+ */
+function VisualFallbackMotion({
+  enabled,
+  animationState,
+  reducedMotion,
+  children,
+}: {
+  enabled: boolean;
+  animationState?: string | null;
+  reducedMotion: boolean;
+  children: React.ReactNode;
+}) {
+  const visualRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    const motion = enabled
+      ? proceduralMotion(animationState === 'run' ? 'walk' : (animationState as 'idle' | 'walk' | 'jump' | 'fall'), state.clock.elapsedTime, reducedMotion)
+      : proceduralMotion('idle', 0, true);
+    visualRef.current?.position.set(0, motion.positionY, 0);
+    visualRef.current?.rotation.set(0, 0, motion.rotationZ);
+    visualRef.current?.scale.set(1, motion.scaleY, 1);
+  });
+
+  return <group ref={visualRef}>{children}</group>;
 }
 
 function FBXAnimatedModel({
