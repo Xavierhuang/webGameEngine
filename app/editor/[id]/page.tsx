@@ -192,6 +192,7 @@ export default async function EditorPage({ params }: EditorPageProps) {
           projectId={id}
           initialData={projectWithRelations}
           worldBuilder={template ? {
+            templateId: worldIdentity?.template_id ?? template.id,
             templateTitle: template.title,
             templateVersion: Number(worldIdentity?.template_version),
             revision: Number(project.revision),

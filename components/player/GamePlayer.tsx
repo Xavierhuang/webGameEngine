@@ -52,6 +52,7 @@ import { requiresDynamicPhysics } from '../../lib/player/physicsPolicy';
 import { hasSpaceJumpScript } from '../../lib/player/jumpHint';
 import { bubbleForVisibility } from '../../lib/player/objectPresentation';
 import { deriveSkyStepsPresentation } from '../../lib/player/skyStepsPresentation';
+import { usesLegacyWorldCoordinates } from '../../lib/player/templateCoordinatePolicy';
 
 function usePrefersReducedMotion() {
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -155,7 +156,7 @@ interface GamePlayerProps {
   compact?: boolean;
   /** Present only for a private World Builder player session. */
   missionReporting?: { projectId: string; revision: number; snapshotId: string };
-  /** Template identity decides whether authored raised platform heights apply. */
+  /** Template identity selects modern authored 3D coordinates over legacy editor coordinates. */
   worldIdentity?: { templateId: string; templateVersion: number | string };
 }
 
@@ -177,10 +178,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
   const scenes = project.scenes ?? [];
   const [sceneIndex, setSceneIndex] = useState(0);
   const scene = scenes[Math.min(sceneIndex, Math.max(scenes.length - 1, 0))];
-  const legacyGround = !(
-    worldIdentity?.templateId === 'platformer'
-    && Number(worldIdentity.templateVersion) >= 2
-  );
+  const legacyGround = usesLegacyWorldCoordinates(worldIdentity);
   // Shared runtime world: variables, broadcasts, and touch/click sensing.
   /**
    * Handle onto the camera, populated by <VideoSensing/> once it mounts.

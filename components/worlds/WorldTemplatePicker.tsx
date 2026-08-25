@@ -131,7 +131,7 @@ export default function WorldTemplatePicker() {
                   template={template}
                   selected={selected?.id === template.id && selected.version === template.version}
                   onSelect={setSelected}
-                  onPreview={template.id === 'platformer' ? previewTemplate : undefined}
+                  onPreview={previewTemplate}
                   selectLabel={t('worlds.card.choose')}
                   previewLabel={t('worlds.card.preview')}
                   missionLabel={t('worlds.card.missions')}

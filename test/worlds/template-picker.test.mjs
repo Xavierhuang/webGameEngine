@@ -12,7 +12,7 @@ const WorldTemplateCard = WorldTemplateCardModule.default ?? WorldTemplateCardMo
 const templates = [
   ['platformer', 'Sky Steps', 1],
   ['platformer', 'Sky Steps', 2],
-  ['obby', 'Rainbow Run'],
+  ['obby', 'Rainbow Obby'],
   ['racing', 'Turbo Track'],
   ['story', 'Castle Story'],
   ['pet', 'Happy Pet Park'],
@@ -134,9 +134,10 @@ let createRequestBody = null;
 let previewRequests = 0;
 globalThis.fetch = async (url, options) => {
   if (url === '/api/world-templates') return new Response(JSON.stringify({ templates }), { status: 200 });
-  if (url === '/api/world-templates/platformer/preview?version=2') {
+  const previewMatch = /^\/api\/world-templates\/(platformer|obby|racing|story|pet)\/preview\?version=\d+$/.exec(url);
+  if (previewMatch) {
     previewRequests++;
-    return new Response(JSON.stringify({ preview: { id: 'preview', owner_id: 'template-preview', title: 'Sky Steps', scenes: [] } }), { status: 200 });
+    return new Response(JSON.stringify({ preview: { id: 'preview', owner_id: 'template-preview', title: previewMatch[1], scenes: [] } }), { status: 200 });
   }
   if (url === '/api/worlds/create') {
     createRequestBody = JSON.parse(options.body);
@@ -158,6 +159,12 @@ assert.equal(
 
 const previewButton = document.querySelector('button[aria-label="Preview Sky Steps"]');
 assert.ok(previewButton, 'Sky Steps offers a named preview before a world is created');
+for (const title of ['Rainbow Obby', 'Turbo Track', 'Castle Story', 'Happy Pet Park']) {
+  assert.ok(
+    document.querySelector(`button[aria-label="Preview ${title}"]`),
+    `${title} offers a named preview before a world is created`,
+  );
+}
 await act(async () => {
   previewButton.click();
 });
@@ -176,6 +183,19 @@ await act(async () => {
   closePreview.click();
 });
 assert.equal(document.activeElement, previewButton, 'closing a preview returns focus to its trigger');
+
+for (const title of ['Rainbow Obby', 'Turbo Track', 'Castle Story', 'Happy Pet Park']) {
+  const otherPreviewButton = document.querySelector(`button[aria-label="Preview ${title}"]`);
+  await act(async () => {
+    otherPreviewButton.click();
+  });
+  assert.equal(document.querySelector('[role="dialog"]')?.getAttribute('aria-label'), `Preview ${title}`, `${title} opens in its own named modal`);
+  await act(async () => {
+    document.querySelector('button[aria-label="Close preview"]').click();
+  });
+  assert.equal(document.activeElement, otherPreviewButton, `${title} preview returns focus to its trigger`);
+}
+assert.equal(previewRequests, 5, 'every starter preview uses the guarded read-only preview route');
 
 const submit = () => document.querySelector('button[type="submit"]');
 assert.equal(submit().disabled, true, 'submit is disabled before a template and title are selected');

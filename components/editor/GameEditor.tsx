@@ -74,7 +74,7 @@ const BlockEditor = dynamic(() => import('./BlockEditor'), {
 interface GameEditorProps {
   projectId: string;
   initialData?: any;
-  worldBuilder?: { templateTitle: string; templateVersion: number; revision: number; missions: MissionProgress[] };
+  worldBuilder?: { templateId: string; templateTitle: string; templateVersion: number; revision: number; missions: MissionProgress[] };
 }
 
 // Helper function to get default properties for each object type
@@ -1429,6 +1429,10 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
                     <StagePreview
                       key={stageNonce}
                       project={project}
+                      worldIdentity={worldBuilder ? {
+                        templateId: worldBuilder.templateId,
+                        templateVersion: worldBuilder.templateVersion,
+                      } : undefined}
                     />
                   </div>
                 </div>
