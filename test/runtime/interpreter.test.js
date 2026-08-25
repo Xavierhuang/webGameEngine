@@ -70,6 +70,37 @@ rt.step(0.016, 0);
 eq(moved.x > 0.07 && moved.x < 0.09, true, 'legacy key-hat move (5 * 0.016)');
 keys['arrowright'] = false;
 
+// A modern key hat has an explicit move block beneath it. It must not also
+// synthesize the old key-only shortcut, or each frame moves the player twice.
+moved = { x: 0, z: 0 };
+keys['arrowright'] = true;
+const explicitKeyStack = new ObjectRuntime('obj1', [
+  { id: 'explicit-right-hat', block_type: 'on_key_press', inputs: { key: 'ArrowRight' } },
+  { id: 'explicit-right-move', block_type: 'move', inputs: { direction: 'right', distance: 500 } },
+], vars, ctx);
+explicitKeyStack.step(0.016, 0);
+eq(moved.x, 0.08, 'explicit key stack moves exactly once per frame');
+keys['arrowright'] = false;
+
+// Holding Space is one jump press, not a queue of jumps that fires again on
+// landing. A new press after release may start the next jump.
+jumps = 0;
+keys[' '] = true;
+const explicitJumpStack = new ObjectRuntime('obj1', [
+  { id: 'explicit-space-hat', block_type: 'on_key_press', inputs: { key: 'SPACE' } },
+  { id: 'explicit-space-jump', block_type: 'jump' },
+], vars, ctx);
+explicitJumpStack.step(0.016, 0);
+explicitJumpStack.step(0.016, 0.016);
+explicitJumpStack.step(0.016, 0.032);
+eq(jumps, 1, 'held jump key starts one jump');
+keys[' '] = false;
+explicitJumpStack.step(0.016, 0.048);
+keys[' '] = true;
+explicitJumpStack.step(0.016, 0.064);
+eq(jumps, 2, 'released and pressed jump key starts the next jump');
+keys[' '] = false;
+
 // wait suspends across frames
 const vars2 = new VariableStore();
 const rt2 = new ObjectRuntime('o', [

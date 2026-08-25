@@ -980,6 +980,8 @@ interface ScriptState {
   startFired: boolean;
   /** when_clicked edge detection: last click count this script has consumed. */
   handledClicks: number;
+  /** Last sampled state for an on_key_press hat. */
+  keyWasDown: boolean;
   /** Set by broadcasts; the script starts on its next step (with the real frame time). */
   pendingStart: boolean;
 }
@@ -1029,8 +1031,9 @@ const STOP_SCRIPT = Symbol('stop_script');
 /**
  * Legacy on_key_press hats encode the action on the hat block itself
  * (block_data.action = move_up/move_down/move_left/move_right/jump).
- * Movement used MOVE_SPEED * delta, so reproduce it as a move block
- * with distance 500 (500/100 = 5 world units/sec).
+ * Older directional-key hats that have no following block get the same
+ * compatibility treatment. Movement used MOVE_SPEED * delta, so reproduce it
+ * as a move block with distance 500 (500/100 = 5 world units/sec).
  */
 function legacyHatBody(hat: LogicBlock): LogicBlock | null {
   if (hat.block_type !== 'on_key_press') return null;
@@ -1084,13 +1087,18 @@ export class ObjectRuntime {
   ) {
     let current: ScriptState | null = null;
     const defineScripts: ScriptState[] = [];
+    // A modern stack has a key hat followed by its explicit body block. Only
+    // synthesize a legacy action once we know the hat has no body; doing it as
+    // soon as we see the hat makes modern controls execute twice per frame.
+    const addLegacyFallbackIfNeeded = (script: ScriptState | null) => {
+      if (!script?.hat || script.body.length > 0) return;
+      const legacyBody = legacyHatBody(script.hat);
+      if (legacyBody) script.body.push(legacyBody);
+    };
     for (const block of blocks ?? []) {
       if (HAT_TYPES.has(block.block_type)) {
-        current = { hat: block, body: [], gen: null, waitRemaining: 0, startFired: false, handledClicks: 0, pendingStart: false };
-        // Legacy AI-generated hats carry the action on the hat itself
-        // (block_data.action) instead of as body blocks.
-        const legacyBody = legacyHatBody(block);
-        if (legacyBody) current.body.push(legacyBody);
+        addLegacyFallbackIfNeeded(current);
+        current = { hat: block, body: [], gen: null, waitRemaining: 0, startFired: false, handledClicks: 0, keyWasDown: false, pendingStart: false };
         // Definitions are grouped like scripts (so flat following blocks attach
         // to them) but are stored apart and never executed on their own.
         if (block.block_type === 'define_custom_block') defineScripts.push(current);
@@ -1098,10 +1106,11 @@ export class ObjectRuntime {
       } else if (current) {
         current.body.push(block);
       } else {
-        current = { hat: null, body: [block], gen: null, waitRemaining: 0, startFired: false, handledClicks: 0, pendingStart: false };
+        current = { hat: null, body: [block], gen: null, waitRemaining: 0, startFired: false, handledClicks: 0, keyWasDown: false, pendingStart: false };
         this.scripts.push(current);
       }
     }
+    addLegacyFallbackIfNeeded(current);
     for (const def of defineScripts) {
       const spec = definitionSpec(def.hat!);
       // Body: explicit children win; otherwise the flat blocks that followed the hat.
@@ -1158,7 +1167,14 @@ export class ObjectRuntime {
         return !!this.options?.isClone && !script.startFired;
       case 'on_key_press': {
         const key = String(getInput(script.hat, 'key', this.env(0), ''));
-        return key !== '' && isKeyDown(this.ctx.getKeys(), key);
+        const isDown = key !== '' && isKeyDown(this.ctx.getKeys(), key);
+        const justPressed = isDown && !script.keyWasDown;
+        script.keyWasDown = isDown;
+        // Movement hats need to run every frame while held. A jump is an
+        // action, though: rerunning it while airborne queues a surprise
+        // second jump on landing. Treat any key stack containing a jump as a
+        // press edge, matching the button a child expects to tap once.
+        return script.body.some((block) => block.block_type === 'jump') ? justPressed : isDown;
       }
       case 'when_clicked': {
         if (!this.world) return false;
