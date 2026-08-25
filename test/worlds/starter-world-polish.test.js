@@ -115,6 +115,14 @@ for (const starter of starters) {
   assert.equal(hasSound(finish, 'fanfare'), true, `${starter.title} celebrates success once`);
   assert.equal(allBlocks(finish.blocks).some((block) => block.block_type === 'you_win'), true,
     `${starter.title} has a working win condition`);
+
+  for (const object of scene.objects.filter((candidate) => touchBlocks(candidate, starter.playerName).length > 0)) {
+    assert.equal(
+      object.position[1],
+      -0.75,
+      `${starter.title}: ${object.name} sits at the player's reachable platform height`,
+    );
+  }
 }
 
 const obby = getWorldTemplate('obby', 1);

@@ -297,7 +297,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'obby-bumper',
           name: 'Spinning Bumper One',
           type: 'obstacle',
-          position: [7, 0, 0],
+          position: [7, -0.75, 0],
           shape: 'sphere',
           color: '#fbbf24',
           blocks: [
@@ -311,7 +311,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'obby-bumper-two',
           name: 'Spinning Bumper Two',
           type: 'obstacle',
-          position: [24, 0, 1],
+          position: [24, -0.75, 1],
           shape: 'sphere',
           color: '#a855f7',
           blocks: [
@@ -325,7 +325,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'obby-rainbow-gem-one',
           name: 'Rainbow Gem One',
           type: 'collectible',
-          position: [10, 0, -2],
+          position: [10, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -339,7 +339,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'obby-rainbow-gem-two',
           name: 'Rainbow Gem Two',
           type: 'collectible',
-          position: [20, 0, -2],
+          position: [20, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -353,7 +353,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'obby-finish',
           name: 'Rainbow Finish Star',
           type: 'collectible',
-          position: [34, 0, -2],
+          position: [34, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -409,7 +409,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'racing-cone-one',
           name: 'Road Cone One',
           type: 'obstacle',
-          position: [9, 0, 0],
+          position: [9, -0.75, 0],
           shape: 'cone',
           color: '#f97316',
           blocks: [
@@ -423,7 +423,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'racing-cone-two',
           name: 'Road Cone Two',
           type: 'obstacle',
-          position: [23, 0, 1],
+          position: [23, -0.75, 1],
           shape: 'cone',
           color: '#fb7185',
           blocks: [
@@ -437,7 +437,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'racing-boost-one',
           name: 'Turbo Star One',
           type: 'collectible',
-          position: [14, 0, -2],
+          position: [14, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -451,7 +451,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'racing-boost-two',
           name: 'Turbo Star Two',
           type: 'collectible',
-          position: [27, 0, -2],
+          position: [27, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -465,7 +465,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'racing-finish',
           name: 'Finish Flag',
           type: 'collectible',
-          position: [35, 0, -2],
+          position: [35, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -535,7 +535,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'story-royal-star-one',
           name: 'Royal Star One',
           type: 'collectible',
-          position: [14, 0, -2],
+          position: [14, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -549,7 +549,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'story-royal-star-two',
           name: 'Royal Star Two',
           type: 'collectible',
-          position: [25, 0, -2],
+          position: [25, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
@@ -563,7 +563,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'story-treasure',
           name: 'Treasure Star',
           type: 'collectible',
-          position: [35, 0, -2],
+          position: [35, -0.75, -2],
           modelUrl: '/models/starters/chest.glb',
           shape: 'model',
           blocks: [
@@ -633,7 +633,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'pet-treat-one',
           name: 'Crunchy Treat One',
           type: 'collectible',
-          position: [13, 0, -2],
+          position: [13, -0.75, -2],
           shape: 'sphere',
           color: '#f59e0b',
           blocks: [
@@ -647,7 +647,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'pet-treat-two',
           name: 'Crunchy Treat Two',
           type: 'collectible',
-          position: [25, 0, -2],
+          position: [25, -0.75, -2],
           shape: 'sphere',
           color: '#f97316',
           blocks: [
@@ -661,7 +661,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           id: 'pet-ball',
           name: 'Sparkle Ball',
           type: 'collectible',
-          position: [35, 0, -2],
+          position: [35, -0.75, -2],
           modelUrl: '/models/starters/star.glb',
           shape: 'model',
           blocks: [
