@@ -93,7 +93,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
         'worlds.card.choose': 'Choose',
         'worlds.card.missions': '{count} missions',
         'worlds.card.preview': 'Preview',
-        'worlds.preview.close': 'Close preview',
+        'common.close': 'Close preview',
         'worlds.field.title': 'World title',
         'worlds.field.titlePlaceholder': 'My amazing world',
         'worlds.field.description': 'Description (optional)',
@@ -109,16 +109,6 @@ Module._load = function patchedLoad(request, parent, isMain) {
     return {
       __esModule: true,
       default: () => React.createElement('div', { 'data-testid': 'template-preview-stage' }, 'Preview stage'),
-    };
-  }
-  if (request === '@/lib/worlds/templates') {
-    return {
-      getWorldTemplate: () => ({ id: 'platformer', version: 2, title: 'Sky Steps', description: 'Preview world', scenes: [] }),
-    };
-  }
-  if (request === '@/lib/worlds/previewProject') {
-    return {
-      previewProjectFromTemplate: () => ({ id: 'preview', owner_id: 'template-preview', title: 'Sky Steps', scenes: [] }),
     };
   }
   return originalLoad(request, parent, isMain);
@@ -167,6 +157,18 @@ await act(async () => {
 assert.equal(previewRequests, 1, 'opening a preview requests only the guarded read-only preview route');
 assert.equal(document.querySelector('[role="dialog"]')?.getAttribute('aria-label'), 'Preview Sky Steps', 'preview opens in a named modal');
 assert.equal(createRequestBody, null, 'opening a preview never creates a world');
+
+const closePreview = document.querySelector('button[aria-label="Close preview"]');
+assert.ok(closePreview, 'the preview has a named close control');
+assert.equal(document.activeElement, closePreview, 'opening a preview moves keyboard focus into the modal');
+await act(async () => {
+  window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+});
+assert.equal(document.activeElement, closePreview, 'Tab stays inside a preview with one available control');
+await act(async () => {
+  closePreview.click();
+});
+assert.equal(document.activeElement, previewButton, 'closing a preview returns focus to its trigger');
 
 const submit = () => document.querySelector('button[type="submit"]');
 assert.equal(submit().disabled, true, 'submit is disabled before a template and title are selected');

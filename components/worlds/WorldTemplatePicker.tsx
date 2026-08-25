@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
 import { ensureGuestSession } from '@/lib/auth/guestSessionClient';
@@ -35,6 +35,7 @@ export default function WorldTemplatePicker() {
   const [selected, setSelected] = useState<WorldTemplateCardData | null>(null);
   const [preview, setPreview] = useState<{ template: WorldTemplateCardData; project: Project } | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const previewTriggerRef = useRef<HTMLButtonElement>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(true);
@@ -90,8 +91,11 @@ export default function WorldTemplatePicker() {
     }
   };
 
-  const previewTemplate = async (template: WorldTemplateCardData) => {
+  const closePreview = useCallback(() => setPreview(null), []);
+
+  const previewTemplate = async (template: WorldTemplateCardData, trigger: HTMLButtonElement) => {
     if (previewing) return;
+    previewTriggerRef.current = trigger;
     setPreviewing(true);
     setError(null);
     try {
@@ -182,9 +186,10 @@ export default function WorldTemplatePicker() {
         <WorldTemplatePreview
           template={preview.template}
           project={preview.project}
-          onClose={() => setPreview(null)}
+          onClose={closePreview}
           closeLabel={t('common.close')}
           previewLabel={t('worlds.card.preview')}
+          returnFocusRef={previewTriggerRef}
         />
       )}
     </section>

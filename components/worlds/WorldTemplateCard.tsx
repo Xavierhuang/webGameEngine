@@ -32,7 +32,7 @@ export default function WorldTemplateCard({
   template: WorldTemplateCardData;
   selected: boolean;
   onSelect: (template: WorldTemplateCardData) => void;
-  onPreview?: (template: WorldTemplateCardData) => void;
+  onPreview?: (template: WorldTemplateCardData, trigger: HTMLButtonElement) => void;
   selectLabel?: string;
   previewLabel?: string;
   missionLabel?: string;
@@ -68,7 +68,7 @@ export default function WorldTemplateCard({
             aria-label={`${previewLabel} ${template.title}`}
             onClick={(event) => {
               event.stopPropagation();
-              onPreview(template);
+              onPreview(template, event.currentTarget);
             }}
             className="relative z-10 mt-4 inline-flex items-center gap-1.5 rounded-full bg-sky-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-200"
           >
