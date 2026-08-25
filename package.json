@@ -68,6 +68,7 @@
     "test:gltf-model-instancing": "node test/player/gltf-model-instancing.test.js",
     "test:video-camera": "tsc lib/video/motion.ts --outDir test/.build --rootDir . --module esnext --target es2020 --moduleResolution bundler --skipLibCheck && node test/video/camera-pipeline.mjs",
     "test:journey": "node test/visual/journey.mjs",
+    "test:sky-steps-preview": "node test/visual/sky-steps-preview.mjs",
     "test:stage-panel": "node test/visual/stage-panel.mjs",
     "test:examples-play": "node test/visual/examples-play.mjs",
     "test:share-flow": "node test/visual/share-flow.mjs",

@@ -2201,6 +2201,12 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
         wasJumping: isJumping,
         wasFalling: isFalling,
       };
+    } else if (runtime?.hasScripts && world.started) {
+      // Collectibles, portals, and other stationary objects still own
+      // gameplay scripts such as `when touching Hero`. Their scripts must
+      // advance even though they do not use character physics; otherwise a
+      // star can look touched forever without ever collecting.
+      runtime.step(delta, state.clock.elapsedTime);
     }
 
     // Apply base rotation from properties (but NOT for platforms - they have special rotation)
