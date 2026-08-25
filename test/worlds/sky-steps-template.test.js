@@ -38,12 +38,20 @@ assert.equal(objects.some((object) => object.name === 'Moving Cloud'), true);
 const hero = objects.find((object) => object.name === 'Hero');
 assert.ok(hero, 'Sky Steps has its playable Hero');
 assert.deepEqual(
-  hero.blocks.slice(-2).map((block) => ({ id: block.id, block_type: block.block_type, inputs: block.inputs })),
+  hero.blocks.slice(-3).map((block) => ({ id: block.id, block_type: block.block_type, inputs: block.inputs })),
   [
     { id: 'sky-hero-space', block_type: 'on_key_press', inputs: { key: 'SPACE' } },
     { id: 'sky-hero-jump', block_type: 'jump', inputs: undefined },
+    { id: 'sky-hero-jump-sound', block_type: 'play_sound', inputs: { sound: 'jump' } },
   ],
-  'Hero can jump with Space',
+  'Hero jumps with an audible cue when Space is pressed',
+);
+
+const soundtrack = objects.find((object) => object.id === 'sky-music');
+assert.deepEqual(
+  soundtrack && { type: soundtrack.type, properties: soundtrack.properties },
+  { type: 'sound', properties: { autoplay_beat: true, beat: 'chill', bpm: 90 } },
+  'Sky Steps includes gentle background music that starts with the game',
 );
 
 const cloud = objects.find((object) => object.name === 'Moving Cloud');
@@ -61,6 +69,7 @@ for (const star of stars) {
   walkBlocks(star.blocks, (block) => blocks.push(block));
   assert.equal(blocks.some((block) => block.block_type === 'when_touches' && block.inputs?.target === 'Hero'), true, `${star.name} reacts to Hero`);
   assert.equal(blocks.some((block) => block.block_type === 'say' && block.inputs?.text === 'Star collected!'), true, `${star.name} gives collection feedback`);
+  assert.equal(blocks.some((block) => block.block_type === 'play_sound' && block.inputs?.sound === 'pickup'), true, `${star.name} plays a collection chime`);
   assert.equal(blocks.some((block) => block.block_type === 'hide'), true, `${star.name} disappears after one collection`);
   assert.equal(blocks.some((block) => block.block_type === 'you_win'), false, `${star.name} does not end the game`);
 }
@@ -69,8 +78,9 @@ const portal = objects.find((object) => object.name === 'Sky Portal');
 assert.ok(portal, 'Sky Steps has a finish portal');
 assert.deepEqual(portal.blocks, [
   { id: 'sky-portal-touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
+  { id: 'sky-portal-fanfare', block_type: 'play_sound', inputs: { sound: 'fanfare' } },
   { id: 'sky-portal-win', block_type: 'you_win', inputs: { message: 'You climbed every Sky Step!' } },
-], 'only the portal completes Sky Steps');
+], 'the portal plays a victory fanfare before completing Sky Steps');
 
 const routeIds = ['sky-start-island', 'sky-step-one', 'sky-step-two', 'sky-extra-platform'];
 const route = routeIds.map((id) => {

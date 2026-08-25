@@ -1,5 +1,5 @@
 import type { GameObject, LogicBlock, Project, Scene } from '../../types/game';
-import type { WorldTemplate, WorldTemplateBlock } from './templates';
+import { materializeTemplateObjectProperties, type WorldTemplate, type WorldTemplateBlock } from './templates';
 
 type PreviewScene = Scene & { background_image_url?: string | null };
 
@@ -23,11 +23,7 @@ function previewObject(object: WorldTemplate['scenes'][number]['objects'][number
     position_y: object.position[1],
     position_z: object.position[2],
     color: object.color ?? null,
-    properties: {
-      shape: object.shape ?? 'box',
-      model_url: object.modelUrl,
-      playerControlled: object.playerControlled === true,
-    },
+    properties: materializeTemplateObjectProperties(object),
     logic_blocks: object.blocks.map(previewBlock),
   };
 }

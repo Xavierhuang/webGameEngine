@@ -353,7 +353,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
     return () => {
       try { AudioManager.get().stopBeat(); } catch { /* noop */ }
     };
-  }, [scene, showStartSplash]);
+  }, [runNonce, scene, showStartSplash]);
 
   const stopRun = () => {
     world.started = false;
@@ -1145,7 +1145,7 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
     <>
       {/* No SkyDome needed - using scene.background instead which always renders behind everything */}
       {/* Render game objects with frustum culling */}
-      {scene.game_objects?.map((obj: any) => (
+      {scene.game_objects?.filter((obj) => obj.type !== 'sound').map((obj: any) => (
         <FrustumCulledObject
           key={obj.id}
           object={obj}

@@ -13,7 +13,6 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
-import AudioManager from '../../lib/audio/AudioManager';
 import { applyTexture } from '../../lib/models/textureMaterial';
 import AnimatedModel from './AnimatedModel';
 import { focusSceneCamera } from '../../lib/editor/cameraFocus';
@@ -125,20 +124,6 @@ function SkyDome() {
 }
 
 export default function SceneView({ scene, selectedObject, focusRequest, onSelectObject, orbitRef, transformMode, snapEnabled = true, cameraPresetRequest = 0, cameraPresetId = 'iso', onCommitPosition, onRotationChange, onAnimationsDetected }: SceneViewProps) {
-  // Autoplay any beat loops requested by sound objects
-  // This is a simple side-effect trigger in render; guard to only start once per render batch.
-  if (scene?.game_objects) {
-    const soundWithAutoplay = scene.game_objects.find((o: any) => o.type === 'sound' && (o.properties?.autoplay_beat || (typeof o.properties === 'string' && JSON.parse(o.properties || '{}')?.autoplay_beat)));
-    if (soundWithAutoplay) {
-      // Lazy import to avoid SSR issues
-      try {
-        const props = typeof soundWithAutoplay.properties === 'string'
-          ? JSON.parse(soundWithAutoplay.properties || '{}')
-          : (soundWithAutoplay.properties || {});
-        AudioManager.get().startBeat(props.beat || 'simple', props.bpm || 120);
-      } catch {}
-    }
-  }
   return (
     <>
       <CameraFocusController

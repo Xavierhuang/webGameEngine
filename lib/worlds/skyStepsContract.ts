@@ -86,10 +86,17 @@ function hasSpaceJump(hero: WorldTemplateObject | undefined): boolean {
 
 function hasPortalWin(portal: WorldTemplateObject | undefined): boolean {
   if (!portal) return false;
-  return portal.blocks.some((block, index) =>
-    blockTargetsHero(block)
-    && portal.blocks[index + 1]?.block_type === 'you_win',
-  );
+  const touchIndex = portal.blocks.findIndex(blockTargetsHero);
+  return touchIndex >= 0
+    && portal.blocks.slice(touchIndex + 1).some((block) => block.block_type === 'you_win');
+}
+
+function hasBackgroundMusic(soundtrack: WorldTemplateObject | undefined): boolean {
+  const properties = soundtrack?.properties ?? {};
+  return soundtrack?.type === 'sound'
+    && properties.autoplay_beat === true
+    && properties.beat === 'chill'
+    && properties.bpm === 90;
 }
 
 function hasPostBaselineObjectMission(
@@ -124,6 +131,10 @@ export function validateSkyStepsFlagship(template: WorldTemplate): string[] {
   if (!hasSpaceJump(hero)) issues.push('Sky Steps requires a SPACE jump script');
   const heroRunSpeed = hero ? movementRateForKey(hero.blocks, 'ArrowRight') : 0;
   if (heroRunSpeed <= 0) issues.push('Sky Steps requires a generated Hero ArrowRight movement script');
+
+  if (!hasBackgroundMusic(objectById(template, 'sky-music'))) {
+    issues.push('Sky Steps requires gentle background music');
+  }
 
   const route: PlatformSurface[] = [];
   for (const id of ROUTE_PLATFORM_IDS) {

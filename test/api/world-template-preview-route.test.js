@@ -88,6 +88,26 @@ test('preview route returns not found when the server catalog does not offer tha
   assert.deepEqual(previewCalls, [{ templateId: 'unknown', templateVersion: 2 }]);
 });
 
+test('Sky Steps previews retain their background-music settings', () => {
+  const { getWorldTemplate } = require(path.join(BUILD_ROOT, 'lib/worlds/templates.js'));
+  const { previewProjectFromTemplate } = require(path.join(BUILD_ROOT, 'lib/worlds/previewProject.js'));
+  const template = getWorldTemplate('platformer', 2);
+  const preview = previewProjectFromTemplate(template);
+  const soundtrack = preview.scenes[0].game_objects.find((object) => object.id === 'sky-music');
+
+  assert.deepEqual(
+    soundtrack && { type: soundtrack.type, properties: soundtrack.properties },
+    {
+      type: 'sound',
+      properties: {
+        shape: 'box', model_url: undefined, playerControlled: false,
+        autoplay_beat: true, beat: 'chill', bpm: 90,
+      },
+    },
+    'the playable preview gets the exact soundtrack the starter world declares',
+  );
+});
+
 test('preview route source remains read-only and server-owned', () => {
   const source = fs.readFileSync(path.join(ROOT, 'app/api/world-templates/[templateId]/preview/route.ts'), 'utf8');
   assert.match(source, /resolveActor\(request\)/);

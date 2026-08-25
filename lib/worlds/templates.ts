@@ -23,6 +23,8 @@ export interface WorldTemplateObject {
   modelUrl?: string;
   shape?: 'box' | 'sphere' | 'cylinder' | 'cone' | 'pyramid' | 'torus' | 'capsule' | 'plane' | 'model' | 'circle';
   color?: string;
+  /** Extra persisted settings, such as an autoplaying background beat. */
+  properties?: Record<string, unknown>;
   blocks: WorldTemplateBlock[];
 }
 
@@ -95,6 +97,19 @@ function playerBlocks(id: string, name: string, movementDistance = 120): WorldTe
   ];
 }
 
+/**
+ * Converts a server-owned template object into the settings format consumed by
+ * both a saved world and the no-save template preview.
+ */
+export function materializeTemplateObjectProperties(object: WorldTemplateObject): Record<string, unknown> {
+  return {
+    shape: object.shape ?? 'box',
+    model_url: object.modelUrl,
+    playerControlled: object.playerControlled === true,
+    ...(object.properties ?? {}),
+  };
+}
+
 const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
   {
     id: 'platformer',
@@ -152,7 +167,16 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
             ...playerBlocks('sky-hero', 'Hero', 500),
             { id: 'sky-hero-space', block_type: 'on_key_press', inputs: { key: 'SPACE' } },
             { id: 'sky-hero-jump', block_type: 'jump' },
+            { id: 'sky-hero-jump-sound', block_type: 'play_sound', inputs: { sound: 'jump' } },
           ],
+        },
+        {
+          id: 'sky-music',
+          name: 'Sky Music',
+          type: 'sound',
+          position: [0, -2, 0],
+          properties: { autoplay_beat: true, beat: 'chill', bpm: 90 },
+          blocks: [],
         },
         { id: 'sky-start-island', name: 'Starting Island', type: 'platform', position: [0, -2, 0], shape: 'box', color: '#4f8f44', blocks: [] },
         { id: 'sky-step-one', name: 'Sky Step One', type: 'platform', position: [12, -1, 0], shape: 'box', color: '#74b65d', blocks: [] },
@@ -168,6 +192,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           blocks: [
             { id: 'sky-star-one-touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
             { id: 'sky-star-one-say', block_type: 'say', inputs: { text: 'Star collected!' } },
+            { id: 'sky-star-one-sound', block_type: 'play_sound', inputs: { sound: 'pickup' } },
             { id: 'sky-star-one-hide', block_type: 'hide' },
           ],
         },
@@ -181,6 +206,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           blocks: [
             { id: 'sky-star-two-touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
             { id: 'sky-star-two-say', block_type: 'say', inputs: { text: 'Star collected!' } },
+            { id: 'sky-star-two-sound', block_type: 'play_sound', inputs: { sound: 'pickup' } },
             { id: 'sky-star-two-hide', block_type: 'hide' },
           ],
         },
@@ -194,6 +220,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           blocks: [
             { id: 'sky-star-three-touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
             { id: 'sky-star-three-say', block_type: 'say', inputs: { text: 'Star collected!' } },
+            { id: 'sky-star-three-sound', block_type: 'play_sound', inputs: { sound: 'pickup' } },
             { id: 'sky-star-three-hide', block_type: 'hide' },
           ],
         },
@@ -219,6 +246,7 @@ const WORLD_TEMPLATE_SOURCE: WorldTemplate[] = [
           color: '#fbbf24',
           blocks: [
             { id: 'sky-portal-touch', block_type: 'when_touches', inputs: { target: 'Hero' } },
+            { id: 'sky-portal-fanfare', block_type: 'play_sound', inputs: { sound: 'fanfare' } },
             { id: 'sky-portal-win', block_type: 'you_win', inputs: { message: 'You climbed every Sky Step!' } },
           ],
         },

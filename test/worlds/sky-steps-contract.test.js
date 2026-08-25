@@ -46,6 +46,11 @@ objectById(withoutPortalTouchWin, 'sky-portal').blocks = [
 ];
 assert.match(validateSkyStepsFlagship(withoutPortalTouchWin).join('\n'), /portal win/);
 
+const withoutSoundtrack = clone(skySteps);
+withoutSoundtrack.scenes[0].objects = withoutSoundtrack.scenes[0].objects
+  .filter((object) => object.id !== 'sky-music');
+assert.match(validateSkyStepsFlagship(withoutSoundtrack).join('\n'), /background music/);
+
 const withRenameMission = clone(skySteps);
 withRenameMission.missions.find((mission) => mission.id === 'sky-steps-add-platform').objectType = 'character';
 assert.match(validateSkyStepsFlagship(withRenameMission).join('\n'), /post-baseline/);

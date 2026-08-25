@@ -5,6 +5,7 @@ import { moderateText, sanitizeUserInput } from '../safety/moderation';
 import { validateWorldTemplate } from './templateValidation';
 import {
   getWorldTemplate,
+  materializeTemplateObjectProperties,
   WORLD_TEMPLATES,
   type WorldTemplate,
   type WorldTemplateBlock,
@@ -282,11 +283,7 @@ export async function createWorldFromTemplate(
             object.position[1],
             object.position[2],
             object.color ?? null,
-            JSON.stringify({
-              shape: object.shape ?? 'box',
-              model_url: object.modelUrl ?? null,
-              playerControlled: object.playerControlled === true,
-            }),
+            JSON.stringify(materializeTemplateObjectProperties(object)),
             objectOrder,
           ],
         );
