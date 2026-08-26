@@ -109,6 +109,14 @@ test('keeps public projects pending until immutable snapshots are approved', () 
   includes(/publication_assets[\s\S]*?publication_snapshot_id\s+CHAR\(36\)\s+NOT NULL/i, 'snapshot asset binding');
 });
 
+test('keeps the trust migration independent of later World Release tables', () => {
+  assert.doesNotMatch(
+    migration,
+    /world_releases|world_release_id/i,
+    '008 must remain runnable before the World Release schema migration',
+  );
+});
+
 test('seeds server capability flags disabled', () => {
   for (const flag of ['ai_project_context', 'ai_mutation', 'personal_media_upload', 'new_publication']) {
     includes(new RegExp(`\\('${flag}', FALSE\\)`, 'i'), `${flag} disabled`);
