@@ -58,7 +58,7 @@
 - Produces `WorldReleaseStatus`, `WorldReleaseCheckStatus`, `WorldReleaseDecision`, and tables consumed by every later task.
 - Requires existing `projects`, `project_worlds`, `project_play_snapshots`, `profiles`, and `reports` tables.
 
-- [ ] **Step 1: Write schema-contract tests before the migration**
+- [x] **Step 1: Write schema-contract tests before the migration**
 
 ```js
 assert.match(sql, /CREATE TABLE IF NOT EXISTS world_releases/i);
@@ -70,13 +70,13 @@ assert.match(sql, /ADD COLUMN world_release_id CHAR\(36\) NULL/i);
 assert.match(sql, /ADD COLUMN source_release_id CHAR\(36\) NULL/i);
 ```
 
-- [ ] **Step 2: Run the new contract test and confirm it fails**
+- [x] **Step 2: Run the new contract test and confirm it fails**
 
 Run: `node --test test/database/world-release-migration.test.js`
 
 Expected: failure because migration `013_world_release_beta.sql` does not exist.
 
-- [ ] **Step 3: Add migration `013_world_release_beta.sql`**
+- [x] **Step 3: Add migration `013_world_release_beta.sql`**
 
 Create `world_releases` with a UUID primary key, `project_id`, `project_play_snapshot_id`, template identity, revision/hash, enum status, `current_public`, nullable unique `public_slug`, creator label, decision reason, timestamps, and `submission_idempotency_key`. Add unique `(project_id, project_play_snapshot_id)`, unique `(project_id, submission_idempotency_key)`, a current-public lookup index, and reviewer/history indexes. Add `world_release_checks`, `world_release_decisions`, `world_release_beta_cohort_members`, nullable `reports.world_release_id`, and nullable `projects.source_release_id`, all with foreign keys and query indexes.
 
@@ -89,7 +89,7 @@ status ENUM(
 ) NOT NULL
 ```
 
-- [ ] **Step 4: Add typed database representations**
+- [x] **Step 4: Add typed database representations**
 
 Add the types to `lib/database.types.ts` with exact unions:
 
@@ -102,13 +102,13 @@ export type WorldReleaseCheckStatus = 'passed' | 'failed' | 'error';
 
 Include `world_release_id` in the reports row type and full row/insert/update shapes for every new table.
 
-- [ ] **Step 5: Run the migration contract suite**
+- [x] **Step 5: Run the migration contract suite**
 
 Run: `node --test test/database/world-release-migration.test.js test/database/trust-boundary-migration.test.js`
 
 Expected: PASS; existing migration assertions remain valid.
 
-- [ ] **Step 6: Commit the schema slice**
+- [x] **Step 6: Commit the schema slice**
 
 ```bash
 git add migrations/013_world_release_beta.sql lib/database.types.ts test/database/world-release-migration.test.js test/database/trust-boundary-migration.test.js
@@ -127,7 +127,7 @@ git commit -m "feat: add world release beta schema"
 - Produces `canTransitionRelease`, `toPublicWorldRelease`, `getPublicWorldReleaseBySlug`, and `listPublicWorldReleases`.
 - Consumed by release service, public page, Explore, remix route, and admin queue.
 
-- [ ] **Step 1: Write failing pure state-machine and DTO-redaction tests**
+- [x] **Step 1: Write failing pure state-machine and DTO-redaction tests**
 
 ```js
 assert.equal(canTransitionRelease('review_pending', 'published'), true);
@@ -140,13 +140,13 @@ assert.deepEqual(Object.keys(dto).sort(), [
 ]);
 ```
 
-- [ ] **Step 2: Run the tests and confirm they fail**
+- [x] **Step 2: Run the tests and confirm they fail**
 
 Run: `node --test test/worlds/release-state.test.js test/worlds/release-access.test.js`
 
 Expected: failure because the release modules do not exist.
 
-- [ ] **Step 3: Implement canonical release types and state transitions**
+- [x] **Step 3: Implement canonical release types and state transitions**
 
 Export a frozen transition map and named terminal-state predicate:
 
@@ -171,17 +171,17 @@ export interface PublicWorldRelease {
 
 Only permit the states and transitions defined in the approved specification. Do not export rows containing project owner IDs, profile IDs, consent fields, source hashes, reviewer data, or decision notes.
 
-- [ ] **Step 4: Implement release-aware read queries**
+- [x] **Step 4: Implement release-aware read queries**
 
 `getPublicWorldReleaseBySlug` and `listPublicWorldReleases` must query `world_releases.status = 'published' AND current_public = TRUE`, join only allowed project/profile metadata, validate page bounds, and map through `toPublicWorldRelease`. Return null for every other state, including `superseded`.
 
-- [ ] **Step 5: Run pure and database-free access tests**
+- [x] **Step 5: Run pure and database-free access tests**
 
 Run: `node --test test/worlds/release-state.test.js test/worlds/release-access.test.js`
 
 Expected: PASS, including redaction and every forbidden transition.
 
-- [ ] **Step 6: Commit the type/access slice**
+- [x] **Step 6: Commit the type/access slice**
 
 ```bash
 git add lib/worlds/releaseTypes.ts lib/worlds/releaseAccess.ts test/worlds/release-state.test.js test/worlds/release-access.test.js
@@ -199,7 +199,7 @@ git commit -m "feat: define world release states and public access"
 - Consumes `ProjectSnapshot`, template catalog validation, model/asset policies, Blockly command schema, and snapshot hash utility.
 - Produces `runWorldReleaseChecks(snapshot, context): Promise<ReadonlyArray<WorldReleaseCheckResult>>`.
 
-- [ ] **Step 1: Write failing check tests with safe and unsafe snapshot fixtures**
+- [x] **Step 1: Write failing check tests with safe and unsafe snapshot fixtures**
 
 ```js
 const results = await runWorldReleaseChecks(validSnapshot, validContext);
@@ -212,13 +212,13 @@ assert.equal((await runWorldReleaseChecks(remoteModelSnapshot, validContext))
   .find((r) => r.name === 'asset_policy').status, 'failed');
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Run: `node --test test/worlds/release-checks.test.js`
 
 Expected: failure because `runWorldReleaseChecks` is undefined.
 
-- [ ] **Step 3: Implement pure check helpers with fixed reason codes**
+- [x] **Step 3: Implement pure check helpers with fixed reason codes**
 
 Implement one named helper per required check. Every helper returns `{ name, status, reasonCode }`; it never returns raw metadata or source text. Reuse `hashProjectSnapshot`, `validateModelUrl`, template budgets, and the existing block schema rather than parsing a duplicate format.
 
@@ -235,17 +235,17 @@ export async function runWorldReleaseChecks(
 
 Catch unexpected errors per check and return `status: 'error', reasonCode: 'check_error'`. A caller treats any `failed` or `error` outcome as non-publishable.
 
-- [ ] **Step 4: Add integration fixtures for template budget and real Minion asset policy**
+- [x] **Step 4: Add integration fixtures for template budget and real Minion asset policy**
 
 Use a valid current template snapshot and the packaged Minion URL as an accepted asset. Assert unsupported direct URLs, an unknown block type, empty scenes, and content-hash mismatch fail closed.
 
-- [ ] **Step 5: Run the checks suite**
+- [x] **Step 5: Run the checks suite**
 
 Run: `node --test test/worlds/release-checks.test.js test/worlds/release-checks.integration.mjs test/models/model-policy.test.js test/projects/command-schema.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit deterministic validation**
+- [x] **Step 6: Commit deterministic validation**
 
 ```bash
 git add lib/worlds/releaseChecks.ts test/worlds/release-checks.test.js test/worlds/release-checks.integration.mjs
@@ -264,7 +264,7 @@ git commit -m "feat: validate world release candidates"
 - Consumes Task 2 transitions and Task 3 checks, `resolveActor`-derived identities, capability/consent service, feature flag reader, transactions, and project snapshot rows.
 - Produces `submitWorldRelease`, `decideWorldRelease`, `withdrawWorldRelease`, and `takeDownWorldRelease`.
 
-- [ ] **Step 1: Write failing service tests for authorization, immutability, and idempotency**
+- [x] **Step 1: Write failing service tests for authorization, immutability, and idempotency**
 
 ```js
 await assert.rejects(
@@ -279,13 +279,13 @@ await assert.rejects(() => decideWorldRelease({ action: 'publish', releaseId: re
   { code: 'invalid_release_transition' });
 ```
 
-- [ ] **Step 2: Run the service tests and confirm failure**
+- [x] **Step 2: Run the service tests and confirm failure**
 
 Run: `node --test test/worlds/release-service.test.js`
 
 Expected: failure because release service exports do not exist.
 
-- [ ] **Step 3: Implement submit transaction**
+- [x] **Step 3: Implement submit transaction**
 
 Inside one `withTransaction`: lock project, verify owner/authenticated actor, confirm `project_worlds` identity and active template, read the current consent-derived capability, enforce feature flag and cohort membership, compare revision, write/reuse play snapshot, re-read snapshot hash, insert candidate keyed by idempotency, persist all check rows, then transition to `review_pending` only when every result passed. Write a redacted audit event after a committed outcome.
 
@@ -302,21 +302,21 @@ export interface SubmitWorldReleaseInput {
 
 Return only `{ id, status, sourceRevision, submittedAt, replayed }` to the route.
 
-- [ ] **Step 4: Implement admin decision and removal transitions**
+- [x] **Step 4: Implement admin decision and removal transitions**
 
 `decideWorldRelease` locks candidate and project rows, checks current capability again before publishing, revalidates snapshot hash, writes a decision row, and changes `current_public` atomically. For `publish`, mark prior current releases `superseded` before marking this release `published` with a random opaque `public_slug`. `withdraw` needs project ownership; `takeDown` needs admin role plus allowlisted reason. Both make the release immediately non-public and append an audit event.
 
-- [ ] **Step 5: Add integration tests for concurrent candidates and safe removal**
+- [x] **Step 5: Add integration tests for concurrent candidates and safe removal**
 
 Prove only one current release survives two admin publish attempts, later project edits do not alter `project_play_snapshot_id`, consent revocation blocks publish, and withdrawal/takedown leave the private project/editing graph untouched.
 
-- [ ] **Step 6: Run the service suite**
+- [x] **Step 6: Run the service suite**
 
 Run: `node --test test/worlds/release-service.test.js test/worlds/release-service.integration.mjs test/safety/consent-state.test.js test/safety/audit.test.js test/safety/feature-flags.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit release services**
+- [x] **Step 7: Commit release services**
 
 ```bash
 git add lib/worlds/releaseAudit.ts lib/worlds/releaseService.ts test/worlds/release-service.test.js test/worlds/release-service.integration.mjs
@@ -337,7 +337,7 @@ git commit -m "feat: add world release workflow service"
 - Consumes Task 4 services and existing actor/admin middleware.
 - Produces stable API codes for owner status, submit, withdraw, review, reject, and takedown client actions.
 
-- [ ] **Step 1: Write failing route-contract tests**
+- [x] **Step 1: Write failing route-contract tests**
 
 ```js
 assert.equal(await submitAsAnonymous(), 401);
@@ -347,13 +347,13 @@ assert.equal(await submitWithStaleRevision(), 409);
 assert.equal(await adminDecisionAsNonAdmin(), 403);
 ```
 
-- [ ] **Step 2: Run route tests and confirm failure**
+- [x] **Step 2: Run route tests and confirm failure**
 
 Run: `node --test test/api/world-release-routes.test.js`
 
 Expected: failure because endpoints do not exist.
 
-- [ ] **Step 3: Implement strict request parsing and error mapping**
+- [x] **Step 3: Implement strict request parsing and error mapping**
 
 Require JSON object bodies with only allowed keys. Submission requires `expectedRevision` non-negative integer and a 16–128 character `Idempotency-Key`; decisions accept `action` from `publish | request_changes | reject`; takedown accepts an allowlisted reason code. Resolve actors server-side, return 404 for non-viewable release/project resources, and serialize no internal error details.
 
@@ -361,17 +361,17 @@ Require JSON object bodies with only allowed keys. Submission requires `expected
 return NextResponse.json({ error: 'feature_unavailable', reason: 'flag_disabled' }, { status: 503 });
 ```
 
-- [ ] **Step 4: Add owner status GET and decision integration tests**
+- [x] **Step 4: Add owner status GET and decision integration tests**
 
 Owner GET returns their release history plus safe check summaries; nonowners cannot inspect it. Admin decision tests assert the release ID, project ID, snapshot ID, and hash are not accepted from the client body and cannot be substituted.
 
-- [ ] **Step 5: Run API and authorization regressions**
+- [x] **Step 5: Run API and authorization regressions**
 
 Run: `node --test test/api/world-release-routes.test.js test/api/world-release-routes.integration.mjs test/auth/project-access.test.js test/auth/admin-access.test.js test/auth/actor-policy.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit API boundaries**
+- [x] **Step 6: Commit API boundaries**
 
 ```bash
 git add app/api/projects/'[id]'/world-releases app/api/admin/world-releases test/api/world-release-routes.test.js test/api/world-release-routes.integration.mjs
@@ -392,7 +392,7 @@ git commit -m "feat: add world release review APIs"
 - Consumes Task 2 public access loader and Task 4 state authority.
 - Produces public immutable page `/worlds/[slug]` and private remixed project with source release lineage.
 
-- [ ] **Step 1: Write failing public-boundary tests**
+- [x] **Step 1: Write failing public-boundary tests**
 
 ```js
 assert.equal(await fetchPublicWorld('published-slug').status, 200);
@@ -403,25 +403,25 @@ assert.equal(remix.project.source_release_id, releaseId);
 await assert.rejects(() => remixApprovedRelease({ actor: user, releaseId: takenDownId }), { code: 'release_not_public' });
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Run: `node --test test/worlds/release-remix.test.js test/worlds/release-public-boundary.integration.mjs`
 
 Expected: failure because no release-specific player/remix path exists.
 
-- [ ] **Step 3: Implement snapshot materialization for remix**
+- [x] **Step 3: Implement snapshot materialization for remix**
 
 Lock and read a published current release, then reconstruct scenes, objects, blocks, assets, and `project_worlds` identity from its stored snapshot into a new private project inside one transaction. Store `remixed_from` and new `source_release_id`; increment source release/project remix counters only after copy succeeds. Do not call the legacy `/api/projects/[id]/remix` service, which copies editable live rows.
 
-- [ ] **Step 4: Implement the public player page**
+- [x] **Step 4: Implement the public player page**
 
 `app/worlds/[slug]/page.tsx` gets a `PublicWorldRelease` and parsed immutable snapshot from `releaseAccess`. Pass the snapshot-derived game data to `PublishedWorldPlayer`/`GamePlayer`; do not call `requireProjectView` or `writePlaySnapshot`. Increment public play count best-effort against the release owner exclusion rule. A missing/non-published slug calls `notFound()`.
 
-- [ ] **Step 5: Test snapshot freeze and removal behavior**
+- [x] **Step 5: Test snapshot freeze and removal behavior**
 
 Create a candidate, publish it, change its source project, and prove HTML/runtime data stays at the released snapshot. Then withdraw/take down and prove Explore query, world page, play, and remix all return absent/404.
 
-- [ ] **Step 6: Commit public boundary and remix**
+- [x] **Step 6: Commit public boundary and remix**
 
 ```bash
 git add lib/worlds/releaseRemix.ts app/api/world-releases/'[releaseId]'/remix app/worlds/'[slug]' components/worlds/PublishedWorldPlayer.tsx test/worlds/release-remix.test.js test/worlds/release-public-boundary.integration.mjs
@@ -443,7 +443,7 @@ git commit -m "feat: play and remix published world releases"
 - Consumes Task 5 owner/admin APIs and safe DTOs.
 - Produces a World Builder-specific release panel and a review queue; legacy `ShareDialog` code remains the only control for non-World Builder projects.
 
-- [ ] **Step 1: Write rendering and request tests first**
+- [x] **Step 1: Write rendering and request tests first**
 
 ```js
 assert.match(panelSource, /Submit for review/);
@@ -453,13 +453,13 @@ assert.match(queueSource, /request_changes/);
 assert.match(queueSource, /Take down/);
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Run: `node --test test/worlds/release-panel.test.mjs test/admin/world-release-queue.test.mjs`
 
 Expected: failure because the panel and queue do not exist.
 
-- [ ] **Step 3: Implement `WorldReleasePanel` with status-driven actions**
+- [x] **Step 3: Implement `WorldReleasePanel` with status-driven actions**
 
 The panel fetches owner release status on mount. It derives the expected revision from `GameEditor`'s authoritative project revision, generates one UUID idempotency key per submit click, disables duplicate in-flight actions, and renders only these status-specific controls:
 
@@ -471,21 +471,21 @@ The panel fetches owner release status on mount. It derives the expected revisio
 
 Use neutral child-safe copy for changes/rejection; show no private reason or reviewer identity.
 
-- [ ] **Step 4: Integrate panel without changing legacy sharing behavior**
+- [x] **Step 4: Integrate panel without changing legacy sharing behavior**
 
 Pass project world identity from `GameEditor` into `ShareDialog`. When `isWorldBuilder` is true, render `WorldReleasePanel` in place of the private-draft placeholder. Leave the non-World Builder branch untouched and keep export available to both project types.
 
-- [ ] **Step 5: Implement reviewer queue**
+- [x] **Step 5: Implement reviewer queue**
 
 Extend the admin page server query to load `review_pending` releases and safe check summaries. Render each candidate with a new-tab frozen world preview and explicit Publish, Request changes, Reject, and Take down actions. Every action needs a confirmation state; takedown requires selecting an allowlisted reason.
 
-- [ ] **Step 6: Run component checks**
+- [x] **Step 6: Run component checks**
 
 Run: `node --test test/worlds/release-panel.test.mjs test/admin/world-release-queue.test.mjs test/worlds/mission-ui.test.mjs`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit release UI**
+- [x] **Step 7: Commit release UI**
 
 ```bash
 git add components/worlds/WorldReleasePanel.tsx components/admin/WorldReleaseQueue.tsx components/editor/ShareDialog.tsx components/editor/GameEditor.tsx app/admin/reports/page.tsx test/worlds/release-panel.test.mjs test/admin/world-release-queue.test.mjs
@@ -508,7 +508,7 @@ git commit -m "feat: add world release creator and admin controls"
 - Consumes public release DTOs and report `world_release_id` support.
 - Produces approved-release cards in Explore and exact-release reports/takedown navigation.
 
-- [ ] **Step 1: Write failing discovery/report tests**
+- [x] **Step 1: Write failing discovery/report tests**
 
 ```js
 const cards = await listPublicWorldReleases();
@@ -518,27 +518,27 @@ await submitReport({ projectId, releaseId, reason: 'unsafe_content' });
 assert.equal(inserted.world_release_id, releaseId);
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Run: `node --test test/worlds/release-discovery.test.js test/safety/release-report-submission.test.js`
 
 Expected: failure because discovery and report inputs are not release-aware.
 
-- [ ] **Step 3: Render approved release cards separately from templates and legacy projects**
+- [x] **Step 3: Render approved release cards separately from templates and legacy projects**
 
 Load release cards only after `listPublicProjects` has established the legacy public boundary. Each card links to `/worlds/[slug]`, contains allowlisted DTO fields, and has a Play action. Do not merge legacy projects into release query or modify `listPublicProjects`.
 
-- [ ] **Step 4: Add optional release reporting with strict linkage**
+- [x] **Step 4: Add optional release reporting with strict linkage**
 
 Accept `releaseId` only when it resolves to a current published release belonging to the supplied reported project. Reject mismatch or non-public release with 404, store the release foreign key, and preserve current report moderation/rate-limit behavior. Update report queue rows to link admins to `/worlds/[slug]` and its release decision history while displaying no reporter identity beyond existing admin policy.
 
-- [ ] **Step 5: Run discovery, reports, and legacy gallery regression tests**
+- [x] **Step 5: Run discovery, reports, and legacy gallery regression tests**
 
 Run: `node --test test/worlds/release-discovery.test.js test/safety/release-report-submission.test.js test/auth/public-project-boundary.test.js test/api/trust-boundary-guard.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit public discovery/reporting**
+- [x] **Step 6: Commit public discovery/reporting**
 
 ```bash
 git add app/explore/page.tsx components/projects/ReportButton.tsx app/api/reports/route.ts lib/safety/reportSubmission.ts app/admin/reports/page.tsx components/admin/ReportQueue.tsx test/worlds/release-discovery.test.js test/safety/release-report-submission.test.js
@@ -558,7 +558,7 @@ git commit -m "feat: discover and report published world releases"
 - Consumes every prior release API and UI boundary.
 - Produces `test:world-release` and a CI-required release journey before deployment.
 
-- [ ] **Step 1: Write the failing full journey**
+- [x] **Step 1: Write the failing full journey**
 
 ```js
 await createWorldAs(consentedChild);
@@ -572,13 +572,13 @@ await withdrawAsOwner();
 await assertPublicWorldMissing();
 ```
 
-- [ ] **Step 2: Run the journey and confirm it fails before final integration**
+- [x] **Step 2: Run the journey and confirm it fails before final integration**
 
 Run: `node test/visual/world-release-journey.mjs`
 
 Expected: failure until all services, routes, pages, and UI actions are joined.
 
-- [ ] **Step 3: Add focused package and CI commands**
+- [x] **Step 3: Add focused package and CI commands**
 
 Add `test:world-release` that executes state, checks, service, route, public-boundary, remix, panel, discovery, report, and journey tests. Add it after `test:critical` in CI so an immutable public release cannot regress behind a passing general suite.
 
@@ -586,7 +586,7 @@ Add `test:world-release` that executes state, checks, service, route, public-bou
 "test:world-release": "node --test test/worlds/release-*.test.js test/safety/release-report-submission.test.js && node test/visual/world-release-journey.mjs"
 ```
 
-- [ ] **Step 4: Run exhaustive local verification**
+- [x] **Step 4: Run exhaustive local verification**
 
 Run:
 
@@ -604,9 +604,11 @@ Expected: every command exits 0; lint warnings must not introduce errors.
 
 - [ ] **Step 5: Perform manual staging verification with the production flag disabled**
 
+> Not performed. This step needs a deployed staging environment, which is Task 10 territory and outside the approved scope of this run. Its four assertions are covered automatically by `test/worlds/release-regression.integration.mjs` (flag-disabled submission and publication return `feature_unavailable`, withdrawal still works), `test/worlds/release-panel.test.mjs` (the ordinary-project ShareDialog branch is unchanged), and the release gate as a whole (non-admins cannot decide or take down; nothing is public before an admin publishes). The remaining value of the manual pass is confirming this holds against real production configuration.
+
 Verify a World Builder owner sees the release panel but submission returns a clear unavailable state, a legacy project keeps its existing ShareDialog branch, non-admin routes cannot decide/take down, and no current public world release appears until an admin publishes it. Record exact result and commit completed checkboxes into this plan.
 
-- [ ] **Step 6: Commit release gates and verification evidence**
+- [x] **Step 6: Commit release gates and verification evidence**
 
 ```bash
 git add package.json .github/workflows/ci.yml test/visual/world-release-journey.mjs test/worlds/release-regression.integration.mjs docs/superpowers/plans/2026-08-26-world-builder-release-beta.md

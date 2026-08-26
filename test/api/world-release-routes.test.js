@@ -31,7 +31,7 @@ class FakeReleaseServiceError extends Error {
  * service, which is how the substitution tests prove the routes never take
  * release/project/snapshot identity from the request body.
  */
-function loadRoutes({ actor = OWNER, serviceError, ownerHistory } = {}) {
+function loadRoutes({ actor = OWNER, serviceError, ownerHistory, isAdmin = true } = {}) {
   const calls = [];
   for (const key of Object.keys(require.cache)) {
     if (key.startsWith(BUILD_ROOT)) delete require.cache[key];
@@ -47,6 +47,18 @@ function loadRoutes({ actor = OWNER, serviceError, ownerHistory } = {}) {
 
   Module._load = function patchedLoad(request, parent, isMain) {
     if (request === '@/lib/auth/actor') return { resolveActor: async () => actor };
+    // The admin routes gate on `requireAdmin` at the HTTP layer as well as
+    // inside the service transaction. Stub it here so this stays a unit test:
+    // the real one reads `profiles`, which would make every case below need a
+    // live database and leak a connection pool on exit.
+    if (request === '@/lib/auth/admin') {
+      return {
+        requireAdmin: async () => {
+          calls.push({ operation: 'requireAdmin', input: actor });
+          return isAdmin ? { id: actor.profileId, email: 'admin@example.test' } : null;
+        },
+      };
+    }
     if (request === '@/lib/worlds/releaseService') {
       return {
         ReleaseServiceError: FakeReleaseServiceError,
@@ -95,6 +107,11 @@ function jsonRequest(body, headers = {}) {
 
 function params(value) {
   return { params: Promise.resolve(value) };
+}
+
+/** Calls that reached the release service, ignoring the admin-gate bookkeeping. */
+function serviceCalls(calls) {
+  return calls.filter((call) => call.operation !== 'requireAdmin');
 }
 
 async function readJson(response) {
@@ -156,17 +173,31 @@ test('a live release holding the snapshot is a typed conflict', async () => {
   assert.equal(body.error, 'release_already_in_flight');
 });
 
-test('a non-admin decision is forbidden and never reaches the takedown path', async () => {
-  const { decision } = loadRoutes({
-    actor: STRANGER,
-    serviceError: new FakeReleaseServiceError('release_auth_forbidden', 403),
-  });
+test('a non-admin decision is forbidden at the route before the body is read', async () => {
+  const { decision, calls } = loadRoutes({ actor: STRANGER, isAdmin: false });
   const { status, body } = await readJson(await decision.POST(
     jsonRequest({ action: 'publish' }),
     params({ releaseId: 'release-1' }),
   ));
   assert.equal(status, 403);
   assert.equal(body.error, 'release_auth_forbidden');
+  assert.deepEqual(calls.map((call) => call.operation), ['requireAdmin'],
+    'a non-admin never reaches the release service');
+});
+
+test('the admin gate runs before any body parsing on both admin routes', async () => {
+  // Ordering matters twice over: an unauthorized caller must not be able to
+  // probe the action or reason allowlists, and the repo-wide admin AST gate
+  // requires authorization to precede every other call in the handler.
+  for (const [name, invoke] of [
+    ['decision', (r) => r.decision.POST(jsonRequest({ action: 'not_an_action' }), params({ releaseId: 'r1' }))],
+    ['takedown', (r) => r.takedown.POST(jsonRequest({ reasonCode: 'not_a_code' }), params({ releaseId: 'r1' }))],
+  ]) {
+    const routes = loadRoutes({ actor: STRANGER, isAdmin: false });
+    const response = await invoke(routes);
+    assert.equal(response.status, 403, `${name} rejects a non-admin before validating the body`);
+    assert.deepEqual(routes.calls.map((call) => call.operation), ['requireAdmin']);
+  }
 });
 
 test('an anonymous caller is rejected before the reason code is parsed', async () => {
@@ -178,7 +209,7 @@ test('an anonymous caller is rejected before the reason code is parsed', async (
   assert.equal(invalid.status, 401);
   assert.equal(valid.status, 401);
   assert.deepEqual(await invalid.json(), await valid.json(), 'an invalid reason code is indistinguishable to an unauthorized caller');
-  assert.equal(calls.length, 0);
+  assert.equal(serviceCalls(calls).length, 0);
 });
 
 test('submission requires a bounded idempotency key and a non-negative integer revision', async () => {
@@ -223,11 +254,11 @@ test('release, project, snapshot, and hash identity are never taken from the req
     jsonRequest({ action: 'publish', releaseId: 'release-evil', projectId: 'project-evil', snapshotId: 's', snapshotSha256: 'h' }),
     params({ releaseId: 'release-9' }),
   );
-  assert.equal(decisionCall.calls.length, 0, 'a body carrying server-owned identity is rejected outright');
+  assert.equal(serviceCalls(decisionCall.calls).length, 0, 'a body carrying server-owned identity is rejected outright');
 
   const cleanDecision = loadRoutes();
   await cleanDecision.decision.POST(jsonRequest({ action: 'publish' }), params({ releaseId: 'release-9' }));
-  assert.deepEqual(cleanDecision.calls[0].input, { actor: OWNER, releaseId: 'release-9', action: 'publish' });
+  assert.deepEqual(serviceCalls(cleanDecision.calls)[0].input, { actor: OWNER, releaseId: 'release-9', action: 'publish' });
 });
 
 test('withdrawal accepts a bodiless POST but submission still requires its fields', async () => {
@@ -255,13 +286,13 @@ test('decision and takedown reject actions and reasons outside the allowlist', a
     const { decision, calls } = loadRoutes();
     const response = await decision.POST(jsonRequest({ action }), params({ releaseId: 'release-1' }));
     assert.equal(response.status, 422, `action ${JSON.stringify(action)} must be rejected`);
-    assert.equal(calls.length, 0);
+    assert.equal(serviceCalls(calls).length, 0);
   }
   for (const reasonCode of ['approved', 'changes_requested', 'not_a_code', '', null]) {
     const { takedown, calls } = loadRoutes();
     const response = await takedown.POST(jsonRequest({ reasonCode }), params({ releaseId: 'release-1' }));
     assert.equal(response.status, 422, `reason ${JSON.stringify(reasonCode)} must be rejected`);
-    assert.equal(calls.length, 0);
+    assert.equal(serviceCalls(calls).length, 0);
   }
 });
 

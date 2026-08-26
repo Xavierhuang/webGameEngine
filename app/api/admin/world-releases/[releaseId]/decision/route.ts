@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveActor } from '@/lib/auth/actor';
+import { requireAdmin } from '@/lib/auth/admin';
 import { decideWorldRelease } from '@/lib/worlds/releaseService';
 import {
   invalidInputResponse,
   parseStrictBody,
   releaseErrorResponse,
   releaseFailureResponse,
-  unauthorizedResponse,
 } from '@/lib/worlds/releaseRouteErrors';
 
 const DECISION_ACTIONS: readonly string[] = ['publish', 'request_changes', 'reject'];
@@ -30,7 +30,20 @@ export async function POST(
   try {
     const { releaseId } = await params;
     const actor = await resolveActor(request);
-    if (actor.kind !== 'user') return unauthorizedResponse();
+    // Inlined rather than routed through the shared helper: the admin AST gate
+    // treats any imported call before `requireAdmin` as privileged work running
+    // ahead of authorization, and it is right to — this handler must reach its
+    // admin check having done nothing else.
+    if (actor.kind !== 'user') return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+    // The service re-checks admin identity inside its own transaction, under a
+    // lock on the profile row, which is what actually makes the decision safe.
+    // This route-layer check is defense in depth and satisfies the repo-wide
+    // invariant that every `app/api/admin` handler gates on `requireAdmin`
+    // before it touches anything else — an admin boundary a reviewer cannot see
+    // at the HTTP layer is an admin boundary that gets moved by accident.
+    if (!await requireAdmin(actor)) {
+      return NextResponse.json({ error: 'release_auth_forbidden' }, { status: 403 });
+    }
 
     const body = await parseStrictBody(request, ['action', 'reasonCode']);
     if (!body) return invalidInputResponse();
