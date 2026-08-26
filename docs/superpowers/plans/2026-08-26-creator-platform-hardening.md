@@ -71,7 +71,7 @@
 **Files:**
 - Modify: none unless verification finds a defect
 
-- [ ] Run lint, type-check, `test:critical`, relevant existing tests, build, smoke, and accessibility checks.
-- [ ] Review the diff and confirm no untracked build artifacts or secrets are included.
-- [ ] Commit the release with its spec and plan.
-- [ ] Deploy through `./deploy.sh`, then run the browser smoke against `https://play.lingcode.dev`.
+- [x] Run lint, type-check, `test:critical`, the full existing suite, build, shell syntax, production smoke, and production accessibility checks.
+- [x] Review the diff and confirm no untracked build artifacts or secrets are included.
+- [x] Commit the release with its spec and plan (`4c9ab0c`).
+- [x] Deploy through `./deploy.sh`, then run the browser smoke and accessibility checks against `https://play.lingcode.dev`.
