@@ -17,6 +17,15 @@ export type WorldReleaseStatus =
   | 'changes_requested' | 'rejected' | 'withdrawn' | 'taken_down' | 'superseded';
 export type WorldReleaseCheckStatus = 'passed' | 'failed' | 'error';
 export type WorldReleaseDecision = 'approved' | 'changes_requested' | 'rejected' | 'taken_down';
+export type WorldReleaseReasonCode =
+  | 'automated_check_failed' | 'content_policy' | 'age_safety' | 'copyright'
+  | 'duplicate_submission' | 'creator_withdrew' | 'administrative_action';
+export type WorldReleaseCheckReasonCode =
+  | 'content_policy' | 'age_safety' | 'copyright' | 'snapshot_integrity'
+  | 'template_validation' | 'internal_error';
+export type WorldReleaseDecisionReasonCode =
+  | 'approved' | 'changes_requested' | 'content_policy' | 'age_safety'
+  | 'copyright' | 'administrative_action';
 
 export interface Database {
   public: {
@@ -631,7 +640,7 @@ export interface Database {
           current_public: boolean;
           public_slug: string | null;
           creator_label: string;
-          decision_reason: string | null;
+          decision_reason_code: WorldReleaseReasonCode | null;
           submission_idempotency_key: string;
           submitted_at: string;
           checked_at: string | null;
@@ -652,7 +661,7 @@ export interface Database {
           current_public?: boolean;
           public_slug?: string | null;
           creator_label: string;
-          decision_reason?: string | null;
+          decision_reason_code?: WorldReleaseReasonCode | null;
           submission_idempotency_key: string;
           checked_at?: string | null;
           reviewed_at?: string | null;
@@ -664,7 +673,7 @@ export interface Database {
           status?: WorldReleaseStatus;
           current_public?: boolean;
           public_slug?: string | null;
-          decision_reason?: string | null;
+          decision_reason_code?: WorldReleaseReasonCode | null;
           checked_at?: string | null;
           reviewed_at?: string | null;
           published_at?: string | null;
@@ -678,7 +687,7 @@ export interface Database {
           world_release_id: string;
           check_type: string;
           status: WorldReleaseCheckStatus;
-          details: Json | null;
+          reason_code: WorldReleaseCheckReasonCode | null;
           created_at: string;
         };
         Insert: {
@@ -686,7 +695,7 @@ export interface Database {
           world_release_id: string;
           check_type: string;
           status: WorldReleaseCheckStatus;
-          details?: Json | null;
+          reason_code?: WorldReleaseCheckReasonCode | null;
         };
         Update: Record<string, never>;
       };
@@ -696,7 +705,7 @@ export interface Database {
           world_release_id: string;
           reviewer_profile_id: string | null;
           decision: WorldReleaseDecision;
-          reason: string | null;
+          reason_code: WorldReleaseDecisionReasonCode | null;
           decided_at: string;
         };
         Insert: {
@@ -704,7 +713,7 @@ export interface Database {
           world_release_id: string;
           reviewer_profile_id?: string | null;
           decision: WorldReleaseDecision;
-          reason?: string | null;
+          reason_code?: WorldReleaseDecisionReasonCode | null;
         };
         Update: Record<string, never>;
       };

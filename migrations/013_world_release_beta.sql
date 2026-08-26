@@ -6,6 +6,50 @@
 
 USE gameengine;
 
+-- These unique parent identities make the release's composite foreign keys
+-- enforce that its snapshot, world template, revision, and hash all belong to
+-- the same project. They are redundant with existing primary/unique keys, but
+-- InnoDB needs the referenced column order for each composite relationship.
+SET @world_release_snapshot_project_idx := (
+  SELECT COUNT(*) FROM information_schema.STATISTICS
+  WHERE table_schema = DATABASE() AND table_name = 'project_play_snapshots'
+    AND index_name = 'uq_project_play_snapshots_project_snapshot'
+);
+SET @sql := IF(@world_release_snapshot_project_idx = 0,
+  'ALTER TABLE project_play_snapshots ADD UNIQUE INDEX uq_project_play_snapshots_project_snapshot (project_id, id)',
+  'SET @noop = 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @world_release_world_template_idx := (
+  SELECT COUNT(*) FROM information_schema.STATISTICS
+  WHERE table_schema = DATABASE() AND table_name = 'project_worlds'
+    AND index_name = 'uq_project_worlds_project_template'
+);
+SET @sql := IF(@world_release_world_template_idx = 0,
+  'ALTER TABLE project_worlds ADD UNIQUE INDEX uq_project_worlds_project_template (project_id, template_id, template_version)',
+  'SET @noop = 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @world_release_snapshot_revision_idx := (
+  SELECT COUNT(*) FROM information_schema.STATISTICS
+  WHERE table_schema = DATABASE() AND table_name = 'project_play_snapshots'
+    AND index_name = 'uq_project_play_snapshots_project_revision_hash'
+);
+SET @sql := IF(@world_release_snapshot_revision_idx = 0,
+  'ALTER TABLE project_play_snapshots ADD UNIQUE INDEX uq_project_play_snapshots_project_revision_hash (project_id, revision, snapshot_sha256)',
+  'SET @noop = 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @world_release_snapshot_identity_idx := (
+  SELECT COUNT(*) FROM information_schema.STATISTICS
+  WHERE table_schema = DATABASE() AND table_name = 'project_play_snapshots'
+    AND index_name = 'uq_project_play_snapshots_release_identity'
+);
+SET @sql := IF(@world_release_snapshot_identity_idx = 0,
+  'ALTER TABLE project_play_snapshots ADD UNIQUE INDEX uq_project_play_snapshots_release_identity (project_id, id, revision, snapshot_sha256)',
+  'SET @noop = 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS world_releases (
   id CHAR(36) NOT NULL,
   project_id CHAR(36) NOT NULL,
@@ -21,7 +65,10 @@ CREATE TABLE IF NOT EXISTS world_releases (
   current_public BOOLEAN NOT NULL DEFAULT FALSE,
   public_slug VARCHAR(80) NULL,
   creator_label VARCHAR(100) NOT NULL,
-  decision_reason VARCHAR(1024) NULL,
+  decision_reason_code ENUM(
+    'automated_check_failed', 'content_policy', 'age_safety', 'copyright',
+    'duplicate_submission', 'creator_withdrew', 'administrative_action'
+  ) NULL,
   submission_idempotency_key VARCHAR(128) NOT NULL,
   submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   checked_at TIMESTAMP NULL,
@@ -38,11 +85,18 @@ CREATE TABLE IF NOT EXISTS world_releases (
   KEY idx_world_releases_history (project_id, submitted_at),
   CONSTRAINT fk_world_releases_project
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_world_releases_snapshot
-    FOREIGN KEY (project_play_snapshot_id) REFERENCES project_play_snapshots(id) ON DELETE RESTRICT,
-  CONSTRAINT fk_world_releases_template
-    FOREIGN KEY (template_id, template_version)
-    REFERENCES world_templates(template_id, version) ON DELETE RESTRICT
+  CONSTRAINT fk_world_releases_project_snapshot
+    FOREIGN KEY (project_id, project_play_snapshot_id)
+    REFERENCES project_play_snapshots(project_id, id) ON DELETE RESTRICT,
+  CONSTRAINT fk_world_releases_project_template
+    FOREIGN KEY (project_id, template_id, template_version)
+    REFERENCES project_worlds(project_id, template_id, template_version) ON DELETE RESTRICT,
+  CONSTRAINT fk_world_releases_project_snapshot_hash
+    FOREIGN KEY (project_id, project_revision, snapshot_sha256)
+    REFERENCES project_play_snapshots(project_id, revision, snapshot_sha256) ON DELETE RESTRICT,
+  CONSTRAINT fk_world_releases_snapshot_identity
+    FOREIGN KEY (project_id, project_play_snapshot_id, project_revision, snapshot_sha256)
+    REFERENCES project_play_snapshots(project_id, id, revision, snapshot_sha256) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS world_release_checks (
@@ -50,7 +104,10 @@ CREATE TABLE IF NOT EXISTS world_release_checks (
   world_release_id CHAR(36) NOT NULL,
   check_type VARCHAR(64) NOT NULL,
   status ENUM('passed', 'failed', 'error') NOT NULL,
-  details JSON NULL,
+  reason_code ENUM(
+    'content_policy', 'age_safety', 'copyright', 'snapshot_integrity',
+    'template_validation', 'internal_error'
+  ) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_world_release_checks_release (world_release_id, created_at),
@@ -64,7 +121,10 @@ CREATE TABLE IF NOT EXISTS world_release_decisions (
   world_release_id CHAR(36) NOT NULL,
   reviewer_profile_id CHAR(36) NULL,
   decision ENUM('approved', 'changes_requested', 'rejected', 'taken_down') NOT NULL,
-  reason VARCHAR(1024) NULL,
+  reason_code ENUM(
+    'approved', 'changes_requested', 'content_policy', 'age_safety',
+    'copyright', 'administrative_action'
+  ) NULL,
   decided_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_world_release_decisions_release (world_release_id, decided_at),

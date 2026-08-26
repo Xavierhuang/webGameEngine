@@ -7,6 +7,10 @@ const migration = readFileSync(
   resolve(__dirname, '../../migrations/013_world_release_beta.sql'),
   'utf8',
 );
+const databaseTypes = readFileSync(
+  resolve(__dirname, '../../lib/database.types.ts'),
+  'utf8',
+);
 
 function includes(pattern, description) {
   assert.match(migration, pattern, description);
@@ -33,16 +37,47 @@ test('creates an immutable release pinned to exactly one Play snapshot', () => {
     'release status must use the agreed state names',
   );
   includes(
-    /FOREIGN KEY \(project_play_snapshot_id\) REFERENCES project_play_snapshots\(id\)/i,
-    'release snapshot must be a foreign key',
-  );
-  includes(
     /KEY idx_world_releases_current_public \(current_public, status, published_at\)/i,
     'current public release lookup needs an index',
   );
   includes(
     /KEY idx_world_releases_reviewer \(status, submitted_at\)/i,
     'review queue needs an index',
+  );
+});
+
+test('enforces that a release matches its project world and immutable snapshot identity', () => {
+  includes(
+    /ADD UNIQUE INDEX uq_project_play_snapshots_project_snapshot \(project_id, id\)/i,
+    'snapshots need a project-scoped identity for composite release references',
+  );
+  includes(
+    /ADD UNIQUE INDEX uq_project_worlds_project_template \(project_id, template_id, template_version\)/i,
+    'project worlds need a project-scoped template identity',
+  );
+  includes(
+    /ADD UNIQUE INDEX uq_project_play_snapshots_project_revision_hash \(project_id, revision, snapshot_sha256\)/i,
+    'snapshots need an immutable project/revision/hash identity',
+  );
+  includes(
+    /ADD UNIQUE INDEX uq_project_play_snapshots_release_identity \(project_id, id, revision, snapshot_sha256\)/i,
+    'snapshots need one identity that binds a release id, revision, and hash together',
+  );
+  includes(
+    /FOREIGN KEY \(project_id, project_play_snapshot_id\)\s+REFERENCES project_play_snapshots\(project_id, id\)/i,
+    'release snapshot must belong to its release project',
+  );
+  includes(
+    /FOREIGN KEY \(project_id, template_id, template_version\)\s+REFERENCES project_worlds\(project_id, template_id, template_version\)/i,
+    'release template must match its release project world',
+  );
+  includes(
+    /FOREIGN KEY \(project_id, project_revision, snapshot_sha256\)\s+REFERENCES project_play_snapshots\(project_id, revision, snapshot_sha256\)/i,
+    'release revision and hash must match the immutable project snapshot',
+  );
+  includes(
+    /FOREIGN KEY \(project_id, project_play_snapshot_id, project_revision, snapshot_sha256\)\s+REFERENCES project_play_snapshots\(project_id, id, revision, snapshot_sha256\)/i,
+    'release snapshot id, revision, and hash must identify the same immutable snapshot row',
   );
 });
 
@@ -62,6 +97,28 @@ test('records release checks, decisions, and beta cohort memberships', () => {
     /FOREIGN KEY \(world_release_id\) REFERENCES world_releases\(id\)/i,
     'release records are linked to their immutable release',
   );
+});
+
+test('persists release review outcomes as allowlisted codes without raw details', () => {
+  assert.doesNotMatch(migration, /decision_reason\s+VARCHAR/i, 'release reason must not store free text');
+  assert.doesNotMatch(migration, /details\s+JSON/i, 'checks must not store arbitrary JSON details');
+  assert.doesNotMatch(migration, /\breason\s+VARCHAR/i, 'decisions must not store free-text reasons');
+
+  includes(
+    /decision_reason_code ENUM\(\s*'automated_check_failed', 'content_policy', 'age_safety', 'copyright',\s*'duplicate_submission', 'creator_withdrew', 'administrative_action'\s*\) NULL/i,
+    'release outcomes use allowlisted reason codes',
+  );
+  includes(
+    /reason_code ENUM\(\s*'content_policy', 'age_safety', 'copyright', 'snapshot_integrity',\s*'template_validation', 'internal_error'\s*\) NULL/i,
+    'checks use allowlisted reason codes',
+  );
+  includes(
+    /reason_code ENUM\(\s*'approved', 'changes_requested', 'content_policy', 'age_safety',\s*'copyright', 'administrative_action'\s*\) NULL/i,
+    'review decisions use allowlisted reason codes',
+  );
+  assert.match(databaseTypes, /export type WorldReleaseReasonCode =/);
+  assert.match(databaseTypes, /export type WorldReleaseCheckReasonCode =/);
+  assert.match(databaseTypes, /export type WorldReleaseDecisionReasonCode =/);
 });
 
 test('adds only nullable release references to existing mutable records', () => {
