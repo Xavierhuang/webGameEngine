@@ -230,6 +230,26 @@ test('release, project, snapshot, and hash identity are never taken from the req
   assert.deepEqual(cleanDecision.calls[0].input, { actor: OWNER, releaseId: 'release-9', action: 'publish' });
 });
 
+test('withdrawal accepts a bodiless POST but submission still requires its fields', async () => {
+  // `fetch(url, { method: 'POST' })` sends no body at all. A route that accepts
+  // no keys must tolerate that; routes that take keys must not.
+  const { withdraw, calls } = loadRoutes();
+  const response = await withdraw.POST(jsonRequest(undefined), params({ id: 'project-1', releaseId: 'release-9' }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls[0].input, { actor: OWNER, projectId: 'project-1', releaseId: 'release-9' });
+
+  const strict = loadRoutes();
+  const rejected = await strict.releases.POST(jsonRequest(undefined, { 'idempotency-key': VALID_KEY }), params({ id: 'project-1' }));
+  assert.equal(rejected.status, 422);
+  assert.equal(strict.calls.length, 0);
+
+  // A bodiless POST must still not bypass the withdraw route's key allowlist.
+  const smuggled = loadRoutes();
+  const blocked = await smuggled.withdraw.POST(jsonRequest({ releaseId: 'release-evil' }), params({ id: 'project-1', releaseId: 'release-9' }));
+  assert.equal(blocked.status, 422);
+  assert.equal(smuggled.calls.length, 0);
+});
+
 test('decision and takedown reject actions and reasons outside the allowlist', async () => {
   for (const action of ['approve', 'delete', 'publish ', '', null, 42]) {
     const { decision, calls } = loadRoutes();

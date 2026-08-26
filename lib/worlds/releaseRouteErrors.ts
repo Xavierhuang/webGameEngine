@@ -68,7 +68,11 @@ export async function parseStrictBody(
   try {
     body = await request.json();
   } catch {
-    return null;
+    // A route that accepts no keys at all takes both `{}` and no body, because
+    // `fetch(url, { method: 'POST' })` with no body is the natural way to call
+    // one and there is nothing about it left to get wrong. Routes that do take
+    // keys still reject an unparseable body.
+    return allowedKeys.length === 0 ? {} : null;
   }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
   const entries = Object.keys(body as Record<string, unknown>);
