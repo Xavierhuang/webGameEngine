@@ -43,7 +43,7 @@ export interface CommandWriteOptions {
   extraHeaders?: Record<string, string>;
 }
 
-function newIdempotencyKey(): string {
+export function newCommandIdempotencyKey(): string {
   // Requires 16+ chars per the envelope schema; a UUID with dashes
   // stripped is 32 chars.
   const uuid =
@@ -116,7 +116,7 @@ export async function commandWrite(options: CommandWriteOptions): Promise<Respon
   // A different key on retry would let a request that actually landed
   // (but timed out mid-response) get executed a second time as if it
   // were a fresh command.
-  const idempotencyKey = newIdempotencyKey();
+  const idempotencyKey = newCommandIdempotencyKey();
 
   const buildHeaders = (): Record<string, string> => ({
     'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ export async function commandServiceCall(
   options: CommandServiceCallOptions,
 ): Promise<Response> {
   const url = `/api/projects/${options.projectId}/commands`;
-  const idempotencyKey = newIdempotencyKey();
+  const idempotencyKey = newCommandIdempotencyKey();
   const buildBody = () =>
     JSON.stringify({
       idempotencyKey,

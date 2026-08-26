@@ -8,7 +8,7 @@ import { useTranslator } from '../common/LocaleProvider';
 interface AIAssistantProps {
   projectId: string;
   onClose: () => void;
-  onApplyUpdate: (update: any) => void;
+  onApplyUpdate: (update: any) => void | Promise<void>;
 }
 
 interface Message {

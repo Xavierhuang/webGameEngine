@@ -35,7 +35,7 @@ import {
   writeScenePreset,
   type LightingPresetId,
 } from '@/lib/scene/lightingPresets';
-import { commandWrite, commandServiceCall, newEditingSessionId, newObjectId } from '@/lib/editor/commandWrite';
+import { commandWrite, commandServiceCall, newCommandIdempotencyKey, newEditingSessionId, newObjectId } from '@/lib/editor/commandWrite';
 import WorldDraftStatus from '@/components/worlds/WorldDraftStatus';
 import WorldMissionPanel from '@/components/worlds/WorldMissionPanel';
 import type { MissionProgress } from '@/lib/worlds/missionService';
@@ -1599,15 +1599,10 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
           projectId={projectId}
           onClose={() => setShowAIAssistant(false)}
           onApplyUpdate={async (update) => {
-            // Apply AI update to the game.
-            //
-            // TODO(add-object-migration): the legacy /api/ai/apply-update
-            // route is retired server-side; this call currently 503s.
-            // Migrating requires mapping each AI update shape
-            // (add_game_object, add_scene, set_backdrop, add_logic_blocks, ...)
-            // to a command-service command, which is beyond the scope of the
-            // add-object picker fix. Deferred until the AI Assistant panel
-            // gets its own migration pass.
+            // AI updates are translated server-side into the same revisioned
+            // command service used by the normal editor. The current revision
+            // and a fresh idempotency key keep a stale or retried AI change
+            // from overwriting a newer edit.
             try {
               const response = await fetch('/api/ai/apply-update', {
                 method: 'POST',
@@ -1615,11 +1610,21 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
                 body: JSON.stringify({
                   projectId,
                   update,
+                  expectedRevision: revisionRef.current,
+                  idempotencyKey: newCommandIdempotencyKey(),
+                  editingSessionId: editingSessionIdRef.current,
+                  groupId: `ai-${Date.now()}`,
                 }),
               });
 
               if (!response.ok) {
-                throw new Error('Failed to apply update');
+                const body = await response.json().catch(() => null);
+                throw new Error(body?.message || 'Failed to apply update');
+              }
+
+              const applied = await response.json();
+              if (typeof applied?.revision === 'number' && applied.revision > revisionRef.current) {
+                revisionRef.current = applied.revision;
               }
 
               // Refresh project data

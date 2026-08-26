@@ -154,6 +154,23 @@ IMPORTANT: When adding controls/movement to an existing object, use this format:
   "enable_physics": true
 }
 
+When you want to add one new object, return this exact update format:
+{
+  "type": "add_game_object",
+  "scene_id": "an existing scene id when needed",
+  "game_object": {
+    "type": "character|platform|collectible|obstacle|sprite|sound|particles",
+    "name": "Short friendly name",
+    "position": { "x": 0, "y": 0, "z": 0 },
+    "color": "#60A5FA",
+    "shape": "box|sphere|cylinder|cone|pyramid|torus|capsule|plane|model|circle|particles",
+    "size": 50
+  }
+}
+
+Return at most one change in the update field. Do not include logic_blocks inside a
+new game object: add the object first, then add its controls in a later turn.
+
 For arrow keys, use: "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"
 For actions, use: "move_up", "move_down", "move_left", "move_right", "jump"
 

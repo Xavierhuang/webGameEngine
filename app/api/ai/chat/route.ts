@@ -1,26 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, query, queryOne } from '@/lib/mysql/server';
+import { query, queryOne } from '@/lib/mysql/server';
 import { chatWithAI } from '@/lib/ai/claude';
 import { moderateText } from '@/lib/safety/moderation';
+import { resolveActor } from '@/lib/auth/actor';
+import { AccessError, requireProjectEdit } from '@/lib/auth/access';
 
 export async function POST(request: NextRequest) {
   try {
-    // Allow both authenticated and guest users
-    const user = await getAuthenticatedUser();
-    const userId = user?.id || 'guest';
-
     const { projectId, message, history = [] } = await request.json();
 
     if (!projectId) {
       return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
     }
 
+    // Only project editors may provide private game context to the model.
+    // This guard must happen before any project or scene query below.
+    const actor = await resolveActor(request);
+    await requireProjectEdit(actor, projectId);
+    const userId = actor.kind === 'user' ? actor.userId : null;
+
     // Get user profile for age (or use default for guests)
     let age = 10;
-    if (user) {
+    if (actor.kind === 'user') {
       const profile = await queryOne<{ age: number | null }>(
-        'SELECT age FROM profiles WHERE user_id = ?',
-        [user.id]
+        'SELECT age FROM profiles WHERE id = ?',
+        [actor.profileId]
       );
       age = profile?.age || 10;
     }
@@ -29,7 +33,7 @@ export async function POST(request: NextRequest) {
     // previously bypassed moderation entirely, which is exactly the "logged
     // but not enforced" pattern we're fixing in Phase 6a.
     if (typeof message === 'string' && message.trim() !== '') {
-      const moderation = await moderateText(message, user?.id ?? null, null);
+      const moderation = await moderateText(message, userId, null);
       if (!moderation.safe) {
         return NextResponse.json({
           message: "Oops! Let's try to use different words. Can you ask in another way?",
@@ -113,7 +117,7 @@ export async function POST(request: NextRequest) {
     // exposure — this previously went straight to the child.
     const outputCheck = await moderateText(
       [aiResponse.message, ...(aiResponse.suggestions ?? [])].filter(Boolean).join('\n'),
-      user?.id ?? null,
+      userId,
       null
     );
     if (!outputCheck.safe) {
@@ -131,6 +135,9 @@ export async function POST(request: NextRequest) {
       suggestions: aiResponse.suggestions,
     });
   } catch (error: any) {
+    if (error instanceof AccessError) {
+      return NextResponse.json({ error: 'Project not found' }, { status: error.status });
+    }
     console.error('AI chat error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to process message' },
@@ -138,5 +145,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-

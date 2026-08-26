@@ -74,11 +74,14 @@ const PROTECTED_SURFACES = Object.freeze({
     enforced('app/api/reports/route.ts', { POST: 'submitReport' }),
   ],
   // Task 7 owns the ordered actor/access/capability/budget/moderation pipeline.
-  // Keeping this exception exact prevents unrelated surfaces from hiding here.
+  // Runtime-only ask/translate/model-generation remain deferred, but project
+  // context and project mutation now require the same edit guard as the
+  // command route. Keeping the remaining exception exact prevents unrelated
+  // surfaces from hiding here.
   ai: [
-    deferredAi('app/api/ai/apply-update/route.ts'),
+    enforced('app/api/ai/apply-update/route.ts', { POST: 'requireProjectEdit' }),
     deferredAi('app/api/ai/ask/route.ts'),
-    deferredAi('app/api/ai/chat/route.ts'),
+    enforced('app/api/ai/chat/route.ts', { POST: 'requireProjectEdit' }),
     deferredAi('app/api/ai/generate-character/route.ts'),
     deferredAi('app/api/ai/translate/route.ts'),
   ],
@@ -120,21 +123,22 @@ test('all 31 protected surfaces exist and are tracked current files', () => {
   }
 });
 
-test('Task 7 is the only deferral and contains exactly the five AI routes', () => {
+test('Task 7 is the only deferral and contains exactly the three runtime-only AI routes', () => {
   const deferred = Object.values(PROTECTED_SURFACES)
     .flat()
     .filter((entry) => 'deferredTo' in entry);
   assert.deepEqual(
     deferred.map(({ path, deferredTo }) => ({ path, deferredTo })),
     [
-      { path: 'app/api/ai/apply-update/route.ts', deferredTo: 'Task 7' },
       { path: 'app/api/ai/ask/route.ts', deferredTo: 'Task 7' },
-      { path: 'app/api/ai/chat/route.ts', deferredTo: 'Task 7' },
       { path: 'app/api/ai/generate-character/route.ts', deferredTo: 'Task 7' },
       { path: 'app/api/ai/translate/route.ts', deferredTo: 'Task 7' },
     ]
   );
-  assert.deepEqual(PROTECTED_SURFACES.ai, deferred, 'only the AI category may be deferred');
+  assert.ok(
+    deferred.every((entry) => PROTECTED_SURFACES.ai.includes(entry)),
+    'only the AI category may be deferred',
+  );
 });
 
 test('every Task 4 entry point has one Actor and an ordered canonical guard or service', () => {
@@ -142,7 +146,7 @@ test('every Task 4 entry point has one Actor and an ordered canonical guard or s
   const enforcedEntries = Object.values(PROTECTED_SURFACES)
     .flat()
     .filter((entry) => entry.enforcedBy === 'Task 4');
-  assert.equal(enforcedEntries.length, 26);
+  assert.equal(enforcedEntries.length, 28);
 
   for (const entry of enforcedEntries) {
     const source = fs.readFileSync(path.join(ROOT, entry.path), 'utf8');

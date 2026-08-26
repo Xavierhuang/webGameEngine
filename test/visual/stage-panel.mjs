@@ -54,13 +54,18 @@ const projectId = page.url().match(/editor\/([^/?#]+)/)[1];
 // picker and Blockly blocks off the palette is not what is under test here.
 const wrote = await page.evaluate(async (id) => {
   const projectOf = async () => (await (await fetch(`/api/projects/${id}`)).json()).project;
-  const scene = (await projectOf()).scenes[0];
+  const project = await projectOf();
+  const scene = project.scenes[0];
 
   const added = await fetch('/api/ai/apply-update', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       projectId: id,
+      expectedRevision: project.revision,
+      idempotencyKey: `stage-${crypto.randomUUID().replace(/-/g, '')}`,
+      editingSessionId: crypto.randomUUID(),
+      groupId: 'stage-setup',
       update: {
         type: 'add_game_object',
         game_object: {
@@ -79,12 +84,18 @@ const wrote = await page.evaluate(async (id) => {
   });
   if (!added.ok) return { error: `add_game_object ${added.status}` };
 
-  const hero = (await projectOf()).scenes[0].game_objects.find((o) => o.name === 'Hero');
+  const updatedProject = await projectOf();
+  const hero = updatedProject.scenes[0].game_objects.find((o) => o.name === 'Hero');
   if (!hero) return { error: 'the object did not persist' };
 
   const res = await fetch(`/api/game-objects/${hero.id}/logic-blocks`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': `stage-blocks-${crypto.randomUUID().replace(/-/g, '')}`,
+      'If-Match': `"${updatedProject.revision}"`,
+      'X-Editing-Session': crypto.randomUUID(),
+    },
     body: JSON.stringify({
       // `inputs`, not `block_data`: the route builds block_data itself and
       // drops anything it does not recognise, so a block_data payload saves
