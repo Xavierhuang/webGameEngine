@@ -6,6 +6,8 @@ import { Play, Search, Heart, GitFork, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
 import FeaturedWorldTemplates from '@/components/worlds/FeaturedWorldTemplates';
+import PublishedWorldCards from '@/components/worlds/PublishedWorldCards';
+import { listPublicWorldReleases } from '@/lib/worlds/releaseAccess';
 import { getTranslator } from '@/lib/i18n/server';
 import { listActiveWorldTemplates } from '@/lib/worlds/templates';
 
@@ -43,6 +45,18 @@ export default async function ExplorePage(props: {
   }
   const starterWorlds = listActiveWorldTemplates();
 
+  // Approved world releases are loaded only after `listPublicProjects` has
+  // established the legacy public boundary, and are rendered as their own
+  // section. `listPublicProjects` is deliberately not modified and these rows
+  // are never merged into it: a release is public because a moderator approved
+  // one frozen snapshot, which is a different claim from a project being shared.
+  let worldReleases: Awaited<ReturnType<typeof listPublicWorldReleases>> = [];
+  try {
+    worldReleases = await listPublicWorldReleases({ page: 1, pageSize: 24 });
+  } catch (error) {
+    console.error('[explore] world release query failed:', error);
+  }
+
   let displayName = 'Guest';
   if (actor.kind !== 'anonymous') {
     try {
@@ -70,6 +84,8 @@ export default async function ExplorePage(props: {
         </div>
 
         <FeaturedWorldTemplates templates={starterWorlds} t={t} />
+
+        <PublishedWorldCards releases={worldReleases} />
 
         <form method="GET" className="mb-6 flex flex-wrap items-center gap-3">
           <div className="relative min-w-[240px] flex-1">

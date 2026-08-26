@@ -1,6 +1,8 @@
 import { BLOCK_SPECS } from '../blockly/definitions';
+import { countCloneCreationBlocks, type SerializedLogicBlock, validateSerializedLogicBlock } from '../blockly/blockValidation';
+import { isTrustedTemplateAssetUrl } from '../models/modelPolicy';
 import { validateSkyStepsFlagship } from './skyStepsContract';
-import type { WorldTemplate, WorldTemplateBlock, WorldTemplateBudget } from './templates';
+import type { WorldTemplate, WorldTemplateBudget } from './templates';
 
 export interface ValidationIssue {
   code:
@@ -31,10 +33,7 @@ const MAXIMUM_BUDGETS: WorldTemplateBudget = {
 };
 
 function isApprovedAssetPath(value: unknown): value is string {
-  return typeof value === 'string'
-    && /^\/(?:models|backdrops)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value)
-    && !value.includes('..')
-    && !value.includes('//');
+  return typeof value === 'string' && isTrustedTemplateAssetUrl(value);
 }
 
 function addDuplicateIssue(ids: Set<string>, id: unknown, path: string, issues: ValidationIssue[]): void {
@@ -117,6 +116,14 @@ function validateBlocks(
     if (!hasSupportedBlockType(block.block_type)) {
       issues.push({ code: 'unsupported_block_type', path: `${blockPath}.block_type`, message: `Unsupported block type ${String(block.block_type)}` });
     }
+    const validationFailure = validateSerializedLogicBlock(block.block_type, {
+      inputs: block.inputs ?? {},
+      ...(block.children !== undefined ? { children: block.children } : {}),
+      ...(block.elseChildren !== undefined ? { elseChildren: block.elseChildren } : {}),
+    });
+    if (validationFailure === 'invalid_block_data') {
+      issues.push({ code: 'invalid_structure', path: blockPath, message: `Invalid serialized block at ${blockPath}` });
+    }
     count += validateBlocks(block.children, `${blockPath}.children`, blockIds, issues, false);
     count += validateBlocks(block.elseChildren, `${blockPath}.elseChildren`, blockIds, issues, false);
   }
@@ -194,7 +201,9 @@ export function validateWorldTemplate(template: WorldTemplate): ValidationIssue[
       );
       if (object.modelUrl !== undefined) validateAsset(object.modelUrl, `${objectPath}.modelUrl`, issues);
       blockCount += validateBlocks(object.blocks, `${objectPath}.blocks`, blockIds, issues, true);
-      walkBlocks(object.blocks, (block) => { if (block.block_type === 'create_clone_of') cloneBlockCount += 1; });
+      if (Array.isArray(object.blocks)) {
+        cloneBlockCount += countCloneCreationBlocks(object.blocks as SerializedLogicBlock[]);
+      }
     }
   }
 
@@ -255,14 +264,4 @@ export function validateWorldTemplate(template: WorldTemplate): ValidationIssue[
   }
 
   return issues;
-}
-
-function walkBlocks(blocks: unknown, visitor: (block: WorldTemplateBlock) => void): void {
-  if (!Array.isArray(blocks)) return;
-  for (const block of blocks) {
-    if (!isRecord(block)) continue;
-    visitor(block as unknown as WorldTemplateBlock);
-    walkBlocks(block.children, visitor);
-    walkBlocks(block.elseChildren, visitor);
-  }
 }

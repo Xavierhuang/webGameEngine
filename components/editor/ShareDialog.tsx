@@ -3,12 +3,15 @@
 import { useState } from 'react';
 import { Check, Copy, Globe, Lock, X } from 'lucide-react';
 import { useTranslator } from '../common/LocaleProvider';
+import WorldReleasePanel from '../worlds/WorldReleasePanel';
 
 interface ShareDialogProps {
   projectId: string;
   initialVisibility: string;
   initialModerationStatus?: string;
   isWorldBuilder?: boolean;
+  /** Authoritative editor revision; a World Builder submission pins to it. */
+  projectRevision?: number;
   onClose: () => void;
   onVisibilityChange?: (visibility: string, moderationStatus: string) => void;
 }
@@ -22,6 +25,7 @@ export function ShareDialog({
   initialVisibility,
   initialModerationStatus = 'pending',
   isWorldBuilder = false,
+  projectRevision = 0,
   onClose,
   onVisibilityChange,
 }: ShareDialogProps) {
@@ -105,6 +109,15 @@ export function ShareDialog({
         </div>
 
         <div className="space-y-4 px-5 py-5">
+          {/*
+            World Builder projects release through review rather than the
+            legacy visibility toggle. Everything below this branch is the
+            original ordinary-project flow and is deliberately unchanged.
+          */}
+          {isPrivateDraft ? (
+            <WorldReleasePanel projectId={projectId} projectRevision={projectRevision} />
+          ) : (
+          <>
           <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4">
             {isPublic ? (
               <Globe className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
@@ -113,14 +126,10 @@ export function ShareDialog({
             )}
             <div className="text-sm">
               <div className="font-semibold text-slate-900">
-                {isPrivateDraft ? 'Private draft' : isPublic ? t('share.public') : t('share.private')}
+                {isPublic ? t('share.public') : t('share.private')}
               </div>
               <p className="mt-0.5 leading-relaxed text-slate-600">
-                {isPrivateDraft
-                  ? 'World Builder worlds stay private while public release is unavailable. You can test and keep building here.'
-                  : isPublic
-                  ? t('share.publicBody')
-                  : t('share.privateBody')}
+                {isPublic ? t('share.publicBody') : t('share.privateBody')}
               </p>
             </div>
           </div>
@@ -163,8 +172,7 @@ export function ShareDialog({
             </div>
           )}
 
-          {!isPrivateDraft && (
-            <button
+          <button
               onClick={() => setPublished(!isPublic)}
               disabled={busy}
               className={`w-full rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:opacity-60 ${
@@ -175,10 +183,12 @@ export function ShareDialog({
             >
               {busy ? 'Working…' : isPublic ? t('share.makePrivate') : t('share.makePublic')}
             </button>
+          </>
           )}
 
           {/* Export gives you a portable copy of the whole project — there was
-              previously no way to get a project out of the product at all. */}
+              previously no way to get a project out of the product at all, and
+              it stays available to World Builder and ordinary projects alike. */}
           <a
             href={`/api/projects/${projectId}/export`}
             className="block w-full rounded-full border border-slate-200 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-300"

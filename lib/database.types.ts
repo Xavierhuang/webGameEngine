@@ -12,6 +12,27 @@ export type ModerationStatus = 'pending' | 'approved' | 'rejected';
 export type ProjectModerationStatus = 'draft' | 'moderation_pending' | 'published' | 'rejected';
 export type PublicationModerationStatus = 'moderation_pending' | 'published' | 'rejected';
 export type ProjectVisibility = 'private' | 'shared' | 'public';
+export type WorldReleaseStatus =
+  | 'submitted' | 'checking' | 'review_pending' | 'published'
+  | 'changes_requested' | 'rejected' | 'withdrawn' | 'taken_down' | 'superseded';
+export type WorldReleaseCheckStatus = 'passed' | 'failed' | 'error';
+export type WorldReleaseDecision = 'approved' | 'changes_requested' | 'rejected' | 'taken_down';
+export type WorldReleaseReasonCode =
+  | 'automated_check_failed' | 'content_policy' | 'age_safety' | 'copyright'
+  | 'duplicate_submission' | 'creator_withdrew' | 'administrative_action';
+export type WorldReleaseCheckReasonCode =
+  | 'content_policy' | 'age_safety' | 'copyright' | 'snapshot_integrity'
+  | 'template_validation' | 'internal_error'
+  | 'snapshot_hash_mismatch' | 'snapshot_revision_mismatch'
+  | 'template_not_active' | 'template_invalid' | 'template_budget_unavailable'
+  | 'budget_exceeded' | 'asset_size_unavailable'
+  | 'asset_url_invalid' | 'asset_reference_invalid'
+  | 'block_type_unsupported' | 'block_data_invalid'
+  | 'scene_missing' | 'player_missing' | 'player_controls_missing'
+  | 'metadata_invalid' | 'metadata_moderation_failed' | 'check_error';
+export type WorldReleaseDecisionReasonCode =
+  | 'approved' | 'changes_requested' | 'content_policy' | 'age_safety'
+  | 'copyright' | 'administrative_action';
 
 export interface Database {
   public: {
@@ -90,6 +111,7 @@ export interface Database {
           moderation_status: ProjectModerationStatus;
           moderation_notes: string | null;
           revision: number;
+          source_release_id: string | null;
         };
         Insert: {
           id?: string;
@@ -103,6 +125,7 @@ export interface Database {
           genre?: string | null;
           moderation_status?: ProjectModerationStatus;
           revision?: number;
+          source_release_id?: string | null;
         };
         Update: {
           title?: string;
@@ -114,6 +137,7 @@ export interface Database {
           moderation_status?: ProjectModerationStatus;
           moderation_notes?: string | null;
           revision?: number;
+          source_release_id?: string | null;
         };
       };
       scenes: {
@@ -571,6 +595,144 @@ export interface Database {
           storage_key: string;
           mime_type: string;
           byte_size: number;
+        };
+        Update: Record<string, never>;
+      };
+      reports: {
+        Row: {
+          id: string;
+          reporter_profile_id: string | null;
+          reported_project_id: string | null;
+          world_release_id: string | null;
+          reported_profile_id: string | null;
+          reason: 'inappropriate' | 'harassment' | 'spam' | 'violence' | 'other';
+          details: string | null;
+          status: 'open' | 'reviewed' | 'dismissed' | 'actioned' | null;
+          reviewer_id: string | null;
+          review_notes: string | null;
+          created_at: string;
+          reviewed_at: string | null;
+        };
+        Insert: {
+          id: string;
+          reporter_profile_id?: string | null;
+          reported_project_id?: string | null;
+          world_release_id?: string | null;
+          reported_profile_id?: string | null;
+          reason?: 'inappropriate' | 'harassment' | 'spam' | 'violence' | 'other';
+          details?: string | null;
+          status?: 'open' | 'reviewed' | 'dismissed' | 'actioned' | null;
+          reviewer_id?: string | null;
+          review_notes?: string | null;
+          reviewed_at?: string | null;
+        };
+        Update: {
+          world_release_id?: string | null;
+          status?: 'open' | 'reviewed' | 'dismissed' | 'actioned' | null;
+          reviewer_id?: string | null;
+          review_notes?: string | null;
+          reviewed_at?: string | null;
+        };
+      };
+      world_releases: {
+        Row: {
+          id: string;
+          project_id: string;
+          project_play_snapshot_id: string;
+          template_id: string;
+          template_version: number;
+          project_revision: number;
+          snapshot_sha256: string;
+          status: WorldReleaseStatus;
+          current_public: boolean;
+          public_slug: string | null;
+          creator_label: string;
+          decision_reason_code: WorldReleaseReasonCode | null;
+          submission_idempotency_key: string;
+          submitted_at: string;
+          checked_at: string | null;
+          reviewed_at: string | null;
+          published_at: string | null;
+          withdrawn_at: string | null;
+          taken_down_at: string | null;
+        };
+        Insert: {
+          id: string;
+          project_id: string;
+          project_play_snapshot_id: string;
+          template_id: string;
+          template_version: number;
+          project_revision: number;
+          snapshot_sha256: string;
+          status?: WorldReleaseStatus;
+          current_public?: boolean;
+          public_slug?: string | null;
+          creator_label: string;
+          decision_reason_code?: WorldReleaseReasonCode | null;
+          submission_idempotency_key: string;
+          checked_at?: string | null;
+          reviewed_at?: string | null;
+          published_at?: string | null;
+          withdrawn_at?: string | null;
+          taken_down_at?: string | null;
+        };
+        Update: {
+          status?: WorldReleaseStatus;
+          current_public?: boolean;
+          public_slug?: string | null;
+          decision_reason_code?: WorldReleaseReasonCode | null;
+          checked_at?: string | null;
+          reviewed_at?: string | null;
+          published_at?: string | null;
+          withdrawn_at?: string | null;
+          taken_down_at?: string | null;
+        };
+      };
+      world_release_checks: {
+        Row: {
+          id: string;
+          world_release_id: string;
+          check_type: string;
+          status: WorldReleaseCheckStatus;
+          reason_code: WorldReleaseCheckReasonCode | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          world_release_id: string;
+          check_type: string;
+          status: WorldReleaseCheckStatus;
+          reason_code?: WorldReleaseCheckReasonCode | null;
+        };
+        Update: Record<string, never>;
+      };
+      world_release_decisions: {
+        Row: {
+          id: string;
+          world_release_id: string;
+          reviewer_profile_id: string | null;
+          decision: WorldReleaseDecision;
+          reason_code: WorldReleaseDecisionReasonCode | null;
+          decided_at: string;
+        };
+        Insert: {
+          id: string;
+          world_release_id: string;
+          reviewer_profile_id?: string | null;
+          decision: WorldReleaseDecision;
+          reason_code?: WorldReleaseDecisionReasonCode | null;
+        };
+        Update: Record<string, never>;
+      };
+      world_release_beta_cohort_members: {
+        Row: {
+          world_release_id: string;
+          profile_id: string;
+          added_at: string;
+        };
+        Insert: {
+          world_release_id: string;
+          profile_id: string;
         };
         Update: Record<string, never>;
       };

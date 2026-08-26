@@ -108,11 +108,38 @@ test('public discovery requires a fully released project and anonymous play cann
   );
 });
 
-test('World Builder share UI is a private-draft status with no publication control', () => {
+test('World Builder share UI releases through review, never the legacy publication control', () => {
+  // This test previously asserted the Phase 1 placeholder copy, "World Builder
+  // worlds stay private while public release is unavailable". Public release is
+  // now available to World Builder projects behind the operator flag, so that
+  // premise is superseded by the release beta. The boundary it was protecting
+  // is not: a World Builder project must still never reach the public through
+  // the legacy visibility toggle, only through moderator review.
   const source = fs.readFileSync(path.join(ROOT, 'components/editor/ShareDialog.tsx'), 'utf8');
   const editor = fs.readFileSync(path.join(ROOT, 'components/editor/GameEditor.tsx'), 'utf8');
   assert.match(source, /isWorldBuilder/);
-  assert.match(source, /Private draft/);
-  assert.match(source, /World Builder worlds stay private/);
+  assert.match(source, /WorldReleasePanel/, 'World Builder projects are routed to the release panel');
   assert.match(editor, /isWorldBuilder=\{Boolean\(worldBuilder\)\}/);
+  assert.match(editor, /projectRevision=\{revisionRef\.current\}/,
+    'the panel pins submissions to the editor authoritative revision');
+
+  // The rendered proof, rather than a source match: a World Builder project is
+  // offered review, and is not offered the legacy public/private toggle.
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const React = require('react');
+  const originalLoad = Module._load;
+  Module._load = function patched(request, parent, isMain) {
+    if (request.startsWith('@/')) return originalLoad(path.join(BUILD_ROOT, `${request.slice(2)}.js`), parent, isMain);
+    return originalLoad(request, parent, isMain);
+  };
+  const { ShareDialog } = require(path.join(BUILD_ROOT, 'components/editor/ShareDialog.js'));
+  Module._load = originalLoad;
+
+  const worldMarkup = renderToStaticMarkup(React.createElement(ShareDialog, {
+    projectId: 'p1', initialVisibility: 'private', initialModerationStatus: 'approved',
+    isWorldBuilder: true, projectRevision: 4, onClose: () => {},
+  }));
+  assert.match(worldMarkup, /Submit for review/);
+  assert.doesNotMatch(worldMarkup, /Make it public/i,
+    'a World Builder world can never be published by the legacy toggle');
 });

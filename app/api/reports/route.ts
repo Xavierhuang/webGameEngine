@@ -7,9 +7,12 @@ import { submitReport } from '@/lib/safety/reportSubmission.server';
 /**
  * POST /api/reports
  *
- * Body: { projectId?: string, profileId?: string, reason: 'inappropriate' | ...,
- *         details?: string }
- * Exactly one of projectId / profileId is required.
+ * Body: { projectId?: string, profileId?: string, releaseId?: string,
+ *         reason: 'inappropriate' | ..., details?: string }
+ * Exactly one of projectId / profileId is required. `releaseId` is optional and
+ * only accepted alongside `projectId`; it is stored only when it names the
+ * project's currently public world release, so a moderator can jump straight to
+ * the frozen content the reporter actually saw.
  *
  * Signed-in users and secure guests may file reports. Reports go into the `reports`
  * table with status 'open' and are picked up by moderator review flows.

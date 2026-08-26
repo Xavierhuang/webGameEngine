@@ -4,6 +4,25 @@ import { requireAdmin } from '@/lib/auth/admin';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
 import { ReportQueue } from '@/components/admin/ReportQueue';
+import WorldReleaseQueue, { type QueuedWorldRelease } from '@/components/admin/WorldReleaseQueue';
+
+interface WorldReleaseRow {
+  id: string;
+  creator_label: string;
+  submitted_at: Date | string;
+  template_id: string;
+  template_version: number | string;
+  project_revision: number | string;
+  public_slug: string | null;
+  status: string;
+}
+
+interface WorldReleaseCheckRow {
+  world_release_id: string;
+  check_type: string;
+  status: string;
+  reason_code: string | null;
+}
 import { ShieldAlert } from 'lucide-react';
 
 /**
@@ -32,12 +51,14 @@ export default async function AdminReportsPage() {
 
   const reports = await query<any>(
     `SELECT r.id, r.reason, r.details, r.status, r.created_at,
-            r.reported_project_id,
+            r.reported_project_id, r.world_release_id,
+            wr.public_slug AS world_release_slug, wr.status AS world_release_status,
             p.title AS project_title, p.moderation_status,
             reporter.display_name AS reporter_name
      FROM reports r
      LEFT JOIN projects p ON p.id = r.reported_project_id
      LEFT JOIN profiles reporter ON reporter.id = r.reporter_profile_id
+     LEFT JOIN world_releases wr ON wr.id = r.world_release_id
      WHERE r.status = 'open'
      ORDER BY r.created_at DESC
      LIMIT 100`
@@ -51,6 +72,42 @@ export default async function AdminReportsPage() {
      ORDER BY created_at DESC
      LIMIT 50`
   );
+
+  // World releases awaiting a decision, plus the ones currently public so a
+  // moderator can take one down from the same page. Only the release row's own
+  // safe columns are selected — no creator account, consent record, or reviewer
+  // identity crosses into the queue.
+  const worldReleases = await query<WorldReleaseRow>(
+    `SELECT wr.id, wr.creator_label, wr.submitted_at, wr.template_id, wr.template_version,
+            wr.project_revision, wr.public_slug, wr.status
+     FROM world_releases wr
+     WHERE wr.status = 'review_pending'
+        OR (wr.status = 'published' AND wr.current_public = TRUE)
+     ORDER BY FIELD(wr.status, 'review_pending', 'published'), wr.submitted_at ASC
+     LIMIT 50`
+  ).catch(() => []);
+
+  const releaseChecks: WorldReleaseCheckRow[] = worldReleases.length === 0 ? [] : await query<WorldReleaseCheckRow>(
+    `SELECT world_release_id, check_type, status, reason_code
+     FROM world_release_checks
+     WHERE world_release_id IN (${worldReleases.map(() => '?').join(',')})
+     ORDER BY created_at ASC, id ASC`,
+    worldReleases.map((release) => release.id),
+  ).catch(() => []);
+
+  const queuedReleases: QueuedWorldRelease[] = worldReleases.map((release) => ({
+    id: release.id,
+    creatorLabel: release.creator_label,
+    submittedAt: new Date(release.submitted_at).toISOString(),
+    templateId: release.template_id,
+    templateVersion: Number(release.template_version),
+    sourceRevision: Number(release.project_revision),
+    publicSlug: release.public_slug,
+    status: release.status,
+    checks: releaseChecks
+      .filter((check) => check.world_release_id === release.id)
+      .map((check) => ({ name: check.check_type, status: check.status, reasonCode: check.reason_code })),
+  }));
 
   // Recent errors, grouped. Surfaced beside moderation because this is the one
   // page a maintainer already opens; a dashboard nobody visits reports nothing.
@@ -74,6 +131,13 @@ export default async function AdminReportsPage() {
         </p>
 
         <ReportQueue reports={reports} pending={pending} />
+
+        <section className="mt-12">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            World releases
+          </h2>
+          <WorldReleaseQueue releases={queuedReleases} />
+        </section>
 
         <section className="mt-12">
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
