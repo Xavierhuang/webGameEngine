@@ -119,6 +119,7 @@ test.after(async () => {
   }
   await pool.query("DELETE FROM security_audit_events WHERE operation LIKE 'world_release.%'").catch(() => {});
   for (const profileId of profileIds) await pool.query('DELETE FROM profiles WHERE id = ?', [profileId]).catch(() => {});
+  await pool.query("DELETE FROM reports WHERE reporter_profile_id IN (SELECT id FROM profiles WHERE display_name IN ('Reporter','World Builder','Moderator'))").catch(() => {});
   for (const userId of userIds) await pool.query('DELETE FROM users WHERE id = ?', [userId]).catch(() => {});
   await pool.end();
   const globalPool = globalThis.__mysqlPool;
@@ -360,4 +361,59 @@ test('a guest can remix a published world and the copy is theirs and private', a
   const [[project]] = await pool.query('SELECT owner_id, visibility FROM projects WHERE id = ?', [result.project.id]);
   assert.equal(project.owner_id, guestProfileId, 'a guest with a profile owns their remix');
   assert.equal(project.visibility, 'private');
+});
+
+test('a report can pin the exact published release, and cannot pin any other', async (t) => {
+  if (!requireMysql(t)) return;
+  const owner = await createUser();
+  const admin = await createUser({ role: 'admin', label: 'Moderator' });
+  const reporter = await createUser({ label: 'Reporter' });
+  const fixture = await createWorldFixture(owner);
+  const { releaseId } = await publishRelease(owner, admin, fixture);
+
+  const originalLoadForReports = Module._load;
+  Module._load = function patched(request, parent, isMain) {
+    if (request.startsWith('@/')) return originalLoadForReports(path.join(BUILD_ROOT, `${request.slice(2)}.js`), parent, isMain);
+    return originalLoadForReports(request, parent, isMain);
+  };
+  const { submitReport } = require(path.join(BUILD_ROOT, 'lib/safety/reportSubmission.server.js'));
+  Module._load = originalLoadForReports;
+
+  const filed = await submitReport(reporter, {
+    projectId: fixture.projectId, releaseId, reason: 'inappropriate', details: 'please look',
+  });
+  const [[stored]] = await pool.query(
+    'SELECT reported_project_id, world_release_id FROM reports WHERE id = ?', [filed.id]);
+  assert.equal(stored.world_release_id, releaseId, 'the report pins the exact release');
+  assert.equal(stored.reported_project_id, fixture.projectId, 'and still names the project');
+  await pool.query('DELETE FROM reports WHERE id = ?', [filed.id]);
+
+  // A release belonging to a different project cannot be attached.
+  const otherFixture = await createWorldFixture(owner);
+  await assert.rejects(
+    () => submitReport(reporter, { projectId: otherFixture.projectId, releaseId, reason: 'spam' }),
+    (error) => error.status === 404,
+    'a release under a different project is not found',
+  );
+
+  // Once taken down, the release can no longer be pinned by a new report.
+  await call(takedownRoute.POST, request({ reasonCode: 'content_policy' }), { releaseId }, admin);
+  await assert.rejects(
+    () => submitReport(reporter, { projectId: fixture.projectId, releaseId, reason: 'spam' }),
+    (error) => error.status === 404,
+    'a taken-down release is not reportable',
+  );
+
+  // An ordinary project report still goes through the project-view boundary, so
+  // a stranger cannot file one against a private project...
+  await assert.rejects(
+    () => submitReport(reporter, { projectId: fixture.projectId, reason: 'spam' }),
+    (error) => error.status === 404,
+    'a stranger has no ordinary view of a private project',
+  );
+  // ...while someone who can see it still can, and stores no release link.
+  const plain = await submitReport(owner, { projectId: fixture.projectId, reason: 'spam' });
+  const [[plainRow]] = await pool.query('SELECT world_release_id FROM reports WHERE id = ?', [plain.id]);
+  assert.equal(plainRow.world_release_id, null);
+  await pool.query('DELETE FROM reports WHERE id = ?', [plain.id]);
 });

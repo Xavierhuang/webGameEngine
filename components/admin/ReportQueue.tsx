@@ -60,6 +60,16 @@ export function ReportQueue({ reports, pending }: ReportQueueProps) {
                   </div>
 
                   <div className="flex shrink-0 gap-1.5">
+                    {report.world_release_slug && (
+                      <a
+                        href={`/worlds/${report.world_release_slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-semibold text-indigo-600 underline"
+                      >
+                        Open the reported release
+                      </a>
+                    )}
                     {report.reported_project_id && (
                       <Link
                         href={`/projects/${report.reported_project_id}`}

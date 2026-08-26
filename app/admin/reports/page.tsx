@@ -51,12 +51,14 @@ export default async function AdminReportsPage() {
 
   const reports = await query<any>(
     `SELECT r.id, r.reason, r.details, r.status, r.created_at,
-            r.reported_project_id,
+            r.reported_project_id, r.world_release_id,
+            wr.public_slug AS world_release_slug, wr.status AS world_release_status,
             p.title AS project_title, p.moderation_status,
             reporter.display_name AS reporter_name
      FROM reports r
      LEFT JOIN projects p ON p.id = r.reported_project_id
      LEFT JOIN profiles reporter ON reporter.id = r.reporter_profile_id
+     LEFT JOIN world_releases wr ON wr.id = r.world_release_id
      WHERE r.status = 'open'
      ORDER BY r.created_at DESC
      LIMIT 100`

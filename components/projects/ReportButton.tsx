@@ -16,7 +16,13 @@ const REASONS: Array<{ value: string; label: string }> = [
  * Report a project. `POST /api/reports` and the `reports` table both existed,
  * but nothing in the product ever called the endpoint — it was unreachable.
  */
-export function ReportButton({ projectId }: { projectId: string }) {
+/**
+ * `releaseId` is optional and only meaningful on a public world page, where it
+ * tells a moderator exactly which frozen release the reporter saw. The server
+ * still verifies it against the reported project and stores it only when it is
+ * that project's current public release.
+ */
+export function ReportButton({ projectId, releaseId }: { projectId: string; releaseId?: string }) {
   const [open, setOpen] = useState(false);
   const t = useTranslator();
   const [reason, setReason] = useState('inappropriate');
@@ -32,7 +38,7 @@ export function ReportButton({ projectId }: { projectId: string }) {
       const response = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, reason, details }),
+        body: JSON.stringify({ projectId, reason, details, ...(releaseId ? { releaseId } : {}) }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {

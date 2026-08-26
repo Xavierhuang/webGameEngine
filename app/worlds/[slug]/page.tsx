@@ -3,6 +3,7 @@ import { query } from '@/lib/mysql/server';
 import { resolveCurrentActor } from '@/lib/auth/actor';
 import { getPublicWorldReleaseSnapshot } from '@/lib/worlds/releaseAccess';
 import PublishedWorldPlayer from '@/components/worlds/PublishedWorldPlayer';
+import { ReportButton } from '@/components/projects/ReportButton';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
 import type { Project } from '@/types/game';
@@ -63,6 +64,15 @@ export default async function PublicWorldPage({ params }: PublicWorldPageProps) 
         </header>
 
         <PublishedWorldPlayer project={projectData} releaseId={release.id} worldIdentity={worldIdentity} />
+
+        {/*
+          The report carries the release id so a moderator lands on the exact
+          frozen content the reporter saw, not on whatever the creator has since
+          edited the private draft into.
+        */}
+        <div className="flex justify-center">
+          <ReportButton projectId={snapshot.project.id} releaseId={release.id} />
+        </div>
       </main>
     </div>
   );
