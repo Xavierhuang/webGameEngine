@@ -11,9 +11,17 @@ const databaseTypes = readFileSync(
   resolve(__dirname, '../../lib/database.types.ts'),
   'utf8',
 );
+const integrityUpgrade = readFileSync(
+  resolve(__dirname, '../../migrations/014_world_release_beta_integrity_upgrade.sql'),
+  'utf8',
+);
 
 function includes(pattern, description) {
   assert.match(migration, pattern, description);
+}
+
+function upgradeIncludes(pattern, description) {
+  assert.match(integrityUpgrade, pattern, description);
 }
 
 test('creates an immutable release pinned to exactly one Play snapshot', () => {
@@ -132,5 +140,70 @@ test('adds only nullable release references to existing mutable records', () => 
   includes(
     /ADD INDEX idx_projects_source_release \(source_release_id\)/i,
     'snapshot remix lineage needs a project lookup index',
+  );
+});
+
+test('upgrades prior draft release tables to code-only review fields', () => {
+  for (const [table, rawColumn, codeColumn] of [
+    ['world_releases', 'decision_reason', 'decision_reason_code'],
+    ['world_release_checks', 'details', 'reason_code'],
+    ['world_release_decisions', 'reason', 'reason_code'],
+  ]) {
+    upgradeIncludes(
+      new RegExp(`table_name = '${table}'[\\s\\S]*?column_name = '${codeColumn}'`, 'i'),
+      `${table}.${codeColumn} addition must be guarded`,
+    );
+    upgradeIncludes(
+      new RegExp(`table_name = '${table}'[\\s\\S]*?column_name = '${rawColumn}'`, 'i'),
+      `${table}.${rawColumn} removal must be guarded`,
+    );
+    upgradeIncludes(
+      new RegExp(`ALTER TABLE ${table} DROP COLUMN ${rawColumn}`, 'i'),
+      `${table}.${rawColumn} must be removed`,
+    );
+  }
+  upgradeIncludes(/ADD COLUMN decision_reason_code ENUM\(/i, 'release reason code upgrade');
+  upgradeIncludes(/ALTER TABLE world_release_checks ADD COLUMN reason_code ENUM\(/i, 'check reason code upgrade');
+  upgradeIncludes(/ALTER TABLE world_release_decisions ADD COLUMN reason_code ENUM\(/i, 'decision reason code upgrade');
+});
+
+test('upgrades draft release foreign keys to the immutable composite identities', () => {
+  for (const index of [
+    'uq_project_play_snapshots_project_snapshot',
+    'uq_project_worlds_project_template',
+    'uq_project_play_snapshots_project_revision_hash',
+    'uq_project_play_snapshots_release_identity',
+  ]) {
+    upgradeIncludes(new RegExp(`index_name = '${index}'`, 'i'), `${index} must be guarded`);
+    upgradeIncludes(new RegExp(`ADD UNIQUE INDEX ${index}\\b`, 'i'), `${index} must be added when absent`);
+  }
+  for (const legacyForeignKey of [
+    'fk_world_releases_snapshot',
+    'fk_world_releases_template',
+  ]) {
+    upgradeIncludes(
+      new RegExp(`constraint_name = '${legacyForeignKey}'`, 'i'),
+      `${legacyForeignKey} removal must be guarded`,
+    );
+    upgradeIncludes(
+      new RegExp(`DROP FOREIGN KEY ${legacyForeignKey}`, 'i'),
+      `${legacyForeignKey} must be removed`,
+    );
+  }
+  for (const foreignKey of [
+    'fk_world_releases_project_snapshot',
+    'fk_world_releases_project_template',
+    'fk_world_releases_project_snapshot_hash',
+    'fk_world_releases_snapshot_identity',
+  ]) {
+    upgradeIncludes(
+      new RegExp(`constraint_name = '${foreignKey}'`, 'i'),
+      `${foreignKey} must be guarded before creation`,
+    );
+    upgradeIncludes(new RegExp(`ADD CONSTRAINT ${foreignKey} FOREIGN KEY`, 'i'), `${foreignKey} upgrade`);
+  }
+  upgradeIncludes(
+    /FOREIGN KEY \(project_id, project_play_snapshot_id, project_revision, snapshot_sha256\) REFERENCES project_play_snapshots\(project_id, id, revision, snapshot_sha256\)/i,
+    'upgrade must bind snapshot id, revision, and hash to one row',
   );
 });
