@@ -81,9 +81,35 @@ function run(command, args) {
 console.log(`\n=== world release gate: ${SUITES.length} suites, serial ===\n`);
 const suiteRun = await run(process.execPath, ['--test', '--test-concurrency=1', ...SUITES]);
 
-const skipped = Number(/^ℹ skipped (\d+)$/m.exec(suiteRun.stdout)?.[1] ?? '0');
-const passed = Number(/^ℹ pass (\d+)$/m.exec(suiteRun.stdout)?.[1] ?? '0');
-const failed = Number(/^ℹ fail (\d+)$/m.exec(suiteRun.stdout)?.[1] ?? '0');
+/**
+ * Reads one summary counter from the test runner's output.
+ *
+ * Both reporter formats are accepted on purpose. `node --test` picks its
+ * default reporter by Node version and by whether stdout is a TTY: Node 24
+ * emitted the spec reporter's `ℹ pass 100` locally, while Node 20 on CI emitted
+ * TAP's `# pass 100`. Matching only one of those made this gate report "no
+ * tests ran" against a run where all 100 passed.
+ *
+ * Returns null when the counter is absent, which the caller treats as an
+ * unverifiable run rather than as a zero.
+ */
+function summaryCount(output, label) {
+  const match = new RegExp(`^(?:ℹ|#) ${label} (\\d+)\\s*$`, 'm').exec(output);
+  return match ? Number(match[1]) : null;
+}
+
+const skipped = summaryCount(suiteRun.stdout, 'skipped');
+const passed = summaryCount(suiteRun.stdout, 'pass');
+const failed = summaryCount(suiteRun.stdout, 'fail');
+
+if (passed === null || failed === null || skipped === null) {
+  console.error(
+    '\nworld release gate FAILED: could not read the test summary.\n'
+    + 'The runner produced output this gate does not know how to verify, so its\n'
+    + 'result cannot be trusted either way. Check the reporter format above.',
+  );
+  process.exit(1);
+}
 
 if (suiteRun.code !== 0 || failed > 0) {
   console.error(`\nworld release gate FAILED: ${failed} failing test(s).`);
