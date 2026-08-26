@@ -20,7 +20,7 @@ import {
   type ReleaseCheckContext,
   type WorldReleaseCheckResult,
 } from './releaseChecks';
-import { canTransitionRelease, type WorldReleaseStatus } from './releaseTypes';
+import { canTransitionRelease, WORLD_RELEASE_LIVE_STATUSES, type WorldReleaseStatus } from './releaseTypes';
 import { getWorldTemplate, type WorldTemplate } from './templates';
 import { writeReleaseAudit, type ReleaseAuditEvent } from './releaseAudit';
 
@@ -86,6 +86,7 @@ export type ReleaseServiceErrorCode =
   | 'snapshot_unavailable'
   | 'snapshot_integrity_failed'
   | 'invalid_release_transition'
+  | 'release_already_in_flight'
   | 'release_reason_invalid';
 
 export class ReleaseServiceError extends Error {
@@ -387,6 +388,52 @@ async function trustedAssetByteSizes(
   return sizes;
 }
 
+/**
+ * A snapshot may back at most one release that is still in review or public.
+ * Terminal and superseded releases stay as history, so an ordinary withdraw
+ * and resubmit of the same revision reuses the same immutable snapshot row.
+ * `migrations/015_world_release_active_snapshot.sql` enforces this in the
+ * database; checking it under the project lock turns the boundary into a typed
+ * release error the route layer can map instead of a driver duplicate key.
+ */
+/**
+ * Defense in depth behind `assertSnapshotNotAlreadyLive`. The pre-check runs
+ * under the project lock and should catch every live collision, but a raw
+ * duplicate key on the release table must still surface as a typed release
+ * error rather than a driver error the route layer would render as a 500.
+ */
+async function insertReleaseRow(
+  connection: TransactionConnection,
+  sql: string,
+  parameters: Array<string | number | null>,
+): Promise<void> {
+  try {
+    await connection.execute(sql, parameters);
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code;
+    if (code === 'ER_DUP_ENTRY') throw new ReleaseServiceError('release_already_in_flight', 409);
+    throw error;
+  }
+}
+
+async function assertSnapshotNotAlreadyLive(
+  connection: TransactionConnection,
+  projectId: string,
+  snapshotId: string,
+): Promise<void> {
+  const placeholders = WORLD_RELEASE_LIVE_STATUSES.map(() => '?').join(',');
+  const live = rows<{ id: string }>(await connection.execute(
+    `SELECT id
+       FROM world_releases
+      WHERE project_id = ? AND project_play_snapshot_id = ?
+        AND status IN (${placeholders})
+      LIMIT 1
+      FOR UPDATE`,
+    [projectId, snapshotId, ...WORLD_RELEASE_LIVE_STATUSES],
+  ))[0];
+  if (live) throw new ReleaseServiceError('release_already_in_flight', 409);
+}
+
 async function lockRelease(
   connection: TransactionConnection,
   releaseId: string,
@@ -549,8 +596,11 @@ export function createReleaseService(options: ReleaseServiceOptions = {}) {
       const confirmedSnapshot = await reReadSnapshot(connection, input.projectId, persistedSnapshot.id);
       const immutableSnapshot = assertSnapshotIntegrity(confirmedSnapshot, input.projectId, input.expectedRevision);
 
+      await assertSnapshotNotAlreadyLive(connection, input.projectId, confirmedSnapshot.id);
+
       const releaseId = makeUuid();
-      await connection.execute(
+      await insertReleaseRow(
+        connection,
         `INSERT INTO world_releases
            (id, project_id, project_play_snapshot_id, template_id, template_version,
             project_revision, snapshot_sha256, creator_label, submission_idempotency_key)

@@ -286,3 +286,55 @@ test('concurrent publication leaves one current release and removal never mutate
   assert.deepEqual({ status: withdrawn.status, currentPublic: Number(withdrawn.current_public) }, { status: 'withdrawn', currentPublic: 0 });
   assert.deepEqual(afterWithdrawal, beforeWithdrawal, 'withdrawal also leaves the private editing graph untouched');
 });
+
+test('a withdrawn candidate can be resubmitted at the same revision and a live one cannot be duplicated', async (t) => {
+  if (!requireMysql(t)) return;
+  const owner = await createUser();
+  const fixture = await createWorldFixture({ owner });
+  const releaseService = service();
+
+  // Snapshots are deduplicated by `(project_id, revision)`, so an ordinary
+  // withdraw-then-resubmit reuses the same immutable snapshot row. That must
+  // remain a supported creator flow rather than a driver-level duplicate key.
+  const first = await releaseService.submitWorldRelease({
+    actor: owner, projectId: fixture.projectId, expectedRevision: 4, idempotencyKey: 'resubmit-original-key',
+  });
+  assert.equal(first.status, 'review_pending');
+
+  // A second live candidate for the same frozen snapshot is still refused, but
+  // as a typed release error the route layer can map, never as ER_DUP_ENTRY.
+  await assert.rejects(
+    () => releaseService.submitWorldRelease({
+      actor: owner, projectId: fixture.projectId, expectedRevision: 4, idempotencyKey: 'resubmit-while-live-key',
+    }),
+    (error) => error?.name === 'ReleaseServiceError'
+      && error?.code === 'release_already_in_flight'
+      && error?.status === 409,
+  );
+
+  await releaseService.withdrawWorldRelease({ actor: owner, projectId: fixture.projectId, releaseId: first.id });
+
+  const second = await releaseService.submitWorldRelease({
+    actor: owner, projectId: fixture.projectId, expectedRevision: 4, idempotencyKey: 'resubmit-after-withdrawal-key',
+  });
+  assert.equal(second.status, 'review_pending');
+  assert.notEqual(second.id, first.id);
+
+  const [[frozen]] = await pool.query(
+    'SELECT project_play_snapshot_id, project_revision FROM world_releases WHERE id = ?',
+    [second.id],
+  );
+  assert.deepEqual(
+    { snapshotId: frozen.project_play_snapshot_id, revision: Number(frozen.project_revision) },
+    { snapshotId: fixture.snapshot.id, revision: 4 },
+    'the resubmitted candidate pins the same immutable snapshot',
+  );
+
+  const [live] = await pool.query(
+    `SELECT id FROM world_releases
+      WHERE project_id = ? AND project_play_snapshot_id = ?
+        AND status IN ('submitted', 'checking', 'review_pending', 'published')`,
+    [fixture.projectId, fixture.snapshot.id],
+  );
+  assert.equal(live.length, 1, 'exactly one live release may hold a snapshot at a time');
+});

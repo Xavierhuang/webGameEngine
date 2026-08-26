@@ -26,6 +26,23 @@ export function isTerminalWorldReleaseStatus(status: WorldReleaseStatus): boolea
   return WORLD_RELEASE_TRANSITIONS[status].length === 0;
 }
 
+/**
+ * Statuses in which a release still occupies its immutable snapshot — it is
+ * either moving through review or currently public. Exactly one release may
+ * hold a given snapshot in these states; superseded and terminal releases stay
+ * as history so a creator can withdraw and resubmit the same revision.
+ *
+ * `migrations/015_world_release_active_snapshot.sql` enforces the same set in
+ * the `active_snapshot_id` generated column. Change both together.
+ */
+export const WORLD_RELEASE_LIVE_STATUSES: readonly WorldReleaseStatus[] = Object.freeze([
+  'submitted', 'checking', 'review_pending', 'published',
+]);
+
+export function isLiveWorldReleaseStatus(status: WorldReleaseStatus): boolean {
+  return WORLD_RELEASE_LIVE_STATUSES.includes(status);
+}
+
 /** A release is public only while it is the current, approved release. */
 export function isPublicWorldRelease(status: WorldReleaseStatus, currentPublic: boolean): boolean {
   return status === 'published' && currentPublic;

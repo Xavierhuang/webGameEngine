@@ -130,6 +130,15 @@ function createReleaseStore({ release, profileRole = 'child', assetSizeRows = [{
         row.decision_reason_code = values[1];
         return [{ affectedRows: 1 }];
       }
+      // The live-snapshot probe answers from the same in-memory release list,
+      // so the guard is genuinely exercised rather than stubbed to empty.
+      if (normalized.includes('from world_releases') && normalized.includes('and status in (')) {
+        const [projectId, snapshotId, ...liveStatuses] = values;
+        const live = releases.find((row) => row.project_id === projectId
+          && row.project_play_snapshot_id === snapshotId
+          && liveStatuses.includes(row.status));
+        return [live ? [{ id: live.id }] : []];
+      }
       if (normalized.includes('from world_releases') && normalized.includes('where id = ? for update')) {
         const row = releases.find((item) => item.id === values[0]);
         return [row ? [row] : []];
