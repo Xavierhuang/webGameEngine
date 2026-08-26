@@ -33,6 +33,10 @@ export default [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
+    // eslint-config-next registers its React plugins for this source set.
+    // Keep our React rules on the same files so CommonJS test helpers can be
+    // linted without trying to resolve browser-only React plugins.
+    files: ['**/*.{js,jsx,mjs,ts,tsx,mts,cts}'],
     rules: {
       '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',

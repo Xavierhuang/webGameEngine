@@ -10,14 +10,15 @@ interface WorldMissionPanelProps {
 
 export default function WorldMissionPanel({ projectId, initialMissions }: WorldMissionPanelProps) {
   const [dismissed, setDismissed] = useState(false);
-  const [missions, setMissions] = useState(initialMissions);
-
-  useEffect(() => {
-    setMissions(initialMissions);
-  }, [initialMissions]);
+  // Mission progress belongs to the editor's project state, so render the
+  // latest prop directly instead of keeping a duplicate state copy.
+  const missions = initialMissions;
 
   useEffect(() => {
     try {
+      // This value exists only in the browser. Reading it after hydration
+      // keeps the server and client markup identical.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDismissed(window.localStorage.getItem(`lingplay.world-missions:${projectId}`) === 'dismissed');
     } catch {
       // Optional guidance should not fail in private browsing.

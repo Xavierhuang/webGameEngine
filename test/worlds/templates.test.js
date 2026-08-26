@@ -6,6 +6,7 @@ const path = require('path');
 const {
   WORLD_TEMPLATES,
   getWorldTemplate,
+  listActiveWorldTemplates,
 } = require('../.build/lib/worlds/templates');
 const { validateWorldTemplate } = require('../.build/lib/worlds/templateValidation');
 const { BLOCK_SPECS } = require('../.build/lib/blockly/definitions');
@@ -127,6 +128,15 @@ test('template lookup returns an immutable independent copy', () => {
   assert.throws(() => first.scenes.push({}), TypeError, 'copy cannot be mutated');
   assert.strictEqual(getWorldTemplate('not-a-template', 1), null, 'unknown template is absent');
   assert.strictEqual(getWorldTemplate('platformer', 3), null, 'unknown version is absent');
+});
+
+test('starter-world discovery only shows the latest active template in each family', () => {
+  const featured = listActiveWorldTemplates();
+  assert.deepStrictEqual(featured.map((template) => template.id).sort(), [...REQUIRED_TEMPLATE_IDS].sort());
+  assert.ok(featured.every((template) => template.active), 'only active templates are featured');
+  assert.strictEqual(featured.find((template) => template.id === 'platformer').version, 2, 'Sky Steps v2 is featured');
+  assert.ok(Object.isFrozen(featured), 'featured list is immutable');
+  assert.notStrictEqual(featured[0], WORLD_TEMPLATES.find((template) => template.id === featured[0].id && template.version === featured[0].version));
 });
 
 test('validation rejects duplicate ids anywhere in the graph', () => {

@@ -129,7 +129,7 @@ interface ObjectRow extends Omit<SnapshotSceneObject, 'logic_blocks'> {
   is_static: boolean;
 }
 
-interface LogicBlockRow extends SnapshotLogicBlock {}
+type LogicBlockRow = SnapshotLogicBlock;
 
 interface AssetRow {
   id: string;

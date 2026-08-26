@@ -4,6 +4,7 @@ import { useTranslator } from '../common/LocaleProvider';
 import { useState } from 'react';
 import { Trash2, Bone, Brush } from 'lucide-react';
 import AudioManager from '@/lib/audio/AudioManager';
+import { isTrustedModelUrl } from '@/lib/models/modelPolicy';
 import AnimationEditor from './AnimationEditor';
 import PaintEditor from './PaintEditor';
 
@@ -604,10 +605,16 @@ export default function PropertiesPanel({
                       </div>
                       <input
                         type="text"
-                        value={c.model_url || ''}
-                        onChange={(e) => {
+                        defaultValue={c.model_url || ''}
+                        onBlur={(e) => {
+                          const modelUrl = e.target.value.trim();
+                          if (modelUrl && !isTrustedModelUrl(modelUrl)) {
+                            alert('For safety, upload a model file or use a model created in Lingplay.');
+                            e.currentTarget.value = c.model_url || '';
+                            return;
+                          }
                           const next = costumes.slice();
-                          next[i] = { ...c, model_url: e.target.value || undefined };
+                          next[i] = { ...c, model_url: modelUrl || undefined };
                           save(next);
                         }}
                         placeholder="model URL (optional)"
@@ -841,4 +848,3 @@ function PPNumField({
     </div>
   );
 }
-

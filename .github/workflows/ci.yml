@@ -71,6 +71,12 @@ jobs:
         # moderation keyword scan, prefabs and the asset generators.
         run: npm run test:all
 
+      - name: Critical creator flows
+        # These cover world creation/preview/missions, safe model references,
+        # AI-to-command translation, and consent state. They used to be test
+        # scripts that existed locally but were never exercised by CI.
+        run: npm run test:critical
+
       - name: Build
         run: npm run build
         env:

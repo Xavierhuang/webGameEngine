@@ -6,6 +6,7 @@ import { User, Sparkles, Upload, Wand2, Boxes, Link as LinkIcon } from 'lucide-r
 import ModelBuilder from './ModelBuilder';
 import ShapePreview from './ShapePreview';
 import { filterStarters } from '@/lib/editor/starterSearch';
+import { getModelExtension, isTrustedModelUrl } from '@/lib/models/modelPolicy';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
 import { useTranslator } from '../common/LocaleProvider';
@@ -42,21 +43,23 @@ export default function CharacterSelector({
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [modelUrl, setModelUrl] = useState('');
+  // Filtered on every keystroke; the list is small enough that debouncing
+  // would only add lag between typing and seeing the result.
+  const visibleStarters = filterStarters(PICKER_CHARACTERS, query);
 
-  // Preload every starter GLB the first time the picker opens so that by the
-  // time a tile scrolls into view its file is already in drei's cache. Only
-  // WebGL setup remains — the ~200-500ms per-file network wait moves off the
-  // critical path. Runs once per session; useGLTF.preload dedupes internally.
+  // GameEditor warms the first screen before the picker opens. When a child
+  // chooses Starters, warm only the visible first row instead of downloading
+  // the whole expanding library in the background.
   useEffect(() => {
-    if (!isOpen) return;
-    for (const c of CHARACTER_TEMPLATES) {
+    if (!isOpen || tab !== 'starters') return;
+    for (const c of visibleStarters.slice(0, 12)) {
       const url = c.model_url;
       if (!url) continue;
-      const ext = url.split('.').pop()?.toLowerCase();
+      const ext = getModelExtension(url);
       if (ext !== 'glb' && ext !== 'gltf') continue;
       useGLTF.preload(url);
     }
-  }, [isOpen]);
+  }, [isOpen, tab, visibleStarters]);
 
   const handleGenerateAI = async () => {
     if (!aiPrompt.trim()) return;
@@ -85,6 +88,10 @@ export default function CharacterSelector({
   const handleUrlSubmit = () => {
     const url = modelUrl.trim();
     if (!url) return;
+    if (!isTrustedModelUrl(url)) {
+      setUploadError('For safety, upload a model file or use a model created in Lingplay.');
+      return;
+    }
     const name = (url.split('/').pop() || 'Custom Model').replace(/\.[^/.]+$/, '');
     onSelect({
       id: `custom-url-${Date.now()}`,
@@ -104,6 +111,7 @@ export default function CharacterSelector({
     try {
       const form = new FormData();
       form.append('file', file);
+      form.append('projectId', projectId);
       const res = await fetch('/api/uploads/model', { method: 'POST', body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -126,10 +134,6 @@ export default function CharacterSelector({
       setUploading(false);
     }
   };
-
-  // Filtered on every keystroke; the list is small enough that debouncing
-  // would only add lag between typing and seeing the result.
-  const visibleStarters = filterStarters(PICKER_CHARACTERS, query);
 
   return (
     <>

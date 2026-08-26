@@ -699,3 +699,16 @@ export function getWorldTemplate(id: string, version: number): WorldTemplate | n
   const template = WORLD_TEMPLATES.find((candidate) => candidate.id === id && candidate.version === version);
   return template ? deepFreeze(JSON.parse(JSON.stringify(template)) as WorldTemplate) : null;
 }
+
+/**
+ * Catalog entries suitable for the public discovery surfaces. Historic
+ * template versions remain available to existing projects, but only the
+ * current approved starter for each family is advertised to new creators.
+ */
+export function listActiveWorldTemplates(): readonly WorldTemplate[] {
+  return deepFreeze(
+    WORLD_TEMPLATES
+      .filter((template) => template.active)
+      .map((template) => JSON.parse(JSON.stringify(template)) as WorldTemplate),
+  );
+}

@@ -71,6 +71,22 @@ test('empty object.update is rejected — must change at least one field', () =>
   assert.equal(parsed.success, false);
 });
 
+test('object model URLs must use Lingplay storage or the approved AI model host', () => {
+  const base = {
+    type: 'object.create',
+    objectId: UUID,
+    sceneId: UUID_B,
+    name: 'Hero',
+    objectType: 'character',
+  };
+
+  assert.equal(ProjectCommandSchema.safeParse({ ...base, properties: { modelUrl: '/uploads/models/hero.glb' } }).success, true);
+  assert.equal(ProjectCommandSchema.safeParse({ ...base, properties: { model_url: 'https://assets.meshy.ai/models/hero.glb' } }).success, true);
+  assert.equal(ProjectCommandSchema.safeParse({ ...base, properties: { modelUrl: 'https://untrusted.example/hero.glb' } }).success, false);
+  assert.equal(ProjectCommandSchema.safeParse({ ...base, properties: { sprite_data: { model_url: 'https://untrusted.example/hero.glb' } } }).success, false);
+  assert.equal(ProjectCommandSchema.safeParse({ ...base, properties: { costumes: [{ model_url: 'https://untrusted.example/hero.glb' }] } }).success, false);
+});
+
 test('invalid UUIDs are rejected', () => {
   const parsed = ProjectCommandSchema.safeParse({
     type: 'scene.delete',

@@ -1513,9 +1513,13 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
                     };
                   });
                   logObjectAction(selectedObject.id, 'update', updates);
+                } else {
+                  const data = await response.json().catch(() => null) as { error?: string } | null;
+                  alert(data?.error || 'Could not save that change. Please try again.');
                 }
               } catch (error) {
                 console.error('Error updating object:', error);
+                alert('Could not save that change. Please try again.');
               }
             }}
             onDuplicate={duplicateSelected}

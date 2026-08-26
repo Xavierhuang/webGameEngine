@@ -173,7 +173,7 @@ export default async function EditorPage({ params }: EditorPageProps) {
   };
 
   // Get user info for collaboration
-  let userId = actor.kind === 'user' ? actor.userId : actor.profileId;
+  const userId = actor.kind === 'user' ? actor.userId : actor.profileId;
   let username = 'Guest';
   const userProfile = await queryOne<{ username: string | null; display_name: string | null }>(
     'SELECT username, display_name FROM profiles WHERE id = ?',

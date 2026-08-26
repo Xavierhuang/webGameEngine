@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isTrustedModelUrl } from '../models/modelPolicy';
 
 /**
  * Project command wire schema.
@@ -48,12 +49,50 @@ const CssColor = z
   .regex(/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]{1,64}\))$/, 'invalid CSS color');
 
 const Url = z.string().url().max(2048);
+const ModelUrl = z
+  .string()
+  .min(1)
+  .max(2048)
+  .refine(isTrustedModelUrl, 'model URL must use Lingplay storage or the approved AI model host');
 
 // Numeric ranges — the runtime asserts these too, but rejecting at the
 // command boundary means garbage never enters `project_commands.command_json`.
 const Coord = z.number().finite();
 const OrderIndex = z.number().int().min(0).max(1_000_000);
 const NonNegativeInt = z.number().int().min(0);
+
+/**
+ * Some legacy picker metadata is intentionally passthrough, and the renderer
+ * also understands model URLs in nested sprite/costume bags. Validate every
+ * such URL recursively so a nested alias cannot bypass the direct fields.
+ */
+function validateNestedModelUrls(value: unknown, ctx: z.RefinementCtx) {
+  const visited = new WeakSet<object>();
+  const visit = (candidate: unknown, path: Array<string | number>, depth: number) => {
+    if (depth > 20 || candidate === null || typeof candidate !== 'object') return;
+    if (visited.has(candidate)) return;
+    visited.add(candidate);
+
+    if (Array.isArray(candidate)) {
+      candidate.forEach((item, index) => visit(item, [...path, index], depth + 1));
+      return;
+    }
+
+    for (const [key, child] of Object.entries(candidate)) {
+      const childPath = [...path, key];
+      if ((key === 'modelUrl' || key === 'model_url') && typeof child === 'string' && !isTrustedModelUrl(child)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: childPath,
+          message: 'model URL must use Lingplay storage or the approved AI model host',
+        });
+      }
+      visit(child, childPath, depth + 1);
+    }
+  };
+
+  visit(value, [], 0);
+}
 
 // Command payloads ----------------------------------------------------------
 
@@ -133,8 +172,9 @@ const Vec3 = z.object({ x: Coord, y: Coord, z: Coord }).strict();
 // beat/bpm/autoplay_beat, model_url/thumbnail_url/model_bounds/model_origin_offset)
 // that is not enumerable from this file. handleObjectCreate JSON-stringifies
 // whatever it receives into the `properties` column and only reads its own
-// named fields, so unknown keys have no code path — they become opaque
-// per-object metadata the renderer picks up. Strict rejection here forced
+// named fields, so unknown keys have no code path — except nested model URL
+// aliases, which are recursively checked because the renderer can load them.
+// Strict rejection here forced
 // every new picker field to go through this schema, which caused a silent
 // 422 regression when the legacy /api/ai/apply-update path was retired and
 // clients started sending their real metadata through the command service.
@@ -162,9 +202,9 @@ const ObjectProperties = z
         'particles',
       ])
       .optional(),
-    // ModelPath accepts relative paths ("/models/foo.glb") as well as
-    // absolute URLs — prefabs and uploads both take the relative form.
-    modelUrl: z.string().min(1).max(2048).nullable().optional(),
+    // Game models are parsed in each player's browser, so they can only come
+    // from Lingplay storage or the approved AI generation provider.
+    modelUrl: ModelUrl.nullable().optional(),
     // Runtime numeric limits — see plan's global-constraint list. Rejecting at
     // the command layer keeps the transaction short and the failure precise.
     mass: z.number().nonnegative().max(1e6).optional(),
@@ -197,12 +237,13 @@ const ObjectProperties = z
     thumbnailUrl: z.string().min(1).max(2048).nullable().optional(),
     // Snake-case aliases the pickers historically emit. Kept alongside the
     // camelCase form because the JSON column already stores the snake shape.
-    model_url: z.string().min(1).max(2048).nullable().optional(),
+    model_url: ModelUrl.nullable().optional(),
     thumbnail_url: z.string().min(1).max(2048).nullable().optional(),
     model_bounds: z.object({ min: Vec3, max: Vec3 }).passthrough().optional(),
     model_origin_offset: Vec3.optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine(validateNestedModelUrls);
 
 const ObjectCreate = z
   .object({

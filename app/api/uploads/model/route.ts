@@ -5,8 +5,7 @@ import crypto from 'crypto';
 import { resolveActor } from '@/lib/auth/actor';
 import { AccessError, requireProjectEdit } from '@/lib/auth/access';
 import { query } from '@/lib/mysql/server';
-
-const ALLOWED_EXTS = new Set(['glb', 'gltf', 'obj', 'stl', 'fbx', 'dae']);
+import { getModelExtension, validateUploadedModelBytes } from '@/lib/models/modelPolicy';
 
 /** The UI advertises "Max 20 MB" — this is what actually enforces it. */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -33,8 +32,8 @@ export async function POST(request: NextRequest) {
     }
 
     const original = (file as any).name || 'model.glb';
-    const ext = (original.split('.').pop() || '').toLowerCase();
-    if (!ALLOWED_EXTS.has(ext)) {
+    const ext = getModelExtension(original);
+    if (!ext) {
       return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
     }
 
@@ -47,6 +46,11 @@ export async function POST(request: NextRequest) {
         { error: 'File too large. Maximum size is 20 MB.' },
         { status: 413 }
       );
+    }
+
+    const validation = validateUploadedModelBytes(ext, buffer);
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
     const id = crypto.randomUUID();
@@ -92,4 +96,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
   }
 }
-

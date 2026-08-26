@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { Play, Search, Heart, GitFork, Sparkles } from 'lucide-react';
 import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
+import FeaturedWorldTemplates from '@/components/worlds/FeaturedWorldTemplates';
 import { getTranslator } from '@/lib/i18n/server';
+import { listActiveWorldTemplates } from '@/lib/worlds/templates';
 
 const SORTS: Record<string, { labelKey: 'explore.sort.newest' | 'explore.sort.loved' | 'explore.sort.remixed' | 'explore.sort.played'; order: string }> = {
   newest: { labelKey: 'explore.sort.newest', order: 'p.created_at DESC' },
@@ -39,6 +41,7 @@ export default async function ExplorePage(props: {
   } catch (error) {
     console.error('[explore] project query failed:', error);
   }
+  const starterWorlds = listActiveWorldTemplates();
 
   let displayName = 'Guest';
   if (actor.kind !== 'anonymous') {
@@ -65,6 +68,8 @@ export default async function ExplorePage(props: {
             {t('explore.subtitle')}
           </p>
         </div>
+
+        <FeaturedWorldTemplates templates={starterWorlds} t={t} />
 
         <form method="GET" className="mb-6 flex flex-wrap items-center gap-3">
           <div className="relative min-w-[240px] flex-1">

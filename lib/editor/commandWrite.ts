@@ -126,7 +126,7 @@ export async function commandWrite(options: CommandWriteOptions): Promise<Respon
     ...(options.extraHeaders ?? {}),
   });
 
-  let response = await performWrite(options.url, options.method, options.body, buildHeaders());
+  const response = await performWrite(options.url, options.method, options.body, buildHeaders());
 
   if (response.ok) {
     await advanceRevisionFromResponse(response, options.revisionRef);
@@ -217,7 +217,7 @@ export async function commandServiceCall(
       body: buildBody(),
     });
 
-  let response = await doFetch();
+  const response = await doFetch();
   if (response.ok) {
     await advanceRevisionFromResponse(response, options.revisionRef);
     return response;
