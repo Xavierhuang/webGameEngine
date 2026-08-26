@@ -86,6 +86,8 @@ The existing `publication_snapshots` table is not used as a second release paylo
 
 `reports` receives a nullable `world_release_id` foreign key. Legacy project reports remain valid; a report about a public World Builder release stores both its owning project and exact release so takedown can target the immutable public version.
 
+`projects` receives a nullable `source_release_id` foreign key. It is written only for a World Builder remix created from an approved release, while existing `remixed_from` continues to point to the source project for legacy attribution compatibility.
+
 ## Server boundaries
 
 New server-only modules provide narrow interfaces:
