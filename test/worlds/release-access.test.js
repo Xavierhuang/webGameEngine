@@ -32,6 +32,10 @@ const safeRow = {
   like_count: 11,
   play_count: 23,
   remix_count: 4,
+  snapshot_title: 'Cloud Castle',
+  snapshot_description: 'Hop across clouds.',
+  snapshot_thumbnail_url: '/assets/cloud-castle.png',
+  snapshot_genre: 'platformer',
   status: 'published',
   current_public: true,
   project_id: 'project-secret',
@@ -91,6 +95,25 @@ test('public release DTO uses an explicit allowlist and redacts authority data',
   });
 });
 
+test('public presentation remains pinned to the approved snapshot after mutable project edits', () => {
+  const { toPublicWorldRelease } = withDatabase({
+    query: async () => [],
+    queryOne: async () => null,
+  }, () => require('../../lib/worlds/releaseAccess.ts'));
+  const dto = toPublicWorldRelease({
+    ...safeRow,
+    title: 'Unreviewed private edit',
+    description: 'This mutable description was never approved.',
+    thumbnail_url: '/assets/unreviewed.png',
+    genre: 'unreviewed',
+  });
+
+  assert.equal(dto.title, 'Cloud Castle');
+  assert.equal(dto.description, 'Hop across clouds.');
+  assert.equal(dto.thumbnailUrl, '/assets/cloud-castle.png');
+  assert.equal(dto.genre, 'platformer');
+});
+
 test('public lookups query and return only published current releases', async () => {
   const calls = [];
   const { getPublicWorldReleaseBySlug } = withDatabase({
@@ -123,6 +146,12 @@ test('public lookups query and return only published current releases', async ()
   assert.match(calls[0].sql, /wr\.current_public = TRUE/i);
   assert.match(calls[0].sql, /wr\.public_slug = \?/i);
   assert.match(calls[0].sql, /JOIN projects p ON p\.id = wr\.project_id/i);
+  assert.match(calls[0].sql, /JOIN project_play_snapshots snapshot/i);
+  assert.match(calls[0].sql, /JSON_UNQUOTE\(JSON_EXTRACT\(snapshot\.snapshot_json, '\$\.project\.title'\)\) AS snapshot_title/i);
+  assert.match(calls[0].sql, /JSON_UNQUOTE\(JSON_EXTRACT\(snapshot\.snapshot_json, '\$\.project\.description'\)\) AS snapshot_description/i);
+  assert.match(calls[0].sql, /JSON_UNQUOTE\(JSON_EXTRACT\(snapshot\.snapshot_json, '\$\.project\.thumbnail_url'\)\) AS snapshot_thumbnail_url/i);
+  assert.match(calls[0].sql, /JSON_UNQUOTE\(JSON_EXTRACT\(snapshot\.snapshot_json, '\$\.project\.genre'\)\) AS snapshot_genre/i);
+  assert.doesNotMatch(calls[0].sql, /\bp\.(title|description|thumbnail_url|genre)\b/i);
   assert.doesNotMatch(calls[0].sql, /profiles|owner_id|parental_approval|snapshot_sha256|reviewer|decision_reason|review_notes/i);
   assert.deepEqual(calls[0].values, [safeRow.slug]);
 });

@@ -8,11 +8,11 @@ import {
 interface PublicWorldReleaseRow {
   id: string;
   slug: string;
-  title: string;
-  description: string | null;
-  thumbnail_url: string | null;
+  snapshot_title: string;
+  snapshot_description: string | null;
+  snapshot_thumbnail_url: string | null;
   template_id: string;
-  genre: string | null;
+  snapshot_genre: string | null;
   creator_label: string;
   published_at: Date | string;
   like_count: number;
@@ -54,11 +54,11 @@ export function toPublicWorldRelease(row: PublicWorldReleaseRow): PublicWorldRel
   return {
     id: row.id,
     slug: row.slug,
-    title: row.title,
-    description: row.description,
-    thumbnailUrl: row.thumbnail_url,
+    title: row.snapshot_title,
+    description: row.snapshot_description,
+    thumbnailUrl: row.snapshot_thumbnail_url,
     templateId: row.template_id,
-    genre: row.genre,
+    genre: row.snapshot_genre,
     creatorLabel: row.creator_label,
     publishedAt: toPublishedAt(row.published_at),
     likeCount: row.like_count,
@@ -69,11 +69,17 @@ export function toPublicWorldRelease(row: PublicWorldReleaseRow): PublicWorldRel
 
 const PUBLIC_WORLD_RELEASE_SELECT = `
   SELECT wr.id, wr.public_slug AS slug,
-         p.title, p.description, p.thumbnail_url,
-         wr.template_id, p.genre, wr.creator_label, wr.published_at,
+         JSON_UNQUOTE(JSON_EXTRACT(snapshot.snapshot_json, '$.project.title')) AS snapshot_title,
+         JSON_UNQUOTE(JSON_EXTRACT(snapshot.snapshot_json, '$.project.description')) AS snapshot_description,
+         JSON_UNQUOTE(JSON_EXTRACT(snapshot.snapshot_json, '$.project.thumbnail_url')) AS snapshot_thumbnail_url,
+         JSON_UNQUOTE(JSON_EXTRACT(snapshot.snapshot_json, '$.project.genre')) AS snapshot_genre,
+         wr.template_id, wr.creator_label, wr.published_at,
          p.like_count, p.play_count, p.remix_count,
          wr.status, wr.current_public
     FROM world_releases wr
+    JOIN project_play_snapshots snapshot
+      ON snapshot.id = wr.project_play_snapshot_id
+     AND snapshot.project_id = wr.project_id
     JOIN projects p ON p.id = wr.project_id
 `;
 
