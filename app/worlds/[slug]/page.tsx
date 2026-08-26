@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { query } from '@/lib/mysql/server';
+import { resolveCurrentActor } from '@/lib/auth/actor';
 import { getPublicWorldReleaseSnapshot } from '@/lib/worlds/releaseAccess';
 import PublishedWorldPlayer from '@/components/worlds/PublishedWorldPlayer';
 import { AppNav } from '@/components/common/AppNav';
@@ -25,14 +26,20 @@ export default async function PublicWorldPage({ params }: PublicWorldPageProps) 
 
   const { release, snapshot, worldIdentity } = published;
 
-  // Best-effort play count against the release's source project. A counter
-  // failure must never take down a public world, and the owner-exclusion rule
-  // cannot apply here because the page resolves no viewer identity at all.
+  // Best-effort play count against the release's source project, excluding the
+  // creator so previewing your own published world does not inflate it — the
+  // same rule `app/play/[id]/page.tsx` applies. Resolving the actor is used for
+  // that exclusion only; it never gates access, because a published release is
+  // public by definition. A counter failure must never take down a world.
   try {
-    await query(
-      'UPDATE projects SET play_count = play_count + 1, last_played_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [snapshot.project.id],
-    );
+    const viewer = await resolveCurrentActor();
+    const isCreator = viewer.kind !== 'anonymous' && viewer.profileId === snapshot.project.owner_id;
+    if (!isCreator) {
+      await query(
+        'UPDATE projects SET play_count = play_count + 1, last_played_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [snapshot.project.id],
+      );
+    }
   } catch (error) {
     console.error('[world-release] failed to record play count:', error);
   }

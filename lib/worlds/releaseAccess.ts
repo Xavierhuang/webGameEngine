@@ -84,7 +84,14 @@ export function toPublicWorldRelease(row: PublicWorldReleaseRow): PublicWorldRel
   };
 }
 
-const PUBLIC_WORLD_RELEASE_SELECT = `
+/**
+ * Builds the public release SELECT. `extraColumns` is appended rather than
+ * spliced in by string replacement: a `.replace()` against this constant would
+ * silently no-op the day its text is reformatted, leaving a query missing the
+ * columns its caller depends on.
+ */
+function publicWorldReleaseSelect(extraColumns = ''): string {
+  return `
   SELECT wr.id, wr.public_slug AS slug,
          JSON_UNQUOTE(JSON_EXTRACT(snapshot.snapshot_json, '$.project.title')) AS snapshot_title,
          JSON_UNQUOTE(JSON_EXTRACT(snapshot.snapshot_json, '$.project.description')) AS snapshot_description,
@@ -92,13 +99,16 @@ const PUBLIC_WORLD_RELEASE_SELECT = `
          JSON_UNQUOTE(JSON_EXTRACT(snapshot.snapshot_json, '$.project.genre')) AS snapshot_genre,
          wr.template_id, wr.creator_label, wr.published_at,
          p.like_count, p.play_count, p.remix_count,
-         wr.status, wr.current_public
+         wr.status, wr.current_public${extraColumns ? `,\n         ${extraColumns}` : ''}
     FROM world_releases wr
     JOIN project_play_snapshots snapshot
       ON snapshot.id = wr.project_play_snapshot_id
      AND snapshot.project_id = wr.project_id
     JOIN projects p ON p.id = wr.project_id
 `;
+}
+
+const PUBLIC_WORLD_RELEASE_SELECT = publicWorldReleaseSelect();
 
 /** Resolves one opaque public slug without exposing non-current release history. */
 export async function getPublicWorldReleaseBySlug(slug: string): Promise<PublicWorldRelease | null> {
@@ -144,10 +154,9 @@ export async function getPublicWorldReleaseSnapshot(slug: string): Promise<Publi
     release_template_id: string;
     release_template_version: number | string;
   }>(
-    `${PUBLIC_WORLD_RELEASE_SELECT.replace(
-      'wr.status, wr.current_public',
-      `wr.status, wr.current_public, snapshot.snapshot_json, snapshot.snapshot_sha256,
-       wr.template_id AS release_template_id, wr.template_version AS release_template_version`,
+    `${publicWorldReleaseSelect(
+      `snapshot.snapshot_json, snapshot.snapshot_sha256,
+         wr.template_id AS release_template_id, wr.template_version AS release_template_version`,
     )}
       WHERE wr.public_slug = ?
         AND wr.status = 'published'
