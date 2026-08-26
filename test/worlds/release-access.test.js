@@ -59,6 +59,10 @@ function withDatabase(database, load) {
   clearReleaseModules();
   Module._load = function patchedLoad(request, parent, isMain) {
     if (request === '@/lib/mysql/server') return database;
+    // Resolve every other `@/` specifier for real. Stubbing only the database
+    // and letting the rest fall through to bare-specifier resolution made this
+    // loader break whenever the module under test gained an unrelated import.
+    if (request.startsWith('@/')) return originalLoad(path.join(ROOT, request.slice(2)), parent, isMain);
     return originalLoad(request, parent, isMain);
   };
   try {

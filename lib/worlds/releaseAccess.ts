@@ -1,5 +1,6 @@
 import { query, queryOne } from '@/lib/mysql/server';
 import type { Actor } from '@/lib/auth/actor';
+import { hashProjectSnapshot, type ProjectSnapshot } from '../projects/projectSnapshot';
 import {
   isPublicWorldRelease,
   ReleaseServiceError,
@@ -113,6 +114,67 @@ export async function getPublicWorldReleaseBySlug(slug: string): Promise<PublicW
   );
 
   return row && isCurrentPublicRow(row) ? toPublicWorldRelease(row) : null;
+}
+
+export interface PublicWorldReleaseSnapshot {
+  release: PublicWorldRelease;
+  snapshot: ProjectSnapshot;
+  worldIdentity: { templateId: string; templateVersion: number };
+}
+
+/**
+ * Everything the public world page needs, resolved from the release row and its
+ * frozen snapshot in one read.
+ *
+ * The page must never call `requireProjectView` or `writePlaySnapshot` — the
+ * mutable project graph plays no part in serving a published world. The only
+ * `projects` columns that reach the caller are the three social counters
+ * already exposed by `toPublicWorldRelease`; the playable content comes from
+ * `snapshot_json`, and the template identity comes from the release row rather
+ * than `project_worlds`, so a later template migration on the source project
+ * cannot retarget a world that is already public.
+ */
+export async function getPublicWorldReleaseSnapshot(slug: string): Promise<PublicWorldReleaseSnapshot | null> {
+  const publicSlug = slug.trim();
+  if (!publicSlug) return null;
+
+  const row = await queryOne<PublicWorldReleaseRow & {
+    snapshot_json: unknown;
+    snapshot_sha256: string;
+    release_template_id: string;
+    release_template_version: number | string;
+  }>(
+    `${PUBLIC_WORLD_RELEASE_SELECT.replace(
+      'wr.status, wr.current_public',
+      `wr.status, wr.current_public, snapshot.snapshot_json, snapshot.snapshot_sha256,
+       wr.template_id AS release_template_id, wr.template_version AS release_template_version`,
+    )}
+      WHERE wr.public_slug = ?
+        AND wr.status = 'published'
+        AND wr.current_public = TRUE`,
+    [publicSlug],
+  );
+  if (!row || !isCurrentPublicRow(row)) return null;
+
+  let parsed: unknown = row.snapshot_json;
+  if (typeof parsed === 'string') {
+    try { parsed = JSON.parse(parsed); } catch { return null; }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const snapshot = parsed as ProjectSnapshot;
+  if (!snapshot.project || !Array.isArray(snapshot.scenes)) return null;
+  // Fail closed rather than serve content whose stored bytes no longer hash to
+  // what the moderator approved.
+  if (hashProjectSnapshot(snapshot) !== row.snapshot_sha256) return null;
+
+  return {
+    release: toPublicWorldRelease(row),
+    snapshot,
+    worldIdentity: {
+      templateId: row.release_template_id,
+      templateVersion: Number(row.release_template_version),
+    },
+  };
 }
 
 export interface OwnerWorldReleaseCheck {
