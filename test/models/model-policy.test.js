@@ -20,6 +20,7 @@ test('model URLs are limited to local model paths and approved AI assets', () =>
   assert.equal(isTrustedModelUrl('//untrusted.example/hero.glb'), false);
   assert.equal(isTrustedModelUrl('javascript:alert(1)'), false);
   assert.equal(isTrustedModelUrl('/models/../uploads/models/hero.glb'), false);
+  assert.equal(isTrustedModelUrl('/models/%2e%2e%2fprivate.glb'), false);
   assert.equal(isTrustedModelUrl(`/models/${'a'.repeat(2_050)}.glb`), false);
   assert.equal(isTrustedModelUrl('/uploads/models/not-a-model.txt'), false);
 });
@@ -34,6 +35,8 @@ test('asset URLs use one shared allowlist for packaged and uploaded media', () =
   assert.equal(isTrustedAssetUrl('https://untrusted.example/texture.png'), false);
   assert.equal(isTrustedAssetUrl('/uploads/audio/recording.exe'), false);
   assert.equal(isTrustedAssetUrl('/backdrops/../private.png'), false);
+  assert.equal(isTrustedAssetUrl('/backdrops/%2e%2e%2fprivate.png'), false);
+  assert.equal(isTrustedAssetUrl('/backdrops/foo%2f..%2fprivate.png'), false);
 });
 
 test('model extension parsing ignores query strings and normalizes case', () => {

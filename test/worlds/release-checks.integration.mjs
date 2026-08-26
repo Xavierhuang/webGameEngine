@@ -180,6 +180,19 @@ test('rejects invalid expressions, statement placement, and arbitrary serialized
   assert.deepEqual(checkByName(await runWorldReleaseChecks(arbitraryData, validContext(arbitraryData)), 'block_policy'), {
     name: 'block_policy', status: 'failed', reasonCode: 'block_data_invalid',
   });
+
+  const nestedInjectedData = validSnapshot();
+  nestedInjectedData.scenes[0].objects[0].logic_blocks[1] = {
+    ...nestedInjectedData.scenes[0].objects[0].logic_blocks[1],
+    block_type: 'if_then',
+    block_data: {
+      inputs: { condition: true },
+      children: [{ block_type: 'jump', inputs: {}, injected: true }],
+    },
+  };
+  assert.deepEqual(checkByName(await runWorldReleaseChecks(nestedInjectedData, validContext(nestedInjectedData)), 'block_policy'), {
+    name: 'block_policy', status: 'failed', reasonCode: 'block_data_invalid',
+  });
 });
 
 test('converts an unexpected check exception into the fixed check_error code', async () => {

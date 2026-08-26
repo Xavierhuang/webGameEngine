@@ -45,6 +45,9 @@ function validateCustomBlock(blockType: string, data: Record<string, unknown>): 
 
 function validateTree(value: unknown, nested: boolean): BlockValidationFailure | null {
   if (!isRecord(value) || typeof value.block_type !== 'string') return 'invalid_block_data';
+  if (Object.getOwnPropertyNames(value).some((key) => key !== 'id' && key !== 'block_type' && key !== 'inputs' && key !== 'children' && key !== 'elseChildren')) {
+    return 'invalid_block_data';
+  }
   const blockType = value.block_type;
   if (nested && HAT_TYPES.has(blockType)) return 'invalid_block_data';
   const data = {
