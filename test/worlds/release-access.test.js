@@ -189,6 +189,31 @@ test('public listing enforces public SQL predicates, normalizes page bounds, and
   assert.match(calls[0].sql, /wr\.status = 'published'/i);
   assert.match(calls[0].sql, /wr\.current_public = TRUE/i);
   assert.match(calls[0].sql, /ORDER BY wr\.published_at DESC/i);
-  assert.match(calls[0].sql, /LIMIT \? OFFSET \?/i);
-  assert.deepEqual(calls[0].values, [60, 0]);
+  // MySQL rejects a bound LIMIT/OFFSET over the prepared-statement protocol
+  // (ER_WRONG_ARGUMENTS), so these clauses are inlined after clamping. Assert
+  // the clamp actually happened and that nothing but digits reached the SQL:
+  // `page: 0, pageSize: 500` must normalize to the page-size ceiling, page one.
+  assert.match(calls[0].sql, /LIMIT 60\s+OFFSET 0/i);
+  assert.doesNotMatch(calls[0].sql, /LIMIT\s*\?|OFFSET\s*\?/i);
+  assert.deepEqual(calls[0].values, []);
+
+  const [, limitClause, offsetClause] = calls[0].sql.match(/LIMIT\s+(\S+)\s+OFFSET\s+(\S+)/i);
+  for (const clause of [limitClause, offsetClause]) {
+    assert.match(clause, /^\d+$/, 'only a bare integer may be inlined into the row-count clause');
+  }
+});
+
+test('an unclamped row count can never reach the inlined LIMIT clause', async () => {
+  // The inlining above is only safe because every value passes a bounds gate.
+  // Prove the gate refuses rather than silently widening if a future caller
+  // routes an unclamped value into it.
+  const { listPublicWorldReleases } = withDatabase({
+    queryOne: async () => null,
+    query: async () => [],
+  }, () => require('../../lib/worlds/releaseAccess.ts'));
+
+  for (const hostile of [Number.MAX_SAFE_INTEGER, 1e9, -5, Number.NaN, Infinity, 1.5]) {
+    const releases = await listPublicWorldReleases({ page: hostile, pageSize: hostile });
+    assert.ok(Array.isArray(releases), `page/pageSize ${hostile} must normalize rather than inject`);
+  }
 });

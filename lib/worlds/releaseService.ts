@@ -20,9 +20,20 @@ import {
   type ReleaseCheckContext,
   type WorldReleaseCheckResult,
 } from './releaseChecks';
-import { canTransitionRelease, WORLD_RELEASE_LIVE_STATUSES, type WorldReleaseStatus } from './releaseTypes';
+import {
+  canTransitionRelease,
+  ReleaseServiceError,
+  WORLD_RELEASE_LIVE_STATUSES,
+  type WorldReleaseStatus,
+} from './releaseTypes';
+
 import { getWorldTemplate, type WorldTemplate } from './templates';
 import { writeReleaseAudit, type ReleaseAuditEvent } from './releaseAudit';
+// The release error taxonomy lives in `releaseTypes` so read-only modules can
+// raise and map it without importing the transaction authority. Re-exported
+// here because it has always been part of this module's public surface.
+export { ReleaseServiceError } from './releaseTypes';
+export type { ReleaseServiceErrorCode } from './releaseTypes';
 
 export interface SubmitWorldReleaseInput {
   actor: Actor;
@@ -72,31 +83,6 @@ export interface WorldReleaseMutation {
   id: string;
   status: WorldReleaseStatus;
   replayed: boolean;
-}
-
-export type ReleaseServiceErrorCode =
-  | 'release_auth_forbidden'
-  | 'release_not_found'
-  | 'release_cohort_forbidden'
-  | 'feature_unavailable'
-  | 'invalid_release_input'
-  | 'idempotency_mismatch'
-  | 'revision_conflict'
-  | 'world_identity_invalid'
-  | 'snapshot_unavailable'
-  | 'snapshot_integrity_failed'
-  | 'invalid_release_transition'
-  | 'release_already_in_flight'
-  | 'release_reason_invalid';
-
-export class ReleaseServiceError extends Error {
-  constructor(
-    public readonly code: ReleaseServiceErrorCode,
-    public readonly status: 400 | 403 | 404 | 409 | 422 | 503,
-  ) {
-    super(code);
-    this.name = 'ReleaseServiceError';
-  }
 }
 
 export interface ReleaseServiceOptions {

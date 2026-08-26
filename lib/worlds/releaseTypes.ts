@@ -22,6 +22,31 @@ export function canTransitionRelease(from: WorldReleaseStatus, to: WorldReleaseS
   return (WORLD_RELEASE_TRANSITIONS[from] ?? []).includes(to);
 }
 
+export type ReleaseServiceErrorCode =
+  | 'release_auth_forbidden'
+  | 'release_not_found'
+  | 'release_cohort_forbidden'
+  | 'feature_unavailable'
+  | 'invalid_release_input'
+  | 'idempotency_mismatch'
+  | 'revision_conflict'
+  | 'world_identity_invalid'
+  | 'snapshot_unavailable'
+  | 'snapshot_integrity_failed'
+  | 'invalid_release_transition'
+  | 'release_already_in_flight'
+  | 'release_reason_invalid';
+
+export class ReleaseServiceError extends Error {
+  constructor(
+    public readonly code: ReleaseServiceErrorCode,
+    public readonly status: 400 | 403 | 404 | 409 | 422 | 503,
+  ) {
+    super(code);
+    this.name = 'ReleaseServiceError';
+  }
+}
+
 export function isTerminalWorldReleaseStatus(status: WorldReleaseStatus): boolean {
   return WORLD_RELEASE_TRANSITIONS[status].length === 0;
 }
