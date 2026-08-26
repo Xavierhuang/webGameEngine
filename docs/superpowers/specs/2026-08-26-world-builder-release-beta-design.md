@@ -59,11 +59,12 @@ Migration `013_world_release_beta.sql` adds only release-specific records:
 - `project_play_snapshot_id` foreign key to `project_play_snapshots`.
 - `template_id` and `template_version`, copied from `project_worlds` at submission.
 - `source_revision` and `content_hash`, copied from the selected snapshot.
-- `status`, `current_public`, `submitted_at`, `published_at`, `withdrawn_at`, `taken_down_at`, and `decided_at`.
+- `status`, `current_public`, `public_slug`, `submitted_at`, `published_at`, `withdrawn_at`, `taken_down_at`, and `decided_at`.
+- `submission_idempotency_key`, unique per project, so a network retry returns the same candidate instead of creating another review item.
 - `creator_label`, a bounded, server-derived public attribution label; it contains no email, birth information, or parent data.
 - `decision_reason_code`, a small allowlisted reason code. It never stores free-form moderator notes in child-facing release records.
 
-Constraints prevent multiple public-current releases per project and prevent two candidates for the same project snapshot. Indexes support public discovery by `status/current_public/published_at`, reviewer queues by `status/submitted_at`, and project history by `project_id/submitted_at`.
+`public_slug` is generated server-side at publish time from a UUID-safe opaque identifier; it is unique and never derived from a child’s title or profile. Constraints prevent multiple public-current releases per project and prevent two candidates for the same project snapshot. Indexes support public discovery by `status/current_public/published_at`, reviewer queues by `status/submitted_at`, and project history by `project_id/submitted_at`.
 
 ### `world_release_checks`
 
@@ -78,6 +79,12 @@ Constraints prevent multiple public-current releases per project and prevent two
 - This is append-only. It does not store a staff email, a parent email, raw report details, or free-form user text.
 
 The existing `publication_snapshots` table is not used as a second release payload in this beta. The already-working revision-pinned `project_play_snapshots` payload is the single runtime artifact. This avoids a second serializer that can drift from what Play actually runs.
+
+### `world_release_beta_cohort_members` and reports
+
+`world_release_beta_cohort_members` contains one `profile_id` per explicitly admitted creator and a short-lived operator note code. It is consulted only on the server while the beta is limited and is never returned from a public route. Removing a row stops new submissions for that creator without withdrawing an existing approved release.
+
+`reports` receives a nullable `world_release_id` foreign key. Legacy project reports remain valid; a report about a public World Builder release stores both its owning project and exact release so takedown can target the immutable public version.
 
 ## Server boundaries
 
