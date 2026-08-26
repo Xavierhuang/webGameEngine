@@ -117,8 +117,8 @@ test('persists release review outcomes as allowlisted codes without raw details'
     'release outcomes use allowlisted reason codes',
   );
   includes(
-    /reason_code ENUM\(\s*'content_policy', 'age_safety', 'copyright', 'snapshot_integrity',\s*'template_validation', 'internal_error'\s*\) NULL/i,
-    'checks use allowlisted reason codes',
+    /reason_code ENUM\([\s\S]*?'snapshot_hash_mismatch'[\s\S]*?'asset_size_unavailable'[\s\S]*?'block_data_invalid'[\s\S]*?'check_error'[\s\S]*?\) NULL/i,
+    'checks persist every finite release-check reason code',
   );
   includes(
     /reason_code ENUM\(\s*'approved', 'changes_requested', 'content_policy', 'age_safety',\s*'copyright', 'administrative_action'\s*\) NULL/i,
@@ -126,6 +126,15 @@ test('persists release review outcomes as allowlisted codes without raw details'
   );
   assert.match(databaseTypes, /export type WorldReleaseReasonCode =/);
   assert.match(databaseTypes, /export type WorldReleaseCheckReasonCode =/);
+  for (const code of [
+    'snapshot_hash_mismatch', 'snapshot_revision_mismatch', 'template_not_active',
+    'template_invalid', 'template_budget_unavailable', 'budget_exceeded',
+    'asset_size_unavailable', 'asset_url_invalid', 'asset_reference_invalid',
+    'block_type_unsupported', 'block_data_invalid', 'scene_missing', 'player_missing',
+    'player_controls_missing', 'metadata_invalid', 'metadata_moderation_failed', 'check_error',
+  ]) {
+    assert.match(databaseTypes, new RegExp(`'${code}'`), `${code} must be a typed persisted code`);
+  }
   assert.match(databaseTypes, /export type WorldReleaseDecisionReasonCode =/);
 });
 
@@ -164,6 +173,10 @@ test('upgrades prior draft release tables to code-only review fields', () => {
   }
   upgradeIncludes(/ADD COLUMN decision_reason_code ENUM\(/i, 'release reason code upgrade');
   upgradeIncludes(/ALTER TABLE world_release_checks ADD COLUMN reason_code ENUM\(/i, 'check reason code upgrade');
+  upgradeIncludes(
+    /ALTER TABLE world_release_checks MODIFY COLUMN reason_code ENUM\([\s\S]*?'asset_size_unavailable'[\s\S]*?'check_error'[\s\S]*?\) NULL/i,
+    'existing check enum is expanded without retaining a raw fallback',
+  );
   upgradeIncludes(/ALTER TABLE world_release_decisions ADD COLUMN reason_code ENUM\(/i, 'decision reason code upgrade');
 });
 

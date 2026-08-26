@@ -3,6 +3,7 @@ const test = require('node:test');
 
 const {
   getModelExtension,
+  isTrustedAssetUrl,
   isTrustedModelUrl,
   validateUploadedModelBytes,
 } = require('../.build/lib/models/modelPolicy.js');
@@ -21,6 +22,18 @@ test('model URLs are limited to local model paths and approved AI assets', () =>
   assert.equal(isTrustedModelUrl('/models/../uploads/models/hero.glb'), false);
   assert.equal(isTrustedModelUrl(`/models/${'a'.repeat(2_050)}.glb`), false);
   assert.equal(isTrustedModelUrl('/uploads/models/not-a-model.txt'), false);
+});
+
+test('asset URLs use one shared allowlist for packaged and uploaded media', () => {
+  assert.equal(isTrustedAssetUrl('/models/minion/FBX/Minion_FBX.fbx'), true);
+  assert.equal(isTrustedAssetUrl('/backdrops/blue-sky.svg'), true);
+  assert.equal(isTrustedAssetUrl('/uploads/textures/drawing.png'), true);
+  assert.equal(isTrustedAssetUrl('/uploads/audio/recording.webm'), true);
+  assert.equal(isTrustedAssetUrl('https://assets.meshy.ai/models/hero.glb'), true);
+
+  assert.equal(isTrustedAssetUrl('https://untrusted.example/texture.png'), false);
+  assert.equal(isTrustedAssetUrl('/uploads/audio/recording.exe'), false);
+  assert.equal(isTrustedAssetUrl('/backdrops/../private.png'), false);
 });
 
 test('model extension parsing ignores query strings and normalizes case', () => {

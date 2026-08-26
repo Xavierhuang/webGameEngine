@@ -36,8 +36,8 @@ SET @world_release_check_reason_code_col := (
     AND column_name = 'reason_code'
 );
 SET @sql := IF(@world_release_check_reason_code_col = 0,
-  'ALTER TABLE world_release_checks ADD COLUMN reason_code ENUM(''content_policy'', ''age_safety'', ''copyright'', ''snapshot_integrity'', ''template_validation'', ''internal_error'') NULL AFTER status',
-  'SET @noop = 1');
+  'ALTER TABLE world_release_checks ADD COLUMN reason_code ENUM(''content_policy'', ''age_safety'', ''copyright'', ''snapshot_integrity'', ''template_validation'', ''internal_error'', ''snapshot_hash_mismatch'', ''snapshot_revision_mismatch'', ''template_not_active'', ''template_invalid'', ''template_budget_unavailable'', ''budget_exceeded'', ''asset_size_unavailable'', ''asset_url_invalid'', ''asset_reference_invalid'', ''block_type_unsupported'', ''block_data_invalid'', ''scene_missing'', ''player_missing'', ''player_controls_missing'', ''metadata_invalid'', ''metadata_moderation_failed'', ''check_error'') NULL AFTER status',
+  'ALTER TABLE world_release_checks MODIFY COLUMN reason_code ENUM(''content_policy'', ''age_safety'', ''copyright'', ''snapshot_integrity'', ''template_validation'', ''internal_error'', ''snapshot_hash_mismatch'', ''snapshot_revision_mismatch'', ''template_not_active'', ''template_invalid'', ''template_budget_unavailable'', ''budget_exceeded'', ''asset_size_unavailable'', ''asset_url_invalid'', ''asset_reference_invalid'', ''block_type_unsupported'', ''block_data_invalid'', ''scene_missing'', ''player_missing'', ''player_controls_missing'', ''metadata_invalid'', ''metadata_moderation_failed'', ''check_error'') NULL');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @world_release_check_details_col := (

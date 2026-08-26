@@ -126,6 +126,62 @@ test('rejects unsupported blocks and snapshots over the active template budget',
   });
 });
 
+test('enforces clone and trusted persisted-asset byte budgets without using object limits', async () => {
+  const cloneOverflow = validSnapshot();
+  cloneOverflow.scenes[0].objects[0].logic_blocks.push(...Array.from({ length: 21 }, (_, index) => ({
+    ...cloneOverflow.scenes[0].objects[0].logic_blocks[1],
+    id: `77777777-7777-4777-8777-${String(index).padStart(12, '0')}`,
+    order_index: index + 2,
+    block_type: 'create_clone_of',
+    block_data: { inputs: { target: 'myself' } },
+  })));
+  assert.deepEqual(checkByName(await runWorldReleaseChecks(cloneOverflow, validContext(cloneOverflow)), 'project_budgets'), {
+    name: 'project_budgets', status: 'failed', reasonCode: 'budget_exceeded',
+  });
+
+  const byteOverflow = validSnapshot();
+  byteOverflow.assets.push({
+    id: '88888888-8888-4888-8888-888888888888', asset_type: 'model', name: 'Upload',
+    file_url: '/uploads/models/upload.glb', mime_type: 'model/gltf-binary', blob_checksum: null,
+  });
+  const byteOverflowContext = validContext(byteOverflow);
+  byteOverflowContext.assetByteSizes['88888888-8888-4888-8888-888888888888'] = 17 * 1024 * 1024;
+  assert.deepEqual(checkByName(await runWorldReleaseChecks(byteOverflow, byteOverflowContext), 'project_budgets'), {
+    name: 'project_budgets', status: 'failed', reasonCode: 'budget_exceeded',
+  });
+
+  const unavailableSize = validSnapshot();
+  unavailableSize.assets.push({
+    id: '99999999-9999-4999-8999-999999999999', asset_type: 'sound', name: 'Sound',
+    file_url: '/uploads/audio/recording.webm', mime_type: 'audio/webm', blob_checksum: null,
+  });
+  const unavailableSizeContext = validContext(unavailableSize);
+  delete unavailableSizeContext.assetByteSizes['99999999-9999-4999-8999-999999999999'];
+  assert.deepEqual(checkByName(await runWorldReleaseChecks(unavailableSize, unavailableSizeContext), 'project_budgets'), {
+    name: 'project_budgets', status: 'failed', reasonCode: 'asset_size_unavailable',
+  });
+});
+
+test('rejects invalid expressions, statement placement, and arbitrary serialized block data', async () => {
+  const invalidExpression = validSnapshot();
+  invalidExpression.scenes[0].objects[0].logic_blocks[1].block_data.inputs.distance = { op: 'unimplemented_operator', args: [] };
+  assert.deepEqual(checkByName(await runWorldReleaseChecks(invalidExpression, validContext(invalidExpression)), 'block_policy'), {
+    name: 'block_policy', status: 'failed', reasonCode: 'block_data_invalid',
+  });
+
+  const invalidPlacement = validSnapshot();
+  invalidPlacement.scenes[0].objects[0].logic_blocks[1].block_data.children = [{ id: 'nested', block_type: 'jump', inputs: {} }];
+  assert.deepEqual(checkByName(await runWorldReleaseChecks(invalidPlacement, validContext(invalidPlacement)), 'block_policy'), {
+    name: 'block_policy', status: 'failed', reasonCode: 'block_data_invalid',
+  });
+
+  const arbitraryData = validSnapshot();
+  arbitraryData.scenes[0].objects[0].logic_blocks[1].block_data.unvalidated = true;
+  assert.deepEqual(checkByName(await runWorldReleaseChecks(arbitraryData, validContext(arbitraryData)), 'block_policy'), {
+    name: 'block_policy', status: 'failed', reasonCode: 'block_data_invalid',
+  });
+});
+
 test('converts an unexpected check exception into the fixed check_error code', async () => {
   const snapshot = validSnapshot();
   const context = {

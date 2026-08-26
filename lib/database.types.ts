@@ -22,7 +22,14 @@ export type WorldReleaseReasonCode =
   | 'duplicate_submission' | 'creator_withdrew' | 'administrative_action';
 export type WorldReleaseCheckReasonCode =
   | 'content_policy' | 'age_safety' | 'copyright' | 'snapshot_integrity'
-  | 'template_validation' | 'internal_error';
+  | 'template_validation' | 'internal_error'
+  | 'snapshot_hash_mismatch' | 'snapshot_revision_mismatch'
+  | 'template_not_active' | 'template_invalid' | 'template_budget_unavailable'
+  | 'budget_exceeded' | 'asset_size_unavailable'
+  | 'asset_url_invalid' | 'asset_reference_invalid'
+  | 'block_type_unsupported' | 'block_data_invalid'
+  | 'scene_missing' | 'player_missing' | 'player_controls_missing'
+  | 'metadata_invalid' | 'metadata_moderation_failed' | 'check_error';
 export type WorldReleaseDecisionReasonCode =
   | 'approved' | 'changes_requested' | 'content_policy' | 'age_safety'
   | 'copyright' | 'administrative_action';

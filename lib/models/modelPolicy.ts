@@ -12,6 +12,10 @@ export type ModelFileExtension = (typeof MODEL_FILE_EXTENSIONS)[number];
 const MODEL_EXTENSION_SET = new Set<string>(MODEL_FILE_EXTENSIONS);
 const textDecoder = new TextDecoder();
 const MAX_MODEL_URL_LENGTH = 2_048;
+const LOCAL_ASSET_EXTENSIONS = new Set([
+  'avif', 'dae', 'fbx', 'gif', 'glb', 'gltf', 'jpeg', 'jpg', 'm4a', 'mp3',
+  'obj', 'ogg', 'png', 'stl', 'svg', 'wav', 'webm', 'webp',
+]);
 
 export interface ModelValidationResult {
   valid: boolean;
@@ -53,6 +57,31 @@ export function isTrustedModelUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isTrustedLocalAssetPath(value: string, roots: readonly string[]): boolean {
+  if (value.length === 0 || value.length > MAX_MODEL_URL_LENGTH || !value.startsWith('/')) return false;
+  try {
+    const path = value.split(/[?#]/, 1)[0];
+    const segments = path.split('/');
+    if (segments.some((segment) => decodeURIComponent(segment) === '..')) return false;
+    if (!roots.some((root) => path.startsWith(root))) return false;
+    const extension = path.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+    return extension !== undefined && LOCAL_ASSET_EXTENSIONS.has(extension);
+  } catch {
+    return false;
+  }
+}
+
+/** Shared URL allowlist for every asset that can be replayed by a release. */
+export function isTrustedAssetUrl(value: string): boolean {
+  return isTrustedModelUrl(value)
+    || isTrustedLocalAssetPath(value, ['/backdrops/', '/uploads/textures/', '/uploads/audio/']);
+}
+
+/** Catalog starters remain local packaged model/backdrop assets only. */
+export function isTrustedTemplateAssetUrl(value: string): boolean {
+  return isTrustedLocalAssetPath(value, ['/models/', '/backdrops/']);
 }
 
 function startsWith(bytes: Uint8Array, signature: number[]): boolean {

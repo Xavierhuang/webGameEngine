@@ -1,7 +1,8 @@
-import { BLOCK_SPECS } from '../blockly/definitions';
-import { isTrustedModelUrl } from '../models/modelPolicy';
+import { countCloneCreationBlocks, type SerializedLogicBlock, validateSerializedLogicBlock } from '../blockly/blockValidation';
+import type { WorldReleaseCheckReasonCode as PersistedWorldReleaseCheckReasonCode } from '../database.types';
+import { isTrustedAssetUrl } from '../models/modelPolicy';
 import { ProjectCommandSchema } from '../projects/commandSchema';
-import { canonicalStringify, hashProjectSnapshot, type ProjectSnapshot, type SnapshotLogicBlock } from '../projects/projectSnapshot';
+import { hashProjectSnapshot, type ProjectSnapshot, type SnapshotLogicBlock } from '../projects/projectSnapshot';
 import { keywordScan } from '../safety/keyword-scan';
 import { getWorldTemplate, type WorldTemplate } from './templates';
 import { validateWorldTemplate } from './templateValidation';
@@ -24,23 +25,7 @@ export type WorldReleaseCheckStatus = 'passed' | 'failed' | 'error';
  * or shown in an operator-only surface without copying creator source text,
  * untrusted URLs, parser errors, or moderation-provider details.
  */
-export type WorldReleaseCheckReasonCode =
-  | 'snapshot_hash_mismatch'
-  | 'snapshot_revision_mismatch'
-  | 'template_not_active'
-  | 'template_invalid'
-  | 'template_budget_unavailable'
-  | 'budget_exceeded'
-  | 'asset_url_invalid'
-  | 'asset_reference_invalid'
-  | 'block_type_unsupported'
-  | 'block_data_invalid'
-  | 'scene_missing'
-  | 'player_missing'
-  | 'player_controls_missing'
-  | 'metadata_invalid'
-  | 'metadata_moderation_failed'
-  | 'check_error';
+export type WorldReleaseCheckReasonCode = PersistedWorldReleaseCheckReasonCode;
 
 export interface WorldReleaseCheckResult {
   name: WorldReleaseCheckName;
@@ -57,6 +42,8 @@ export interface ReleaseCheckContext {
   snapshotHash: string;
   /** Server-derived display label only; never a profile or account identifier. */
   creatorLabel: string;
+  /** Trusted `assets.file_size` values keyed by immutable snapshot asset ID. */
+  assetByteSizes: Readonly<Record<string, number>>;
   /**
    * The service passes the existing moderation boundary here. It is optional
    * for pure deterministic callers, which still receive strict structural
@@ -118,41 +105,40 @@ export function checkTemplateIdentity(
   return passed('template_identity');
 }
 
-interface SnapshotBlock {
+interface SnapshotBlockTree {
   blockType: string;
-  data: Record<string, unknown> | null;
+  data: Record<string, unknown>;
 }
 
-function nestedBlocks(value: unknown, into: SnapshotBlock[]): void {
-  if (!Array.isArray(value)) return;
-  for (const block of value) {
-    if (!isRecord(block)) {
-      into.push({ blockType: '', data: null });
-      continue;
-    }
-    const blockType = typeof block.block_type === 'string' ? block.block_type : '';
-    const data = {
-      inputs: block.inputs,
-      children: block.children,
-      elseChildren: block.elseChildren,
-    };
-    into.push({ blockType, data });
-    nestedBlocks(block.children, into);
-    nestedBlocks(block.elseChildren, into);
-  }
-}
-
-function snapshotBlocks(blocks: readonly SnapshotLogicBlock[]): SnapshotBlock[] {
-  const collected: SnapshotBlock[] = [];
+function snapshotBlockTrees(blocks: readonly SnapshotLogicBlock[]): SnapshotBlockTree[] | null {
+  const trees: SnapshotBlockTree[] = [];
   for (const block of blocks) {
     const data = parseJsonRecord(block.block_data);
-    collected.push({ blockType: block.block_type, data });
-    if (data) {
-      nestedBlocks(data.children, collected);
-      nestedBlocks(data.elseChildren, collected);
-    }
+    if (!data) return null;
+    trees.push({ blockType: block.block_type, data });
   }
-  return collected;
+  return trees;
+}
+
+function serializedBlockTrees(blocks: readonly SnapshotBlockTree[]): SerializedLogicBlock[] {
+  return blocks.map((block) => ({
+    block_type: block.blockType,
+    children: block.data.children,
+    elseChildren: block.data.elseChildren,
+  }));
+}
+
+function countSnapshotBlocks(blocks: readonly SerializedLogicBlock[]): number {
+  let count = 0;
+  const walk = (items: readonly SerializedLogicBlock[]) => {
+    for (const block of items) {
+      count += 1;
+      if (Array.isArray(block.children)) walk(block.children as SerializedLogicBlock[]);
+      if (Array.isArray(block.elseChildren)) walk(block.elseChildren as SerializedLogicBlock[]);
+    }
+  };
+  walk(blocks);
+  return count;
 }
 
 /** Enforces the published budget profile without inspecting creator text. */
@@ -166,46 +152,37 @@ export function checkProjectBudgets(
   }
 
   const objectCount = snapshot.scenes.reduce((count, scene) => count + scene.objects.length, 0);
-  const blockLists = snapshot.scenes.flatMap((scene) => scene.objects.map((object) => snapshotBlocks(object.logic_blocks)));
-  const blockCount = blockLists.reduce((count, blocks) => count + blocks.length, 0);
-  const maximumScriptSteps = Math.max(0, ...blockLists.map((blocks) => blocks.length));
-  const snapshotBytes = Buffer.byteLength(canonicalStringify(snapshot), 'utf8');
+  const blockLists = snapshot.scenes.flatMap((scene) => scene.objects.map((object) => snapshotBlockTrees(object.logic_blocks)));
+  if (blockLists.some((blocks) => blocks === null)) return failed('project_budgets', 'budget_exceeded');
+  const validBlockLists = (blockLists as SnapshotBlockTree[][]).map(serializedBlockTrees);
+  const blockCount = validBlockLists.reduce((count, blocks) => count + countSnapshotBlocks(blocks), 0);
+  const maximumScriptSteps = Math.max(0, ...validBlockLists.map((blocks) => countSnapshotBlocks(blocks)));
+  const cloneBlockCount = validBlockLists.reduce((count, blocks) => count + countCloneCreationBlocks(blocks), 0);
+  let assetBytes = 0;
+  for (const asset of snapshot.assets) {
+    const size = context.assetByteSizes[asset.id];
+    if (!Number.isSafeInteger(size) || size < 0) return failed('project_budgets', 'asset_size_unavailable');
+    assetBytes += size;
+    if (!Number.isSafeInteger(assetBytes)) return failed('project_budgets', 'budget_exceeded');
+  }
   const { budgets } = template;
 
   if (
     snapshot.scenes.length > budgets.maxScenes
     || objectCount > budgets.maxObjects
     || blockCount > budgets.maxBlocks
+    || cloneBlockCount > budgets.maxClones
     || maximumScriptSteps > budgets.maxScriptStepsPerFrame
-    || snapshot.assets.length > budgets.maxObjects
-    || snapshotBytes > budgets.maxAssetBytes
+    || assetBytes > budgets.maxAssetBytes
   ) {
     return failed('project_budgets', 'budget_exceeded');
   }
   return passed('project_budgets');
 }
 
-const LOCAL_MEDIA_EXTENSIONS = new Set([
-  'avif', 'dae', 'fbx', 'gif', 'glb', 'gltf', 'jpeg', 'jpg', 'mp3', 'ogg',
-  'obj', 'png', 'stl', 'svg', 'wav', 'webp',
-]);
-
-function isApprovedLocalMediaUrl(value: string): boolean {
-  if (!value.startsWith('/')) return false;
-  const path = value.split(/[?#]/, 1)[0];
-  if (!/^\/(?:models|uploads|backdrops)\/[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(path)) return false;
-  if (path.includes('..') || path.includes('//')) return false;
-  const extension = path.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase();
-  return extension !== undefined && LOCAL_MEDIA_EXTENSIONS.has(extension);
-}
-
-function isApprovedAssetUrl(value: string): boolean {
-  return isTrustedModelUrl(value) || isApprovedLocalMediaUrl(value);
-}
-
 function containsUnsafeAssetReference(value: unknown, visited = new WeakSet<object>()): boolean {
   if (typeof value === 'string') {
-    return /^(?:https?:|\/)/i.test(value) && !isApprovedAssetUrl(value);
+    return /^(?:https?:|\/)/i.test(value) && !isTrustedAssetUrl(value);
   }
   if (value === null || typeof value !== 'object') return false;
   if (visited.has(value)) return false;
@@ -236,7 +213,7 @@ export function checkAssetPolicy(
     ...snapshot.assets.map((asset) => asset.file_url),
     ...snapshot.scenes.map((scene) => scene.background_image_url),
   ];
-  if (topLevelUrls.some((url) => typeof url === 'string' && !isApprovedAssetUrl(url))) {
+  if (topLevelUrls.some((url) => typeof url === 'string' && !isTrustedAssetUrl(url))) {
     return failed('asset_policy', 'asset_url_invalid');
   }
 
@@ -246,7 +223,7 @@ export function checkAssetPolicy(
       if (
         (object.properties !== null && properties === null)
         || containsUnsafeAssetReference(properties)
-        || (object.sprite_url !== null && !isApprovedAssetUrl(object.sprite_url))
+        || (object.sprite_url !== null && !isTrustedAssetUrl(object.sprite_url))
       ) {
         return failed('asset_policy', 'asset_url_invalid');
       }
@@ -258,29 +235,6 @@ export function checkAssetPolicy(
   return passed('asset_policy');
 }
 
-function isExpression(value: unknown): boolean {
-  if (!isRecord(value) || typeof value.op !== 'string') return false;
-  if (value.value !== undefined && value.value !== null && typeof value.value === 'object') return false;
-  return value.args === undefined || (Array.isArray(value.args) && value.args.every(isExpression));
-}
-
-function validBlockInput(value: unknown): boolean {
-  return value === null || ['string', 'number', 'boolean'].includes(typeof value) || isExpression(value);
-}
-
-function validSerializedBlock(block: SnapshotBlock): WorldReleaseCheckReasonCode | null {
-  const spec = BLOCK_SPECS[block.blockType];
-  if (!spec) return 'block_type_unsupported';
-  if (!block.data) return 'block_data_invalid';
-  const inputsValue = block.data.inputs;
-  if (inputsValue !== undefined && !isRecord(inputsValue)) return 'block_data_invalid';
-  const inputs = inputsValue ?? {};
-  const allowedInputs = new Set([...spec.fields, ...spec.values]);
-  if (Object.keys(inputs).some((name) => !allowedInputs.has(name))) return 'block_data_invalid';
-  if (Object.values(inputs).some((value) => !validBlockInput(value))) return 'block_data_invalid';
-  return null;
-}
-
 /** Reuses the Blockly vocabulary and accepts only serialized runtime-shaped inputs. */
 export function checkBlockPolicy(
   snapshot: ProjectSnapshot,
@@ -288,9 +242,12 @@ export function checkBlockPolicy(
 ): WorldReleaseCheckResult {
   for (const scene of snapshot.scenes) {
     for (const object of scene.objects) {
-      for (const block of snapshotBlocks(object.logic_blocks)) {
-        const reasonCode = validSerializedBlock(block);
-        if (reasonCode) return failed('block_policy', reasonCode);
+      const blocks = snapshotBlockTrees(object.logic_blocks);
+      if (!blocks) return failed('block_policy', 'block_data_invalid');
+      for (const block of blocks) {
+        const reason = validateSerializedLogicBlock(block.blockType, block.data);
+        if (reason === 'unsupported_block_type') return failed('block_policy', 'block_type_unsupported');
+        if (reason) return failed('block_policy', 'block_data_invalid');
       }
     }
   }

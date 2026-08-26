@@ -107,6 +107,7 @@ function validContext(snapshot) {
     sourceRevision: snapshot.project.revision,
     snapshotHash: snapshotHash(snapshot),
     creatorLabel: 'Builder',
+    assetByteSizes: Object.fromEntries(snapshot.assets.map((asset) => [asset.id, 1])),
   };
 }
 
