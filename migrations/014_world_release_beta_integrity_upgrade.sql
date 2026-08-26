@@ -114,30 +114,11 @@ SET @sql := IF(@world_release_snapshot_identity_idx = 0,
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- ---------------------------------------------------------------------------
--- Replace draft snapshot/template FKs, then add each final composite FK only
--- when absent. Fresh final schemas already have the final names, so all of
--- these branches are no-ops there.
+-- Add each stricter composite FK while the draft FKs still protect existing
+-- rows. If legacy data violates a final identity, the failed ADD aborts this
+-- migration before any weaker draft FK can be removed. Fresh final schemas
+-- already have the final names, so all branches are no-ops there.
 -- ---------------------------------------------------------------------------
-SET @draft_release_snapshot_fk := (
-  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
-  WHERE table_schema = DATABASE() AND table_name = 'world_releases'
-    AND constraint_name = 'fk_world_releases_snapshot'
-);
-SET @sql := IF(@draft_release_snapshot_fk > 0,
-  'ALTER TABLE world_releases DROP FOREIGN KEY fk_world_releases_snapshot',
-  'SET @noop = 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
-SET @draft_release_template_fk := (
-  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
-  WHERE table_schema = DATABASE() AND table_name = 'world_releases'
-    AND constraint_name = 'fk_world_releases_template'
-);
-SET @sql := IF(@draft_release_template_fk > 0,
-  'ALTER TABLE world_releases DROP FOREIGN KEY fk_world_releases_template',
-  'SET @noop = 1');
-PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
 SET @world_release_project_snapshot_fk := (
   SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
   WHERE table_schema = DATABASE() AND table_name = 'world_releases'
@@ -175,5 +156,26 @@ SET @world_release_snapshot_identity_fk := (
 );
 SET @sql := IF(@world_release_snapshot_identity_fk = 0,
   'ALTER TABLE world_releases ADD CONSTRAINT fk_world_releases_snapshot_identity FOREIGN KEY (project_id, project_play_snapshot_id, project_revision, snapshot_sha256) REFERENCES project_play_snapshots(project_id, id, revision, snapshot_sha256) ON DELETE RESTRICT',
+  'SET @noop = 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- The only superseded FKs are removed after all stricter FKs have succeeded.
+SET @draft_release_snapshot_fk := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE table_schema = DATABASE() AND table_name = 'world_releases'
+    AND constraint_name = 'fk_world_releases_snapshot'
+);
+SET @sql := IF(@draft_release_snapshot_fk > 0,
+  'ALTER TABLE world_releases DROP FOREIGN KEY fk_world_releases_snapshot',
+  'SET @noop = 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @draft_release_template_fk := (
+  SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS
+  WHERE table_schema = DATABASE() AND table_name = 'world_releases'
+    AND constraint_name = 'fk_world_releases_template'
+);
+SET @sql := IF(@draft_release_template_fk > 0,
+  'ALTER TABLE world_releases DROP FOREIGN KEY fk_world_releases_template',
   'SET @noop = 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

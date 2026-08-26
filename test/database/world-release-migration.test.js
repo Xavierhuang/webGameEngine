@@ -207,3 +207,29 @@ test('upgrades draft release foreign keys to the immutable composite identities'
     'upgrade must bind snapshot id, revision, and hash to one row',
   );
 });
+
+test('keeps draft foreign keys until every stricter composite foreign key is established', () => {
+  const finalForeignKeyAdds = [
+    'ADD CONSTRAINT fk_world_releases_project_snapshot FOREIGN KEY',
+    'ADD CONSTRAINT fk_world_releases_project_template FOREIGN KEY',
+    'ADD CONSTRAINT fk_world_releases_project_snapshot_hash FOREIGN KEY',
+    'ADD CONSTRAINT fk_world_releases_snapshot_identity FOREIGN KEY',
+  ];
+  const legacyForeignKeyDrops = [
+    'DROP FOREIGN KEY fk_world_releases_snapshot',
+    'DROP FOREIGN KEY fk_world_releases_template',
+  ];
+
+  const finalAddPositions = finalForeignKeyAdds.map((statement) => integrityUpgrade.indexOf(statement));
+  const legacyDropPositions = legacyForeignKeyDrops.map((statement) => integrityUpgrade.indexOf(statement));
+  assert.ok(finalAddPositions.every((position) => position >= 0), 'missing final composite FK add');
+  assert.ok(legacyDropPositions.every((position) => position >= 0), 'missing guarded draft FK drop');
+
+  const lastFinalAdd = Math.max(...finalAddPositions);
+  for (const legacyDropPosition of legacyDropPositions) {
+    assert.ok(
+      lastFinalAdd < legacyDropPosition,
+      'all stricter composite FKs must be added before a draft FK can be removed',
+    );
+  }
+});
