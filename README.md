@@ -120,8 +120,10 @@ Three things it does deliberately:
 - **Keeps the previous build** as `.next.prev` and restores it if the compile
   fails.
 - **Excludes `public/uploads`.** That holds user drawings, recordings and
-  uploaded models. It is gitignored, so it does not exist locally, and
-  `rsync --delete` erased it on every deploy until this was added.
+  uploaded models, and `rsync --delete` erased it on every deploy until this
+  was added. Only `public/uploads/models/` is gitignored, so the other
+  subdirectories can exist locally — the rsync exclude is what protects the
+  droplet's copy, not `.gitignore`.
 
 Migrations are tracked in a `schema_migrations` table and skipped once applied —
 `001` creates a trigger that cannot be re-run without `SUPER`.
@@ -182,8 +184,14 @@ What that still cannot answer is calibration: whether the noise floor and
 sensitivity feel right for a hand waving in a real room. That needs a person
 with a real camera.
 - **Sounds are synthesized**, not recorded. Kids can record their own instead.
-- **7 languages.** Block labels and toolbox categories are translated in all of
-  them (121 blocks; the maths operators — `%1 + %2`, `sin`, `ln` — are
+- **19 languages, 12 of them not natively reviewed.** The original seven (en,
+  zh, es, fr, pt, de, ja) are inline in `messages.ts`; the other twelve live one
+  per file in `lib/i18n/locales/` and each carries the header *"Not natively
+  reviewed. Complete and placeholder-safe, not yet idiomatic."* That is
+  machine-translated UI in front of children until a native speaker reads it.
+  RTL is wired (`lib/i18n/direction.ts`, applied in `app/layout.tsx`) but no
+  test renders an RTL layout. Block labels and toolbox categories are translated
+  in all of them (121 blocks; the maths operators — `%1 + %2`, `sin`, `ln` — are
   deliberately left as symbols, as Scratch leaves them). Dropdown choices
   (`up arrow`, `ghost`, drum and instrument names) and the editor chrome are
   translated too. Still English: **default field values** like `score` and

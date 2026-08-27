@@ -4,252 +4,222 @@
 pick the next task, execute it end-to-end, commit, deploy, and update this
 file — without prior context.
 
-**Author of this file:** the session that shipped commits `d2b0933..1bdfde6`
-(2026-08-19). Everything in the "State snapshot" section below reflects that
-session's endpoint.
+**Last refreshed:** 2026-08-27, by an audit session that made no code changes.
+Everything below was verified against the tree, not carried over from the
+previous version of this file (which had drifted a week out of date).
 
 ---
 
 ## State snapshot
 
-### World Builder Phase 1 boundary
+- **Branch:** `main` at `ba80cee`, a merge of `origin/main` (`00a6e5d World
+  Builder release beta (#2)`) into the three local doc commits. Done
+  2026-08-27; the checkout had been one commit behind, missing the entire
+  release beta. The only conflict was an add/add on
+  `docs/superpowers/plans/2026-08-26-world-builder-release-beta.md`, resolved to
+  origin's executed copy (55 of 61 steps ticked) over the local unticked one.
+- **Migrations:** `001`–`015` present locally.
+- **Remote:** github.com/Xavierhuang/webGameEngine. The merge is **not pushed**.
+- **Last recorded deploy:** `4c9ab0c Harden creator platform workflows`
+  (2026-08-26). **There is no deploy log anywhere in the repo** — `deploy.sh`
+  writes no SHA record, so what is actually running on 45.55.39.39 cannot be
+  confirmed without SSH. Treat `4c9ab0c` as a floor, not a fact. **Production
+  does not have the release beta**; its Task 10 deploy steps are unticked.
+- **Verification, run 2026-08-27 on the merged tree:** `npx tsc --noEmit` → 0
+  errors. `npm run test:all` → exit 0, 0 failed, 0 skipped. `npm run
+  test:critical` → exit 0. `npm run test:world-release` → exit 0, **100 tests,
+  0 skipped**, and the 20-step release journey passed end to end (submit →
+  review → approve → public play → edit draft → snapshot unchanged → remix →
+  report → withdraw). Nothing in the repo is failing.
+- Still outstanding: `codex/minion-focus-shortcut` is 14 commits ahead of its
+  remote and unmerged.
 
-World Builder template worlds are **private-phase only**. They always start as
-private drafts and are owner-editable/playable, but do not appear in Explore or
-anonymous play. Neither project-creation endpoint accepts publication fields,
-and the World Builder share surface contains no public-release control. Public
-release remains blocked pending the later candidate, asset-quarantine,
-approval, and reviewer phases; do not enable `new_publication` as a workaround.
+**`./deploy.sh` rsyncs the working tree, not a git ref**, and migrations are
+forward-only through a `schema_migrations` ledger with **no down-migrations**.
+Check `git status` *and* `git rev-list --left-right --count main...origin/main`
+before every deploy — a stale checkout silently ships old code over new schema.
 
-- **Branch:** `main` on both local and `origin` (github.com/Xavierhuang/webGameEngine)
-- **HEAD:** `1bdfde6 checkpoint: batch in-progress editor + i18n + examples work`
-- **Live at play.lingcode.dev:** through commit `657421a` (the last `./deploy.sh` run).
-  Everything past `657421a` is code-only; no deploy has run since.
-- **Working tree:** clean. `git status` shows nothing modified, nothing untracked.
-- **MySQL:** production database has migrations 001–009 applied (verified by the
-  last deploy's automatic migration step; `deploy.sh` reads `schema_migrations`).
+### World Builder boundary
 
-### Session commit chain (most recent first)
-
-```
-1bdfde6 checkpoint: batch in-progress editor + i18n + examples work   [pushed, unshipped]
-6064992 feat: add server-only feature flag reader                     [pushed, unshipped]
-ec4da01 feat: add redacted safety audit event                         [pushed, unshipped]
-657421a feat: add project command schema                              [LIVE]
-933716c feat: add durable project schema (migration 009)              [LIVE]
-8394b15 feat: add transactional database helper                       [LIVE]
-d2b0933 fix: reject boundary calls that skip await                    [LIVE]
-9329811 fix: make trust regressions fail closed                       [LIVE, prior session]
-```
-
-### What "the plans" are
-
-Four SDD plan files under `docs/superpowers/plans/2026-08-18-lingplay-*.md`:
-
-1. `2026-08-18-lingplay-trust-boundary.md` — 45 steps, Tasks 1–9
-2. `2026-08-18-lingplay-durable-work.md` — 46 steps, Tasks 1–9
-3. `2026-08-18-lingplay-creation-experience.md` — 41 steps, Tasks 1–?
-4. `2026-08-18-lingplay-production-readiness.md` — 41 steps, Tasks 1–?
-
-Total ~173 steps. **~7 tasks complete, ~160 remaining.** Realistic pace: 1–3
-tasks per focused session, so 20–50 sessions of work spread over weeks.
-
-### Task completion map
-
-| Plan | Task | Status | Commit(s) |
-|---|---|---|---|
-| trust-boundary | 1 Schema + safe defaults | done | bb026f0 |
-| trust-boundary | 2 Opaque guest sessions | done | 47440f3..1dda043 |
-| trust-boundary | 3 Central authorization | done | 1277edf..8553e6e |
-| trust-boundary | 4 Convert every surface | done (3 fix rounds) | c50d36a..d2b0933 |
-| trust-boundary | 5 Parent consent state machine | done | 5de284d |
-| trust-boundary | 6 Shared quotas + audit | done | ec4da01, 6064992, 0a15e8f |
-| trust-boundary | 7 AI-route guard | **TODO** | — |
-| trust-boundary | 8 Publication candidates | **TODO** | — |
-| trust-boundary | 9 CI gate | **TODO** | — |
-| durable-work | 1 Transaction primitive | done | 8394b15 |
-| durable-work | 2 Migration 009 schema | done | 933716c |
-| durable-work | 3 Command service + snapshots | done | 657421a, b431008 |
-| durable-work | 4 Multi-row + compat writers | done | 502627c |
-| durable-work | 5 Guest project claiming | **TODO** | — |
-| durable-work | 6 S3 asset store | **TODO** | — |
-| durable-work | 7 Deletion pipeline | **TODO** | — |
-| durable-work | 8 Off-site backup | **TODO** | — |
-| durable-work | 9 CI gate | **TODO** | — |
-| creation-experience | all | **untouched** | — |
-| production-readiness | all | **untouched** | — |
+Template worlds start as private drafts. Public release now goes through the
+reviewed, immutable release pipeline on `origin/main`, gated by
+`FEATURE_FLAG_COMMUNITY_PUBLISHING` (production default: **disabled**). Do not
+enable it as a workaround for anything; Task 10 of the release-beta plan
+requires explicit operator authorization and a cohort insert first.
 
 ---
 
-## Execution model
+## Plan status
 
-Each session should follow the same shape as the prior sessions that shipped
-`8394b15`, `933716c`, `657421a`, `ec4da01`, `6064992`:
+Checkbox state in `docs/superpowers/plans/` is **not** a reliable completion
+signal — the 2026-08-09/11 plans read as 0% done and every asset they describe
+ships in `public/models/`. Judge by deliverable presence.
 
-1. **Read this file top-to-bottom** — resume where the last session stopped.
-2. **Pick one task** from "Next tasks in dependency order" below. Do not skip
-   ahead or the code will reference things that don't exist yet.
-3. **Read the plan's task section** in the referenced file.
-4. **Write failing tests first**, then implement, then verify green. The plan
-   files use `- [ ]` checkboxes for each step; treat them as a strict order.
-5. **Type-check** with `npm run type-check` before committing.
-6. **Commit as one atomic unit** with the plan's suggested commit title
-   (e.g. `feat: add durable project schema`). Include the
-   `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>` trailer.
-7. **Update this file** — mark the task done in the table above, add the SHA.
-8. **Push** if the task is complete and tests are green.
-9. **Deploy** only when asked; `./deploy.sh` runs migration + build + restart +
-   smoke against `https://play.lingcode.dev`.
-10. **Handoff** — write the "next task" name in this file's "Resume marker"
-    section at the bottom so the next session picks up cold.
+| Plan | State |
+|---|---|
+| `2026-08-26-creator-platform-hardening` | Done and deployed (`4c9ab0c`) |
+| `2026-08-26-world-builder-release-beta` | **Code complete and merged** (`00a6e5d`), 55/61 steps. The 6 open ones are all human-gated: Task 9 Step 5 (manual staging verification with the flag disabled) and the whole of Task 10 (deploy, live verification, **explicit operator authorization before enabling `FEATURE_FLAG_COMMUNITY_PUBLISHING`**, cohort activation, evidence). Nothing is published until a person does those. |
+| `2026-08-24-sky-steps-flagship` | **Halted.** Ledger: Task 1 review rejected at `c242389` — the player flattens platforms, has no platform collision, and transforms template coordinates differently from the spec. "Sky Steps v2 is unwinnable." Needs a revised runtime/coordinate design and fresh spec approval. Sky Steps nonetheless ships in the template catalog. |
+| `2026-08-24-lingplay-world-builder` | Tasks 1–5 shipped; the SDD ledger was never closed past Task 2 |
+| `2026-08-18-lingplay-trust-boundary` | T1–T6 done. **T7 partial** — `apply-update` and `chat` converted; `ask`, `translate`, `generate-character` still deferred. T8 superseded by the release-beta plan. T9 (CI gate) done in substance: `.github/workflows/ci.yml` exists |
+| `2026-08-18-lingplay-durable-work` | T1–T4 done. **T5–T8 not started**: guest project claiming, S3 asset store, deletion pipeline, encrypted off-site backup |
+| `2026-08-18-lingplay-production-readiness` | Untouched. Notably there is no `Content-Security-Policy` anywhere |
+| `2026-08-18-lingplay-creation-experience` | Untouched |
 
 ---
 
 ## Next tasks in dependency order
 
-Execute in this order. Later tasks depend on earlier ones being present.
+### 0. Push the merge, then decide about deploying
 
-### Trust-boundary Task 7 — Guard and Bound Every AI Surface
+`ba80cee` is local-only. Push it. Then the release beta's Task 10 is a
+deliberate human gate, not a chore to automate: deploy with
+`FEATURE_FLAG_COMMUNITY_PUBLISHING` **off**, run
+`node scripts/smoke.js https://play.lingcode.dev` and `scripts/a11y.js`, and
+stop. Do not enable the flag or insert cohort members because a deploy
+succeeded — the plan requires explicit product-owner authorization first.
 
-Wires the audit + feature-flag + rate-limit modules into the five AI
-routes that Task 4 explicitly deferred. Live paths — every fix round
-must include a fail-closed browser fixture.
+### 1. Ordinary-project sharing is broken in production
 
-**Reads the plan at:** `docs/superpowers/plans/2026-08-18-lingplay-trust-boundary.md`
-section "Task 7".
+`components/editor/ShareDialog.tsx` sends `is_published` on every share toggle —
+both directions. `app/api/projects/[id]/route.ts:249` rejects that key with a
+501 `publication_moved` before any other logic runs, and the dialog renders
+`data?.reason`, so **a child clicking Share sees the literal string
+`publication_moved`.** The 501 came in with `502627c`, an ancestor of the last
+recorded deploy.
 
-**Landmine:** `app/api/ai/apply-update/route.ts` currently returns 503
-`feature_unavailable`. Task 7 replaces it with a strict AI-command
-translator that dispatches through `executeProjectCommand`. The route
-must stay behind `readFeatureFlag('creation_ai')` and `readFeatureFlag
-('ai_mutation')` until Task 7's full pipeline (guard order + browser
-fixture) is green.
+The release-beta merge does not fix this: on `origin/main`, `ShareDialog` routes
+World Builder projects to `WorldReleasePanel` and leaves the ordinary flow
+"deliberately unchanged."
 
----
+Deeper: **nothing anywhere writes `is_published = TRUE` or
+`moderation_status = 'published'` except `scripts/seed-examples.js`**, and there
+is no admin approve action (`app/api/admin/reports/route.ts` allows only
+`dismiss`|`remove`). So `/explore`, shared links (`lib/auth/projectAccess.ts:88`
+404s them for the recipient), remix lineage, and the "pending review" queue are
+all structurally empty for user content. Decide whether ordinary projects get a
+real publish path or are folded into the release pipeline.
 
-### Then, in this order
+### 2. Guard the three remaining AI routes (trust-boundary Task 7)
 
-10. **trust-boundary Task 8** — Fail-Closed Publication Candidates and
-    Snapshot State. Owns immutable publication snapshots and the removed
-    `published` state that migration 008 left dormant.
-11. **durable-work Tasks 5–8** — guest claiming, S3 asset store, deletion
-    pipeline, off-site backup. Each depends on the command service from 3b
-    being live.
-12. **trust-boundary Task 9** — CI gate for the trust suite.
-13. **durable-work Task 9** — CI gate for the durable-work suite.
-14. **creation-experience** — 41 steps. Depends on trust-boundary +
-    durable-work substantially complete. Zustand store, revision-pinned play
-    UI, tutorial persistence.
-15. **production-readiness** — 41 steps. Depends on all three above. Semantic
-    UI primitives, RTL/i18n review, performance budgets, zero-warning lint
-    CI, nonce CSP, config validation.
+`app/api/ai/generate-character/route.ts` POST has **no `resolveActor`, no rate
+limit, no feature flag, no moderation** and spends Meshy credits on anonymous
+requests. `ai/ask` has moderation but no actor; `ai/translate` has only the
+in-process limiter. All three are listed as `deferredTo: 'Task 7'` in
+`test/api/trust-boundary-guard.test.js:133` — the test encodes the hole rather
+than failing on it.
+
+While you are there: that guard asserts `inventory.length === 31` against a
+hardcoded manifest, with no test asserting the manifest covers every file under
+`app/api`. 21 route files are outside it and escape authorization checking
+silently.
+
+### 3. Wire the orphaned test suites into CI
+
+**40 of 105 `test:*` scripts are unreachable from `test:all`, `test:critical`
+or `test:world-release`**, so nothing ever runs them — including
+`test:authorization-matrix`, `test:consent-flow` (the COPPA HTTP flow),
+`test:commands`, `test:multi-row-rollback`, `test:transactions`, `test:audit`,
+`test:feature-flags`, `test:capability-flags`, and **all 10 Playwright
+journeys**. They pass when run by hand.
+
+Bring the skip-equals-failure guard with them: six MySQL-backed suites
+self-skip when the DB is unreachable and `node --test` exits 0 on a skip, so
+adding them naively makes an unreachable database read as a green gate.
+`scripts/world-release-gate.mjs` already solves this — it reports skipped
+counts and fails on them (`0 skipped` in its own output is the assertion, not a
+comment). Reuse it rather than writing a second mechanism.
+
+### 4. Adopt or delete the shelfware safety modules
+
+`lib/safety/persistentRateLimit.ts`, `lib/safety/audit.ts`, and
+`capabilitiesFor()` in `lib/safety/capabilities.ts` all have **zero production
+callers**. Consequences: every quota resets on deploy and doesn't hold across
+workers; `security_audit_events` is empty; and `app/api/projects/[id]/route.ts`
+reads `can_share` directly — the path `lib/safety/coppa.ts:56` says new callers
+must not use. `moderateImage()` is a stub returning `safe: true` and is called
+from nowhere, so uploads are never image-moderated.
+
+Also reconcile the feature flags: five are declared, one is ever read, and the
+`feature_flags` table is seeded with a completely disjoint set of names.
+
+### 5. Then, in order
+
+- durable-work **T8** — encrypted off-site backup. `scripts/backup-db.sh` keeps
+  14 days *on the same droplet*; a droplet loss takes the database and the
+  backups together. Do this before T5–T7.
+- durable-work **T5–T7** — guest claiming, S3 asset store, deletion pipeline.
+- production-readiness — semantic primitives, RTL review, nonce CSP,
+  performance budgets, config validation.
+- creation-experience — Zustand store, Blockly flush barriers, revision-pinned
+  play UI, tutorial persistence.
+- Sky Steps flagship — blocked on a runtime/coordinate redesign and fresh spec.
 
 ---
 
 ## Known infra / landmines
 
+### `deploy.sh` gaps
+
+- It rsyncs the **working tree**. Uncommitted files ship live; a stale checkout
+  silently ships old code.
+- Its rsync exclude list does **not** exclude `.opendeploy/`, which holds a
+  plaintext MySQL password and `JWT_SECRET`. Every deploy copies them to
+  `/opt/lingplay/source/`. Confirm and rotate.
+- The browser smoke step is gated on `[ -f node_modules/.bin/playwright ]` and
+  otherwise prints "skipping browser smoke test" and **exits 0**. A deploy from
+  a machine without Playwright ships with no real verification.
+- On smoke failure it prints "Investigate or roll back" and exits 1 but **does
+  not roll back** — `.next.prev` was already deleted a few lines earlier. Only a
+  `systemctl start` failure triggers the actual restore.
+- `scripts/smoke.js` covers 12 **public** pages and zero authenticated creator
+  pages. The block editor, scene view, player and World Builder are never
+  browser-verified before or after a ship. `test/visual/journey.mjs` and
+  `share-flow.mjs` do cover them but are loopback-only by design and run in
+  neither CI nor deploy.
+
+### Production environment is unverifiable from the repo
+
+Each fails quietly or fails closed if unset on the droplet, and nothing here
+proves any of them is set:
+
+- `RESEND_API_KEY` — unset means parental-consent email silently does not send.
+  `lib/email/send.ts` correctly returns `{ok:false, reason:'unconfigured'}`
+  rather than pretending, but there is **no error monitoring** — failures
+  surface only in `journalctl -u lingplay`.
+- `TRUSTED_PROXY_HOPS` — `lib/config/security.ts:43` throws in production if
+  unset. Non-production defaults to 0; set it explicitly if a suite trips on it.
+- `FEATURE_FLAG_*` — production default is **disabled**, and these are absent
+  from `.env.example`.
+- `NEXT_PUBLIC_WS_URL` — appears in no config anywhere, so
+  `CollaborationProvider` is a mounted no-op and there is no WebSocket server in
+  the repo to point it at.
+
 ### MySQL for local tests
 
-Several remaining tests (persistent-limiter, command-service integration,
-migration 009 live-apply) require MySQL running locally with
-`gameengine_test`. Setup pattern used by the trust-boundary work:
-
 ```bash
-brew services start mysql  # or your local service manager
+brew services start mysql
 mysql -u root -e "CREATE DATABASE IF NOT EXISTS gameengine_test;"
-for m in migrations/*.sql; do
-  mysql -u root gameengine_test < "$m"
-done
+for m in migrations/*.sql; do mysql -u root gameengine_test < "$m"; done
 ```
 
-Test databases **must contain `_test`**; destructive test/restore scripts
-refuse every other name (plan global constraint).
-
-### `TRUSTED_PROXY_HOPS` env
-
-`lib/config/security.ts:readSecurityConfig` throws in production if
-`TRUSTED_PROXY_HOPS` is unset. Non-production defaults to 0. If a test
-suite hits this, set `TRUSTED_PROXY_HOPS=0` explicitly.
-
-### Feature flag defaults
-
-`readFeatureFlag` defaults to **disabled in production**, **enabled in every
-other NODE_ENV**. Tests default to enabled. Production kill-switch requires
-an explicit `FEATURE_FLAG_<NAME>=false`.
-
-### Migration 009 already applied on prod
-
-Do NOT re-run migration 009's individual statements manually against prod;
-`schema_migrations` records it as applied. If a future migration needs to
-alter a Task-2 table, use a new numbered file (`010_*.sql`) and use the
-same idempotent probe pattern as 008/009.
-
-### package.json script wiring
-
-Every task adds one or more `test:<name>` scripts. The session pattern for a
-clean commit that doesn't clobber other WIP has been:
-
-```bash
-cp package.json /tmp/pkg-snapshot.json
-git checkout -- package.json  # revert to HEAD
-# add ONLY your one script line
-git add package.json
-# ... other commits ...
-cp /tmp/pkg-snapshot.json package.json  # restore working-tree WIP
-# add your new line back to the working tree so it stays in sync with HEAD
-```
-
-Since the checkpoint commit (`1bdfde6`) landed all WIP into git, this dance
-is no longer strictly necessary until the next batch of ad-hoc edits
-accumulates.
-
-### `./deploy.sh` rsyncs the working tree
-
-Uncommitted files ship live on every deploy. Prefer to keep the working tree
-clean between task cycles — commit or `git stash` any half-work before
-running `deploy.sh`. The last three deploys have carried WIP piggybacks
-without incident (12/12 smoke test passed), but a broken WIP file would
-white-screen prod.
-
-### Racing with Codex
-
-Codex was running trust-boundary Task 4 rereview2 in parallel and ran out
-of tokens. If Codex resumes, coordinate before starting trust-boundary
-Tasks 5–8 or you'll get double-commits on the same files.
+Test databases **must contain `_test`** — destructive test/restore scripts
+refuse every other name.
 
 ### `AGENTS.md` re-writes itself
 
-`node_modules/next/dist/server/lib/generate-agent-files.js` re-adds a block
-to `AGENTS.md` on every `next dev`. Committing that block keeps the tree
-clean; removing it just re-creates the diff.
+`node_modules/next/dist/server/lib/generate-agent-files.js` re-adds a block to
+`AGENTS.md` on every `next dev`. Committing it keeps the tree clean; removing it
+just re-creates the diff.
 
 ---
 
 ## Resume marker
 
-The next session should read this section first, then start work.
+**Next task:** push `ba80cee` (section 0), then decide the ordinary-project
+publish story (section 1) — that 501 is what a child hits on day one, and the
+release beta does not fix it.
 
-**Last completed:** `5de284d feat: enforce parent-first consent`
-(2026-08-19) — trust-boundary Task 5: `capabilitiesFor(...)` deny-by-
-default reducer, `ConsentState` machine with 24-hour purpose-bound
-tokens + atomic sibling invalidation, `birth_month` migration off raw
-age, parent enrollment route (email-verified), pending-approval
-resend button, `isParent` client authority removed. 10 real-MySQL
-consent-flow tests + 10 capability-table tests all green.
-
-**Next task:** trust-boundary **Task 7** — Guard and Bound Every AI
-Surface. Wires audit + feature-flag + rate-limit + capabilities into
-the five AI routes (chat, apply-update, generate-character, ask,
-translate). Task 4 disabled apply-update behind the flag; Task 7
-replaces the stub with a strict AI-command translator that dispatches
-through `executeProjectCommand`.
-
-**Deploy status:** local `5de284d` is unpushed. Prior tasks landed as
-`6681e0d` (Task 3b) and `681f429` (Task 4) on `origin/main`. Live prod
-is on `657421a`. Deploy caveats stack: Task 4 requires `If-Match`
-headers on graph writes, Task 5 breaks the signup checkbox flow. Do
-not `./deploy.sh` until the browser editor + signup UI are updated.
-
-**When updating this file:** move the completed task from "Next tasks" to
-"Task completion map", write the new SHA, update the "Last completed" line,
-and set the new "Next task".
+**When updating this file:** correct the state snapshot from the actual tree
+rather than appending to it. The previous version drifted a week out of date by
+recording intentions instead of re-checking.
