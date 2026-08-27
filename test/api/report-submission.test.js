@@ -158,6 +158,8 @@ test('a successful report binds the reporter profile to the Actor', async () => 
       reporterProfileId: USER.profileId,
       reportedProjectId: null,
       reportedProfileId: PROFILE_ID,
+      // A profile report never carries a release link.
+      worldReleaseId: null,
       reason: 'harassment',
       details: 'details',
     },

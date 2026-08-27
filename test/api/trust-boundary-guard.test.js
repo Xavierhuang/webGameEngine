@@ -7,6 +7,39 @@ const { analyzeSource } = require('../helpers/trust-boundary-ast.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 
+/**
+ * Recursively lists source files whose contents match `pattern`.
+ *
+ * This used to shell out to `rg`. Ripgrep is not installed on the GitHub
+ * Actions runner, so that call threw ENOENT and failed this test on every CI
+ * run — and because it sits inside `test:all`, it took every later CI step down
+ * with it, including the build and the smoke tests. A trust-boundary guard that
+ * cannot run in CI guards nothing, so the search is done in-process instead: no
+ * undeclared system dependency, and it works for any developer too.
+ */
+function findFilesMatching(pattern, directories) {
+  const matches = [];
+  const visit = (dir) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+        visit(full);
+      } else if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry.name)) {
+        if (pattern.test(fs.readFileSync(full, 'utf8'))) matches.push(path.relative(ROOT, full));
+      }
+    }
+  };
+  for (const directory of directories) visit(path.join(ROOT, directory));
+  return matches.sort();
+}
+
 const enforced = (surfacePath, entryPoints) => Object.freeze({
   path: surfacePath,
   state: 'current',
@@ -165,16 +198,10 @@ test('deprecated implicit-actor authorization APIs are gone at the Task 4 bounda
   assert.doesNotMatch(source, /getProjectAccess\s*\(project\s*:/);
   assert.doesNotMatch(source, /@deprecated Task 4/);
 
-  let callers = '';
-  try {
-    callers = execFileSync(
-      'rg',
-      ['-l', 'getActorProfileId|getProjectAccess\\s*\\(project\\)', 'app', 'lib'],
-      { cwd: ROOT, encoding: 'utf8' }
-    ).trim();
-  } catch (error) {
-    if (error.status !== 1) throw error;
-  }
+  const callers = findFilesMatching(
+    /getActorProfileId|getProjectAccess\s*\(project\)/,
+    ['app', 'lib'],
+  ).join('\n');
   assert.equal(callers, '', `deprecated authorization callers remain:\n${callers}`);
 });
 

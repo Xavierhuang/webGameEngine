@@ -12,6 +12,10 @@ export type ModelFileExtension = (typeof MODEL_FILE_EXTENSIONS)[number];
 const MODEL_EXTENSION_SET = new Set<string>(MODEL_FILE_EXTENSIONS);
 const textDecoder = new TextDecoder();
 const MAX_MODEL_URL_LENGTH = 2_048;
+const LOCAL_ASSET_EXTENSIONS = new Set([
+  'avif', 'dae', 'fbx', 'gif', 'glb', 'gltf', 'jpeg', 'jpg', 'm4a', 'mp3',
+  'obj', 'ogg', 'png', 'stl', 'svg', 'wav', 'webm', 'webp',
+]);
 
 export interface ModelValidationResult {
   valid: boolean;
@@ -29,23 +33,52 @@ export function getModelExtension(value: string): ModelFileExtension | null {
 }
 
 /**
+ * Resolve an app-local URL without allowing encoded separators or dot
+ * segments to change which public directory serves the asset.
+ */
+function canonicalizeLocalAssetPath(value: string): string | null {
+  if (value.length === 0 || value.length > MAX_MODEL_URL_LENGTH || !value.startsWith('/')) return null;
+
+  try {
+    const rawPath = value.split(/[?#]/, 1)[0];
+    const rawSegments = rawPath.split('/');
+    if (rawSegments[0] !== '' || rawSegments.length < 2) return null;
+
+    const segments: string[] = [];
+    for (const rawSegment of rawSegments.slice(1)) {
+      if (rawSegment.length === 0) return null;
+      const segment = decodeURIComponent(rawSegment);
+      if (
+        segment.length === 0
+        || segment === '.'
+        || segment === '..'
+        || segment.includes('/')
+        || segment.includes('\\')
+      ) return null;
+      segments.push(segment);
+    }
+    return `/${segments.join('/')}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Accept assets served by Lingplay and Meshy-generated models only. External
  * links otherwise cause every player opening a shared game to contact an
  * arbitrary third party, and can send unreviewed file formats to three.js.
  */
 export function isTrustedModelUrl(value: string): boolean {
   if (value.length === 0 || value.length > MAX_MODEL_URL_LENGTH) return false;
-  if (!getModelExtension(value)) return false;
 
   if (value.startsWith('/')) {
-    try {
-      const pathSegments = value.split(/[?#]/, 1)[0].split('/');
-      if (pathSegments.some((segment) => decodeURIComponent(segment) === '..')) return false;
-    } catch {
-      return false;
-    }
-    return value.startsWith('/models/') || value.startsWith('/uploads/');
+    const path = canonicalizeLocalAssetPath(value);
+    return path !== null
+      && getModelExtension(path) !== null
+      && (path.startsWith('/models/') || path.startsWith('/uploads/'));
   }
+
+  if (!getModelExtension(value)) return false;
 
   try {
     const url = new URL(value);
@@ -53,6 +86,24 @@ export function isTrustedModelUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isTrustedLocalAssetPath(value: string, roots: readonly string[]): boolean {
+  const path = canonicalizeLocalAssetPath(value);
+  if (path === null || !roots.some((root) => path.startsWith(root))) return false;
+  const extension = path.match(/\.([a-z0-9]+)$/i)?.[1]?.toLowerCase();
+  return extension !== undefined && LOCAL_ASSET_EXTENSIONS.has(extension);
+}
+
+/** Shared URL allowlist for every asset that can be replayed by a release. */
+export function isTrustedAssetUrl(value: string): boolean {
+  return isTrustedModelUrl(value)
+    || isTrustedLocalAssetPath(value, ['/backdrops/', '/uploads/textures/', '/uploads/audio/']);
+}
+
+/** Catalog starters remain local packaged model/backdrop assets only. */
+export function isTrustedTemplateAssetUrl(value: string): boolean {
+  return isTrustedLocalAssetPath(value, ['/models/', '/backdrops/']);
 }
 
 function startsWith(bytes: Uint8Array, signature: number[]): boolean {

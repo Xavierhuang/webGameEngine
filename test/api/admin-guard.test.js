@@ -12,6 +12,12 @@ const EXPECTATIONS = Object.freeze({
     PATCH: 'requireAdmin',
     DELETE: 'requireAdmin',
   },
+  // World release moderation. The release service also re-checks admin identity
+  // inside its transaction under a lock on the profile row; these route-level
+  // gates are defense in depth and keep the admin boundary visible at the HTTP
+  // layer, where this AST gate can see it.
+  'app/api/admin/world-releases/[releaseId]/decision/route.ts': { POST: 'requireAdmin' },
+  'app/api/admin/world-releases/[releaseId]/takedown/route.ts': { POST: 'requireAdmin' },
 });
 
 function routeFiles(dir, output = []) {

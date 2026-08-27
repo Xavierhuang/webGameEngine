@@ -77,6 +77,24 @@ jobs:
         # scripts that existed locally but were never exercised by CI.
         run: npm run test:critical
 
+      # The release gate refuses to run against any database whose name does not
+      # contain `_test`, so it never touches the `gameengine` database the rest
+      # of this job uses. Its suites apply the migrations themselves.
+      - name: Create the guarded release test database
+        run: mysql -h 127.0.0.1 -P 3306 -u root -e "CREATE DATABASE IF NOT EXISTS gameengine_test"
+
+      # An immutable public release must not be able to regress behind a passing
+      # general suite, so this runs after `test:critical` and blocks the build.
+      # The gate runs its MySQL-backed suites serially and treats a skipped test
+      # as a failure — `node --test` exits 0 when a suite skips itself, which
+      # would otherwise turn an unreachable database into a green release gate.
+      - name: World release gate
+        run: npm run test:world-release
+        env:
+          MYSQL_DATABASE: gameengine_test
+          FEATURE_FLAG_COMMUNITY_PUBLISHING: 'true'
+          AUDIT_HMAC_SECRET: ci-placeholder-not-a-real-secret
+
       - name: Build
         run: npm run build
         env:
