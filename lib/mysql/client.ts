@@ -23,6 +23,26 @@ export function getPool(): mysql.Pool {
   return globalForMysql.__mysqlPool!;
 }
 
+/**
+ * Closes the shared pool, if one was ever opened.
+ *
+ * The server never calls this — the pool is meant to outlive every request.
+ * It exists for tests: `enableKeepAlive` holds a socket open, so a suite that
+ * imports any module reaching this pool keeps the Node event loop alive and
+ * **never exits**, even after every assertion has passed. `test:consent-flow`
+ * did exactly that — 10/10 green, then hung forever. Run under CI that is not
+ * a flake, it is a job that burns its timeout on a suite that already
+ * succeeded.
+ *
+ * Idempotent, and safe to call when no pool was created.
+ */
+export async function closePool(): Promise<void> {
+  const pool = globalForMysql.__mysqlPool;
+  if (!pool) return;
+  globalForMysql.__mysqlPool = undefined;
+  await pool.end();
+}
+
 export async function query<T = any>(
   sql: string,
   params?: any[]

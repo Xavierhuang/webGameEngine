@@ -19,8 +19,8 @@
  *   node scripts/world-release-gate.mjs
  */
 
-import { spawn } from 'node:child_process';
 import process from 'node:process';
+import { run, runGate } from './lib/test-gate.mjs';
 
 /**
  * Every path named by Tasks 2–8, enumerated rather than globbed.
@@ -61,73 +61,7 @@ const SUITES = [
   'test/api/report-submission.test.js',
 ];
 
-function run(command, args) {
-  return new Promise((resolve) => {
-    const child = spawn(command, args, { stdio: ['inherit', 'pipe', 'inherit'] });
-    let stdout = '';
-    child.stdout.on('data', (chunk) => {
-      stdout += chunk;
-      // A consumer that closes the pipe early (`| head`, a killed parent) must
-      // not turn into an EPIPE crash that looks like a gate failure. The captured
-      // output is what the verdict is computed from; echoing it is a courtesy.
-      try { process.stdout.write(chunk); } catch { /* downstream closed */ }
-    });
-    process.stdout.on('error', () => {});
-    child.stdout.on('error', () => {});
-    child.on('close', (code) => resolve({ code, stdout }));
-  });
-}
-
-console.log(`\n=== world release gate: ${SUITES.length} suites, serial ===\n`);
-const suiteRun = await run(process.execPath, ['--test', '--test-concurrency=1', ...SUITES]);
-
-/**
- * Reads one summary counter from the test runner's output.
- *
- * Both reporter formats are accepted on purpose. `node --test` picks its
- * default reporter by Node version and by whether stdout is a TTY: Node 24
- * emitted the spec reporter's `ℹ pass 100` locally, while Node 20 on CI emitted
- * TAP's `# pass 100`. Matching only one of those made this gate report "no
- * tests ran" against a run where all 100 passed.
- *
- * Returns null when the counter is absent, which the caller treats as an
- * unverifiable run rather than as a zero.
- */
-function summaryCount(output, label) {
-  const match = new RegExp(`^(?:ℹ|#) ${label} (\\d+)\\s*$`, 'm').exec(output);
-  return match ? Number(match[1]) : null;
-}
-
-const skipped = summaryCount(suiteRun.stdout, 'skipped');
-const passed = summaryCount(suiteRun.stdout, 'pass');
-const failed = summaryCount(suiteRun.stdout, 'fail');
-
-if (passed === null || failed === null || skipped === null) {
-  console.error(
-    '\nworld release gate FAILED: could not read the test summary.\n'
-    + 'The runner produced output this gate does not know how to verify, so its\n'
-    + 'result cannot be trusted either way. Check the reporter format above.',
-  );
-  process.exit(1);
-}
-
-if (suiteRun.code !== 0 || failed > 0) {
-  console.error(`\nworld release gate FAILED: ${failed} failing test(s).`);
-  process.exit(1);
-}
-if (skipped > 0) {
-  console.error(
-    `\nworld release gate FAILED: ${skipped} test(s) skipped.\n`
-    + 'A skipped release-boundary test is not a pass. This usually means MySQL was\n'
-    + 'unreachable or the release schema was missing, so the boundaries this gate\n'
-    + 'protects were never actually checked.',
-  );
-  process.exit(1);
-}
-if (passed === 0) {
-  console.error('\nworld release gate FAILED: no tests ran.');
-  process.exit(1);
-}
+const passed = await runGate('world release gate', SUITES);
 
 console.log(`\n=== world release journey ===\n`);
 const journey = await run(process.execPath, ['test/visual/world-release-journey.mjs']);

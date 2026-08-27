@@ -5,6 +5,21 @@ import { assertLocalBaseUrl } from '../helpers/local-base-url.mjs';
 const BASE = assertLocalBaseUrl(process.argv[2] || 'http://localhost:3100');
 const stamp = `${Date.now().toString(36)}-${process.pid}`;
 
+/**
+ * The active platformer template, resolved rather than hardcoded.
+ *
+ * This file pinned `templateVersion: 1` until 2026-08-27. Sky Steps v2 marked
+ * that entry `active: false`, so every world-creation call here began returning
+ * 422 "Unknown template" and the entire authorization matrix stopped running —
+ * undetected, because this suite is reachable from no CI aggregator. Reading
+ * the version from the catalog means the next version bump cannot silently
+ * disable the matrix again.
+ */
+const { listActiveWorldTemplates } = await import('../.build/lib/worlds/templates.js');
+const activeTemplate = listActiveWorldTemplates().find((t) => t.id === 'platformer');
+if (!activeTemplate) throw new Error('no active platformer template to exercise');
+const TEMPLATE = { templateId: activeTemplate.id, templateVersion: activeTemplate.version };
+
 class Client {
   constructor(label) {
     this.label = label;
@@ -146,13 +161,12 @@ await expectStatus(owner, 'reject publication fields on blank create', '/api/pro
   visibility: 'public',
 }, [422]);
 await expectStatus(owner, 'reject publication fields on world create', '/api/worlds/create', 'POST', {
-  templateId: 'platformer', templateVersion: 1, title: `owner blocked world ${stamp}`, is_published: true,
+  ...TEMPLATE, title: `owner blocked world ${stamp}`, is_published: true,
 }, [422]);
 
 async function createPrivateWorld(client, label) {
   const response = await expectStatus(client, `create ${label} private world`, '/api/worlds/create', 'POST', {
-    templateId: 'platformer',
-    templateVersion: 1,
+    ...TEMPLATE,
     title: `${label} private world ${stamp}`,
   }, [201]);
   return (await json(response)).projectId;
@@ -162,7 +176,7 @@ const ownerWorldId = await createPrivateWorld(owner, 'owner');
 const guestWorldId = await createPrivateWorld(guest, 'guest');
 const strangerWorldId = await createPrivateWorld(stranger, 'stranger');
 await expectStatus(anonymous, 'anonymous world creation', '/api/worlds/create', 'POST', {
-  templateId: 'platformer', templateVersion: 1, title: `anonymous private world ${stamp}`,
+  ...TEMPLATE, title: `anonymous private world ${stamp}`,
 }, [401]);
 
 const ownerWorld = await loadProject(owner, ownerWorldId);

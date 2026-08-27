@@ -48,6 +48,19 @@ const listed = await (await fetch(`${BASE}/api/projects/explore`)).json();
 const projects = listed.projects || [];
 console.log(`\n${projects.length} published projects on ${BASE}\n`);
 
+// An empty gallery used to report "all 0 examples play" and exit 0. A check
+// that passes when there is nothing to check is worse than no check: it reads
+// as proof the examples work while never loading one. Seed first
+// (`npm run seed:examples`) or point this at a server whose database has them.
+if (projects.length === 0) {
+  await browser.close();
+  console.error(
+    '\nFAIL: no published projects to play. Expected the seeded example gallery;\n'
+    + 'run `npm run seed:examples` against this server\'s database first.',
+  );
+  process.exit(1);
+}
+
 let failures = 0;
 
 for (const project of projects) {

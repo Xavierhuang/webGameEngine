@@ -34,12 +34,18 @@ drifted a week out of date).
 - **`FEATURE_FLAG_COMMUNITY_PUBLISHING` is unset on the droplet**, so it reads
   as disabled by the production default. That is Task 10 Step 1's required
   state and it was **not** changed by this deploy.
+- **CI now runs 125 of 130 test files**, up from 90. Five gates:
+  `test:all`, `test:critical`, `test:regression`, `test:world-release`,
+  `test:browser`. The last three are serial and treat a skipped test as a
+  failure — `node --test` exits 0 on a skip, which would turn an unreachable
+  database into a green release gate.
 - **Verification, run 2026-08-27 on the merged tree:** `npx tsc --noEmit` → 0
   errors. `npm run test:all` → exit 0, 0 failed, 0 skipped. `npm run
-  test:critical` → exit 0. `npm run test:world-release` → exit 0, **100 tests,
-  0 skipped**, and the 20-step release journey passed end to end (submit →
-  review → approve → public play → edit draft → snapshot unchanged → remix →
-  report → withdraw). Nothing in the repo is failing.
+  test:critical` → exit 0. `npm run test:regression` → **131 tests, 0
+  skipped**. `npm run test:world-release` → **100 tests, 0 skipped**, and the
+  20-step release journey passed end to end (submit → review → approve →
+  public play → edit draft → snapshot unchanged → remix → report → withdraw).
+  `npm run test:browser` → 6 suites. Nothing in the repo is failing.
 - Still outstanding: `codex/minion-focus-shortcut` is 14 commits ahead of its
   remote and unmerged.
 
@@ -139,21 +145,57 @@ silently. Closing that means deciding the intended access for ~18 routes
 (`world-missions`, `commands`, `play-snapshot`, the `auth/*` surface), which is
 a task, not a cleanup.
 
-### 3. Wire the orphaned test suites into CI
+### 3. ~~Wire the orphaned test suites into CI~~ — done 2026-08-27
 
-**40 of 105 `test:*` scripts are unreachable from `test:all`, `test:critical`
-or `test:world-release`**, so nothing ever runs them — including
-`test:authorization-matrix`, `test:consent-flow` (the COPPA HTTP flow),
-`test:commands`, `test:multi-row-rollback`, `test:transactions`, `test:audit`,
-`test:feature-flags`, `test:capability-flags`, and **all 10 Playwright
-journeys**. They pass when run by hand.
+**125 of 130 test files now run in CI, up from 90.** Two new gates, both using
+one shared runner (`scripts/lib/test-gate.mjs`, extracted from the release gate
+so there is a single skip-is-a-failure mechanism, not three):
 
-Bring the skip-equals-failure guard with them: six MySQL-backed suites
-self-skip when the DB is unreachable and `node --test` exits 0 on a skip, so
-adding them naively makes an unreachable database read as a green gate.
-`scripts/world-release-gate.mjs` already solves this — it reports skipped
-counts and fails on them (`0 skipped` in its own output is the assertion, not a
-comment). Reuse it rather than writing a second mechanism.
+- `npm run test:regression` — 131 tests + 1 standalone script, serial, on the
+  guarded `_test` database. The command service, transactions, multi-row
+  rollback, the trust and durable-work schema contracts, audit, feature flags,
+  the persistent limiter, capability flags, the COPPA consent state machine,
+  and the whole player/Sky-Steps runtime.
+- `npm run test:browser` — 6 real-Chromium suites against a signed-in session:
+  private-project, admin-console, share-flow, stage-panel, examples-play,
+  lighting-probe. `scripts/smoke.js` loads 12 public pages and never signs in,
+  so before this the editor, player and World Builder were browser-verified by
+  nothing.
+
+**Running them for the first time found four real defects, all invisible behind
+a green `test:all`:**
+
+1. `app/worlds/[slug]/page.tsx` and `lib/worlds/releaseRemix.ts` were raw writes
+   to protected tables that **shipped to production undeclared**. Both are
+   legitimate; neither had been through the bypass review. Now documented in
+   `ALLOWED_BYPASSES`.
+2. `template-service.integration.mjs` asserted an object (`Sky Cloud`) that has
+   **never existed in any template** — `git log -S` finds it only in the test.
+3. The same suite queried `Bouncy Bumper`, renamed to `Spinning Bumper One` by
+   `1026331` weeks earlier. The query matched nothing and the assertions ran
+   against an empty set.
+4. `test/api/consent-flow.mjs` passed 10/10 and then **hung forever** on the
+   app's memoised pool (`enableKeepAlive`). Added `closePool()` to
+   `lib/mysql/client.ts` for it. In CI that is a job that burns its timeout
+   after succeeding.
+5. `examples-play.mjs` reported "all 0 examples play" and exited 0 against an
+   empty gallery — a check that passes when there is nothing to check. It now
+   fails instead.
+6. `authorization-matrix.mjs` pinned `templateVersion: 1`, which Sky Steps v2
+   marked inactive; every world-creation call had been returning 422 "Unknown
+   template". It now resolves the active version from the catalog.
+
+**Five files still do not run**, each with a specific diagnosis — recorded in
+`scripts/browser-gate.mjs` so the list cannot quietly become "we only ever ran
+six":
+
+| File | Why |
+|---|---|
+| `test/api/authorization-matrix.mjs` | Predates trust-boundary Task 4; its ~20 mutating calls send no `If-Match`/`Idempotency-Key`, so the first PATCH gets 428. Needs each call updated and its expectations re-derived. |
+| `test/visual/stranger-write.mjs` | A stranger's write returns 401 where it expects 404. One of the two is wrong about the convention — elsewhere the repo answers 404 so a caller cannot probe for existence. Decide before changing either. |
+| `test/visual/journey.mjs` | Fails at the template editor's private-draft graph; World Builder Task 3 already recorded it blocked on the character picker having no search field. |
+| `test/visual/sky-steps-preview.mjs` | "Hero did not land on the first step." Plausibly the halted flagship's own finding — the ledger says Sky Steps v2 is unwinnable pending a runtime/coordinate redesign. |
+| `test/video/camera-pipeline.mjs` | Needs Chromium synthetic-capture flags; not yet verified. |
 
 ### 4. Adopt or delete the shelfware safety modules
 

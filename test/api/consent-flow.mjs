@@ -71,6 +71,13 @@ test.after(async () => {
     }
     await pool.end();
   }
+  // This suite's own pool is not the only one open. Importing
+  // `parentalConsent` reaches `lib/mysql/client`, which memoises a pool on
+  // globalThis with `enableKeepAlive: true`. Closing only the local pool left
+  // that socket holding the event loop open, so the suite passed 10/10 and
+  // then hung forever instead of exiting.
+  const { closePool } = await import('../.build/lib/mysql/client.js');
+  await closePool();
 });
 
 function requireMysql(t) {

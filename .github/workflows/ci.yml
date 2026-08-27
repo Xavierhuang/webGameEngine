@@ -88,6 +88,17 @@ jobs:
       # The gate runs its MySQL-backed suites serially and treats a skipped test
       # as a failure — `node --test` exits 0 when a suite skips itself, which
       # would otherwise turn an unreachable database into a green release gate.
+      # 40 of 105 test scripts were unreachable from any aggregator, so nothing
+      # ran them. The first run found a write-boundary bypass that had shipped
+      # to production, two assertions that had never passed, and a suite that
+      # hung forever after succeeding. Same guarded `_test` database and the
+      # same skip-is-a-failure rule as the release gate below.
+      - name: Regression gate
+        run: npm run test:regression
+        env:
+          MYSQL_DATABASE: gameengine_test
+          AUDIT_HMAC_SECRET: ci-placeholder-not-a-real-secret
+
       - name: World release gate
         run: npm run test:world-release
         env:
@@ -116,6 +127,31 @@ jobs:
             sleep 2
           done
           node scripts/smoke.js http://localhost:3000
+
+      # smoke.js loads 12 public pages and never signs in, so the editor, the
+      # player and the World Builder were never browser-verified by anything.
+      # These suites do exercise them. They need their own server: a guarded
+      # `_test` database (they manipulate rows directly and refuse any other
+      # name), the creation-AI flag on (stage-panel builds its fixture through
+      # /api/ai/apply-update), and a seeded gallery for examples-play.
+      - name: Browser gate
+        run: |
+          for m in $(ls migrations/*.sql | sort); do
+            mysql -h 127.0.0.1 -P 3306 -u root gameengine_test < "$m" || echo "   (skipped: $m)"
+          done
+          MYSQL_DATABASE=gameengine_test npm run seed:examples
+          JWT_SECRET=ci-placeholder-not-a-real-secret \
+          TRUSTED_PROXY_HOPS=0 \
+          FEATURE_FLAG_CREATION_AI=true \
+          MYSQL_DATABASE=gameengine_test \
+          npx next start -p 3456 &
+          for i in $(seq 1 40); do
+            curl -sf -o /dev/null http://localhost:3456 && break
+            sleep 2
+          done
+          MYSQL_DATABASE=gameengine_test node scripts/browser-gate.mjs http://localhost:3456
+        env:
+          MYSQL_DATABASE: gameengine_test
 
       # Aimed at classrooms, where accessibility is often a procurement
       # requirement. These are the mechanical checks a machine can make

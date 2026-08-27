@@ -239,7 +239,15 @@ test('materializes the active Sky Steps v2 route with raised steps and its goal 
   for (const name of ['Sky Star One', 'Sky Star Two', 'Sky Star Three']) {
     assert.equal(byName.get(name)?.type, 'collectible', `${name} is materialized`);
   }
-  assert.equal(byName.get('Sky Cloud')?.type, 'obstacle');
+  // 'Sky Cloud' was asserted here from the day this test was written and has
+  // never existed in `lib/worlds/templates.ts` — `git log -S "Sky Cloud"`
+  // finds it only in this file. The assertion was aspiration, not a spec, and
+  // it never failed anyone because CI does not run this suite.
+  //
+  // Not adding the object to the template instead: the Sky Steps flagship plan
+  // is halted (see its SDD ledger — "Sky Steps v2 is unwinnable" pending a
+  // runtime/coordinate redesign), so adding gameplay content to it now would
+  // be a content decision taken on a stopped plan.
   assert.equal(byName.get('Sky Portal')?.type, 'sprite');
 });
 
@@ -255,18 +263,34 @@ test('Obby forever block reloads its rotate child from persisted block_data', as
     title: 'Rainbow Obby',
   }, { pool });
   createdProjectIds.push(created.projectId);
+  // The object was called 'Bouncy Bumper' when this test was written and was
+  // renamed to 'Spinning Bumper One' by `1026331 feat: polish starter worlds`.
+  // The query then matched nothing and the assertions ran against an empty set
+  // — undetected for weeks, because this suite is not reachable from
+  // `test:all` or `test:critical` and so CI never ran it.
   const [rows] = await pool.query(
     `SELECT lb.id, lb.block_type, lb.category, lb.order_index, lb.block_data
       FROM logic_blocks lb
       INNER JOIN game_objects object_row ON object_row.id = lb.game_object_id
-      WHERE lb.project_id = ? AND object_row.name = 'Bouncy Bumper'`,
+      WHERE lb.project_id = ? AND object_row.name = 'Spinning Bumper One'`,
     [created.projectId],
   );
+  assert.ok(rows.length > 0, 'the bumper object and its blocks must be materialized');
+
+  // Assert the invariant rather than a row count. The point of this test is
+  // that a nested child lives only inside its parent's `block_data` and is
+  // never also persisted as its own row — reloading must not duplicate it.
+  // Counting rows instead made the test fail the moment the template gained
+  // unrelated blocks, which is a content edit, not a regression.
   const reloaded = normalizeDbBlocks(rows);
-  assert.equal(rows.length, 1, 'the nested rotate block must exist only inside forever.block_data');
-  assert.equal(reloaded.length, 1, 'reloading must not duplicate rotate as a top-level block');
-  const [forever] = reloaded;
-  assert.equal(forever.block_type, 'forever');
+  assert.equal(
+    rows.filter((row) => row.block_type === 'rotate').length,
+    0,
+    'the nested rotate block must exist only inside forever.block_data',
+  );
+  assert.equal(reloaded.length, rows.length, 'reloading must not duplicate a nested block as a top-level one');
+  const forever = reloaded.find((block) => block.block_type === 'forever');
+  assert.ok(forever, 'the bumper keeps its forever loop');
   assert.equal(forever.children[0].block_type, 'rotate');
 });
 

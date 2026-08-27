@@ -79,6 +79,14 @@ const ALLOWED_BYPASSES = new Map([
   // hold a snapshot revision; creation-experience task owns it.
   ['app/play/[id]/page.tsx', 'play_count increment, migrated by creation-experience task'],
 
+  // World release beta (2026-08-26). Both of these shipped to production
+  // undeclared: this suite is not reachable from `test:all` or
+  // `test:critical`, so CI never ran it and the merge went green. They are
+  // legitimate on inspection — recorded here rather than "fixed", and the
+  // reason each one is a bypass is the same reason the entries above are.
+  ['app/worlds/[slug]/page.tsx', 'play_count increment for a published release, same shape and owner as app/play/[id]/page.tsx'],
+  ['lib/worlds/releaseRemix.ts', 'creation: materializes an approved immutable snapshot into a new private draft inside one transaction, no prior revision to fence (world-release-beta Task 6)'],
+
   // Deploy seed: writes are wrapped in a per-example transaction in
   // Task 4; the script must remain able to insert system content.
   ['scripts/seed-examples.js', 'deploy seed; runs before any client exists (Task 4 wrapped each game in a txn)'],
