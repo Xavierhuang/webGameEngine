@@ -43,11 +43,33 @@ if [ -z "$MYSQL_PASSWORD" ]; then
     fi
 fi
 
+# Create the database before applying anything to it. Migration 001 used to do
+# this with `CREATE DATABASE IF NOT EXISTS gameengine`, which is exactly the
+# hardcoding `run_sql` now strips — so first-time setup has to create it here,
+# under the name the operator actually asked for.
+if [ -z "$MYSQL_PASSWORD" ]; then
+    $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" \
+        -e "CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\`"
+else
+    $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" \
+        -e "CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\`"
+fi
+
+# Applies one migration to $MYSQL_DATABASE.
+#
+# This used to pipe the file in with no database selected at all, relying on the
+# `USE gameengine;` that 14 of the 15 migrations carry. That meant `MYSQL_DATABASE`
+# was printed in the banner above and then ignored: pointing this script at
+# `gameengine_test` set up `gameengine` instead, silently. Strip the selection
+# and name the database explicitly, so the two agree.
+# `test/database/migration-database-selection.test.js` keeps every runner honest.
 run_sql() {
+    local stripped
+    stripped=$(sed -E '/^[[:space:]]*USE[[:space:]]/d; /^[[:space:]]*CREATE DATABASE[[:space:]]/d' "$1")
     if [ -z "$MYSQL_PASSWORD" ]; then
-        $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" < "$1"
+        printf '%s\n' "$stripped" | $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" "$MYSQL_DATABASE"
     else
-        $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" < "$1"
+        printf '%s\n' "$stripped" | $MYSQL_CMD -h "$MYSQL_HOST" -P "$MYSQL_PORT" -u "$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"
     fi
 }
 

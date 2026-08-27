@@ -102,7 +102,14 @@ for m in $(ls "$REMOTE"/migrations/*.sql | sort); do
     continue
   fi
   echo "    -> $NAME"
-  mysql $MYSQL_ARGS "$DB" < "$m"
+  # 14 of the 15 migrations open with `USE gameengine;`. That is a no-op here,
+  # because production's database really is called that — but it means the file
+  # ignores "$DB" entirely. Strip the selection so the connection's database is
+  # what decides, and a differently-named deployment cannot silently write to
+  # `gameengine`. `test/database/migration-database-selection.test.js` keeps
+  # every runner doing this.
+  sed -E '/^[[:space:]]*USE[[:space:]]/d; /^[[:space:]]*CREATE DATABASE[[:space:]]/d' "$m" \
+    | mysql $MYSQL_ARGS "$DB"
   mysql $MYSQL_ARGS "$DB" -e "INSERT INTO schema_migrations (filename) VALUES ('$NAME');"
 done
 

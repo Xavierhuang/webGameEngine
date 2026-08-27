@@ -57,6 +57,7 @@ const SUITES = [
 
   // Trust boundary and durable-work schema contracts.
   'test/database/trust-boundary-migration.test.js',
+  'test/database/migration-database-selection.test.js',
   'test/database/durable-work-migration.test.js',
   'test/config/security.test.js',
   'test/safety/audit.test.js',
