@@ -21,9 +21,11 @@ drifted a week out of date).
   origin's executed copy (55 of 61 steps ticked) over the local unticked one.
 - **Migrations:** `001`–`015` present locally.
 - **Remote:** github.com/Xavierhuang/webGameEngine, in sync.
-- **Deployed:** 2026-08-27, `134069c`, from a clean tree. Verified live:
-  12/12 browser smoke pages and 7/7 accessibility pages against
-  `https://play.lingcode.dev`, `/api/health` returning `database: true`.
+- **Deployed:** 2026-08-27, `59c9fce`, from a clean tree. Verified live:
+  12/12 browser smoke pages, 7/7 accessibility pages, `/api/health` reporting
+  `database: true`, an anonymous `POST /api/ai/generate-character` answering
+  404, and `/api/ai/ask` still answering for players. `schema_migrations`
+  still shows 15 — no migration re-ran.
 - **Deploys are now recorded.** `deploy.sh` appends SHA + dirty-count +
   operator to `/opt/lingplay/RELEASES.log` on the droplet. Read that first
   rather than inferring. It previously wrote nothing, which is how an audit
@@ -244,6 +246,25 @@ Also reconcile the feature flags: five are declared, one is ever read, and the
   browser-verified before or after a ship. `test/visual/journey.mjs` and
   `share-flow.mjs` do cover them but are loopback-only by design and run in
   neither CI nor deploy.
+
+### Migrations hardcode their database
+
+14 of the 15 migrations open with `USE gameengine;`. Piping one into a
+different database **does not fail** — it applies to `gameengine` and leaves
+the target empty. Only `010` lacks the line, which is why 010 was the single
+file that errored when the regression gate first ran against a fresh
+`gameengine_test`.
+
+Every runner (`ci.yml`, `deploy.sh`, `scripts/setup-db.sh`) now strips the
+selection with `sed` before piping, and `setup-db.sh` creates the database
+itself and passes `$MYSQL_DATABASE` explicitly — it previously printed that
+variable in its banner and never passed it to `mysql` at all.
+`test/database/migration-database-selection.test.js` keeps every runner doing
+this, and tells you to delete itself if the migrations ever stop hardcoding.
+
+**If you write a new migration, do not add a `USE` line.** If you apply one by
+hand, name the database on the `mysql` command and strip the `USE` first, or
+you will silently edit `gameengine`.
 
 ### Production environment is unverifiable from the repo
 
