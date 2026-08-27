@@ -28,6 +28,15 @@ rsync -az --delete \
   --exclude='tsconfig.tsbuildinfo' \
   --exclude='.env.local' \
   --exclude='.env' \
+  `# Local agent/tooling state that has no business on the droplet.` \
+  `# .opendeploy holds a plaintext MySQL password and JWT_SECRET for the` \
+  `# OpenDeploy cluster; it is gitignored, so whether it reaches production` \
+  `# depended entirely on which machine ran this script. It is currently` \
+  `# absent on the droplet, and this keeps it that way.` \
+  --exclude='.opendeploy' \
+  --exclude='.codex' \
+  --exclude='.mcp.json' \
+  --exclude='.DS_Store' \
   `# User-generated content lives here at runtime — drawings from the paint` \
   `# editor, microphone recordings, uploaded models. It is gitignored, so it` \
   `# does not exist locally, and rsync --delete would erase every user's` \
