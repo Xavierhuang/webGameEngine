@@ -136,6 +136,17 @@ systemctl is-active lingplay
 rm -rf "$REMOTE/.next.prev" "$REMOTE/node_modules.prev"
 REMOTE_SCRIPT
 
+# Record what shipped. Without this there is no way to answer "what is running
+# on the droplet?" short of grepping its source tree — which is how a session
+# came to believe production was a week behind when it was current. The tree is
+# rsynced, not checked out, so the SHA is only meaningful together with whether
+# the working tree was dirty at the time.
+RELEASE_SHA="$(git -C "$LOCAL_DIR" rev-parse HEAD 2>/dev/null || echo 'unknown')"
+RELEASE_DIRTY="$(git -C "$LOCAL_DIR" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+RELEASE_LINE="$(date -u +%Y-%m-%dT%H:%M:%SZ) $RELEASE_SHA dirty=$RELEASE_DIRTY by=$(whoami)@$(hostname -s)"
+ssh "$USER@$HOST" "printf '%s\n' '$RELEASE_LINE' >> /opt/lingplay/RELEASES.log"
+echo "==> recorded release: $RELEASE_LINE"
+
 echo "==> verifying"
 ssh "$USER@$HOST" 'curl -sS -o /dev/null -w "  local :3010 -> HTTP %{http_code}\n" http://127.0.0.1:3010/'
 # `/` renders even when the database is unreachable, so it proves very little.

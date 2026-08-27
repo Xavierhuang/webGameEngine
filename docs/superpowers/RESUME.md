@@ -4,27 +4,36 @@
 pick the next task, execute it end-to-end, commit, deploy, and update this
 file — without prior context.
 
-**Last refreshed:** 2026-08-27, by an audit session that made no code changes.
-Everything below was verified against the tree, not carried over from the
-previous version of this file (which had drifted a week out of date).
+**Last refreshed:** 2026-08-27, after merging `origin/main`, guarding the AI
+routes, and deploying. Everything below was verified against the tree and the
+droplet, not carried over from the previous version of this file (which had
+drifted a week out of date).
 
 ---
 
 ## State snapshot
 
-- **Branch:** `main` at `ba80cee`, a merge of `origin/main` (`00a6e5d World
-  Builder release beta (#2)`) into the three local doc commits. Done
-  2026-08-27; the checkout had been one commit behind, missing the entire
-  release beta. The only conflict was an add/add on
+- **Branch:** `main`, containing the 2026-08-27 merge of `origin/main`
+  (`00a6e5d World Builder release beta (#2)`) — the checkout had been one
+  commit behind, missing the entire release beta. The only conflict was an
+  add/add on
   `docs/superpowers/plans/2026-08-26-world-builder-release-beta.md`, resolved to
   origin's executed copy (55 of 61 steps ticked) over the local unticked one.
 - **Migrations:** `001`–`015` present locally.
-- **Remote:** github.com/Xavierhuang/webGameEngine. The merge is **not pushed**.
-- **Last recorded deploy:** `4c9ab0c Harden creator platform workflows`
-  (2026-08-26). **There is no deploy log anywhere in the repo** — `deploy.sh`
-  writes no SHA record, so what is actually running on 45.55.39.39 cannot be
-  confirmed without SSH. Treat `4c9ab0c` as a floor, not a fact. **Production
-  does not have the release beta**; its Task 10 deploy steps are unticked.
+- **Remote:** github.com/Xavierhuang/webGameEngine, in sync.
+- **Deployed:** 2026-08-27, `134069c`, from a clean tree. Verified live:
+  12/12 browser smoke pages and 7/7 accessibility pages against
+  `https://play.lingcode.dev`, `/api/health` returning `database: true`.
+- **Deploys are now recorded.** `deploy.sh` appends SHA + dirty-count +
+  operator to `/opt/lingplay/RELEASES.log` on the droplet. Read that first
+  rather than inferring. It previously wrote nothing, which is how an audit
+  session concluded production was a week behind when it was current —
+  **production had the release beta since 2026-08-26 19:37**, evidenced by
+  migrations `013`–`015` applied at 19:36 and the `.next` build stamped 19:37.
+  The log is seeded with that reconstructed entry.
+- **`FEATURE_FLAG_COMMUNITY_PUBLISHING` is unset on the droplet**, so it reads
+  as disabled by the production default. That is Task 10 Step 1's required
+  state and it was **not** changed by this deploy.
 - **Verification, run 2026-08-27 on the merged tree:** `npx tsc --noEmit` → 0
   errors. `npm run test:all` → exit 0, 0 failed, 0 skipped. `npm run
   test:critical` → exit 0. `npm run test:world-release` → exit 0, **100 tests,
@@ -41,8 +50,8 @@ before every deploy — a stale checkout silently ships old code over new schema
 
 ### World Builder boundary
 
-Template worlds start as private drafts. Public release now goes through the
-reviewed, immutable release pipeline on `origin/main`, gated by
+Template worlds start as private drafts. Public release goes through the
+reviewed, immutable release pipeline, now deployed and gated by
 `FEATURE_FLAG_COMMUNITY_PUBLISHING` (production default: **disabled**). Do not
 enable it as a workaround for anything; Task 10 of the release-beta plan
 requires explicit operator authorization and a cohort insert first.
@@ -58,7 +67,7 @@ ships in `public/models/`. Judge by deliverable presence.
 | Plan | State |
 |---|---|
 | `2026-08-26-creator-platform-hardening` | Done and deployed (`4c9ab0c`) |
-| `2026-08-26-world-builder-release-beta` | **Code complete and merged** (`00a6e5d`), 55/61 steps. The 6 open ones are all human-gated: Task 9 Step 5 (manual staging verification with the flag disabled) and the whole of Task 10 (deploy, live verification, **explicit operator authorization before enabling `FEATURE_FLAG_COMMUNITY_PUBLISHING`**, cohort activation, evidence). Nothing is published until a person does those. |
+| `2026-08-26-world-builder-release-beta` | **Code complete, merged and deployed.** Task 10's deploy and live-verification steps are done (2026-08-27, flag off). What remains is human-gated only: manual staging verification, **explicit operator authorization before enabling `FEATURE_FLAG_COMMUNITY_PUBLISHING`**, and cohort activation. Nothing is published until a person does those. |
 | `2026-08-24-sky-steps-flagship` | **Halted.** Ledger: Task 1 review rejected at `c242389` — the player flattens platforms, has no platform collision, and transforms template coordinates differently from the spec. "Sky Steps v2 is unwinnable." Needs a revised runtime/coordinate design and fresh spec approval. Sky Steps nonetheless ships in the template catalog. |
 | `2026-08-24-lingplay-world-builder` | Tasks 1–5 shipped; the SDD ledger was never closed past Task 2 |
 | `2026-08-18-lingplay-trust-boundary` | T1–T6 done. **T7 guards done** — all five AI routes are now on the actor/access/flag/limit/moderation pipeline and the manifest has no deferrals left. T7's *asynchronous character jobs* (`lib/ai/jobs.ts`, a bounded job ID + polling endpoint instead of holding one request for Meshy's ~180s) are **still open** — that is a latency refactor, not a security gap. T8 superseded by the release-beta plan. T9 (CI gate) done in substance: `.github/workflows/ci.yml` exists |
@@ -70,14 +79,19 @@ ships in `public/models/`. Judge by deliverable presence.
 
 ## Next tasks in dependency order
 
-### 0. Push the merge, then decide about deploying
+### 0. ~~Push and deploy~~ — done 2026-08-27 (`134069c`)
 
-`ba80cee` is local-only. Push it. Then the release beta's Task 10 is a
-deliberate human gate, not a chore to automate: deploy with
-`FEATURE_FLAG_COMMUNITY_PUBLISHING` **off**, run
-`node scripts/smoke.js https://play.lingcode.dev` and `scripts/a11y.js`, and
-stop. Do not enable the flag or insert cohort members because a deploy
-succeeded — the plan requires explicit product-owner authorization first.
+Merged, pushed, deployed, smoke- and a11y-verified against production. The
+release beta's remaining Task 10 steps are a **deliberate human gate, not a
+chore to automate**: do not set `FEATURE_FLAG_COMMUNITY_PUBLISHING=true` or
+insert `world_release_beta_cohort_members` because a deploy succeeded. The
+plan requires explicit product-owner authorization, and the flag is still
+unset. Enabling it is what makes children's worlds publicly reachable.
+
+When that authorization comes, the order is: enable the flag for the cohort,
+then manually exercise submit → reject → publish → play → remix → withdraw →
+takedown, and disable immediately if any check, audit, or public-boundary
+assertion fails.
 
 ### 1. Ordinary-project sharing is broken in production
 
