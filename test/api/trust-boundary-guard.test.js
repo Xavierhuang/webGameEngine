@@ -46,11 +46,6 @@ const enforced = (surfacePath, entryPoints) => Object.freeze({
   enforcedBy: 'Task 4',
   entryPoints,
 });
-const deferredAi = (surfacePath) => Object.freeze({
-  path: surfacePath,
-  state: 'current',
-  deferredTo: 'Task 7',
-});
 
 const PROTECTED_SURFACES = Object.freeze({
   project: [
@@ -106,17 +101,18 @@ const PROTECTED_SURFACES = Object.freeze({
     enforced('app/api/admin/reports/route.ts', { GET: 'requireAdmin', PATCH: 'requireAdmin' }),
     enforced('app/api/reports/route.ts', { POST: 'submitReport' }),
   ],
-  // Task 7 owns the ordered actor/access/capability/budget/moderation pipeline.
-  // Runtime-only ask/translate/model-generation remain deferred, but project
-  // context and project mutation now require the same edit guard as the
-  // command route. Keeping the remaining exception exact prevents unrelated
-  // surfaces from hiding here.
+  // Task 7 owns the ordered actor/access/capability/budget/moderation pipeline,
+  // and every AI surface is now on it. Two are `actorOnly` rather than access
+  // guarded, on purpose: `ask` and `translate` are fired by the runtime from
+  // inside a published world, so requiring project edit would break the game
+  // for every player who is not its author. They are still actor-resolved so
+  // their budgets key on an identity instead of a forgeable forwarded IP.
   ai: [
     enforced('app/api/ai/apply-update/route.ts', { POST: 'requireProjectEdit' }),
-    deferredAi('app/api/ai/ask/route.ts'),
+    enforced('app/api/ai/ask/route.ts', { POST: 'actorOnly' }),
     enforced('app/api/ai/chat/route.ts', { POST: 'requireProjectEdit' }),
-    deferredAi('app/api/ai/generate-character/route.ts'),
-    deferredAi('app/api/ai/translate/route.ts'),
+    enforced('app/api/ai/generate-character/route.ts', { POST: 'requireProjectEdit' }),
+    enforced('app/api/ai/translate/route.ts', { POST: 'actorOnly' }),
   ],
 });
 
@@ -156,22 +152,43 @@ test('all 31 protected surfaces exist and are tracked current files', () => {
   }
 });
 
-test('Task 7 is the only deferral and contains exactly the three runtime-only AI routes', () => {
+test('no protected surface is deferred', () => {
+  // This used to allowlist three AI routes as `deferredTo: 'Task 7'`. That is
+  // the failure mode worth naming: the manifest recorded the hole instead of
+  // failing on it, so a route with no actor, no access check, no flag and no
+  // limit — one that spent Meshy and Anthropic credits for anonymous callers —
+  // sat behind a green test suite. A deferral is an exception that has to be
+  // re-argued every time it is added, not a permanent category.
   const deferred = Object.values(PROTECTED_SURFACES)
     .flat()
     .filter((entry) => 'deferredTo' in entry);
   assert.deepEqual(
-    deferred.map(({ path, deferredTo }) => ({ path, deferredTo })),
-    [
-      { path: 'app/api/ai/ask/route.ts', deferredTo: 'Task 7' },
-      { path: 'app/api/ai/generate-character/route.ts', deferredTo: 'Task 7' },
-      { path: 'app/api/ai/translate/route.ts', deferredTo: 'Task 7' },
-    ]
+    deferred.map((entry) => entry.path),
+    [],
+    'a protected surface was deferred rather than guarded',
   );
-  assert.ok(
-    deferred.every((entry) => PROTECTED_SURFACES.ai.includes(entry)),
-    'only the AI category may be deferred',
-  );
+});
+
+test('every AI route file appears in the manifest', () => {
+  // The manifest is hand-written, so a new route is guarded only if someone
+  // remembers to add it. Nothing asserted that it was complete, which is how
+  // three unguarded AI routes stayed invisible. This closes it for the AI
+  // surface, where every route reaches a paid third party by definition.
+  //
+  // The same hole remains for `app/api` as a whole — 49 route files, 31
+  // manifest entries — but classifying the rest is its own task, because a
+  // route being absent here does not by itself say what access it should
+  // require.
+  const aiDir = path.join(ROOT, 'app/api/ai');
+  const onDisk = fs
+    .readdirSync(aiDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => `app/api/ai/${entry.name}/route.ts`)
+    .filter((relative) => fs.existsSync(path.join(ROOT, relative)))
+    .sort();
+
+  const inManifest = PROTECTED_SURFACES.ai.map((entry) => entry.path).sort();
+  assert.deepEqual(inManifest, onDisk, 'an AI route is missing from the protected-surface manifest');
 });
 
 test('every Task 4 entry point has one Actor and an ordered canonical guard or service', () => {
@@ -179,7 +196,7 @@ test('every Task 4 entry point has one Actor and an ordered canonical guard or s
   const enforcedEntries = Object.values(PROTECTED_SURFACES)
     .flat()
     .filter((entry) => entry.enforcedBy === 'Task 4');
-  assert.equal(enforcedEntries.length, 28);
+  assert.equal(enforcedEntries.length, 31);
 
   for (const entry of enforcedEntries) {
     const source = fs.readFileSync(path.join(ROOT, entry.path), 'utf8');

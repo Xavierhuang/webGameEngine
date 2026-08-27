@@ -61,7 +61,7 @@ ships in `public/models/`. Judge by deliverable presence.
 | `2026-08-26-world-builder-release-beta` | **Code complete and merged** (`00a6e5d`), 55/61 steps. The 6 open ones are all human-gated: Task 9 Step 5 (manual staging verification with the flag disabled) and the whole of Task 10 (deploy, live verification, **explicit operator authorization before enabling `FEATURE_FLAG_COMMUNITY_PUBLISHING`**, cohort activation, evidence). Nothing is published until a person does those. |
 | `2026-08-24-sky-steps-flagship` | **Halted.** Ledger: Task 1 review rejected at `c242389` — the player flattens platforms, has no platform collision, and transforms template coordinates differently from the spec. "Sky Steps v2 is unwinnable." Needs a revised runtime/coordinate design and fresh spec approval. Sky Steps nonetheless ships in the template catalog. |
 | `2026-08-24-lingplay-world-builder` | Tasks 1–5 shipped; the SDD ledger was never closed past Task 2 |
-| `2026-08-18-lingplay-trust-boundary` | T1–T6 done. **T7 partial** — `apply-update` and `chat` converted; `ask`, `translate`, `generate-character` still deferred. T8 superseded by the release-beta plan. T9 (CI gate) done in substance: `.github/workflows/ci.yml` exists |
+| `2026-08-18-lingplay-trust-boundary` | T1–T6 done. **T7 guards done** — all five AI routes are now on the actor/access/flag/limit/moderation pipeline and the manifest has no deferrals left. T7's *asynchronous character jobs* (`lib/ai/jobs.ts`, a bounded job ID + polling endpoint instead of holding one request for Meshy's ~180s) are **still open** — that is a latency refactor, not a security gap. T8 superseded by the release-beta plan. T9 (CI gate) done in substance: `.github/workflows/ci.yml` exists |
 | `2026-08-18-lingplay-durable-work` | T1–T4 done. **T5–T8 not started**: guest project claiming, S3 asset store, deletion pipeline, encrypted off-site backup |
 | `2026-08-18-lingplay-production-readiness` | Untouched. Notably there is no `Content-Security-Policy` anywhere |
 | `2026-08-18-lingplay-creation-experience` | Untouched |
@@ -100,19 +100,30 @@ is no admin approve action (`app/api/admin/reports/route.ts` allows only
 all structurally empty for user content. Decide whether ordinary projects get a
 real publish path or are folded into the release pipeline.
 
-### 2. Guard the three remaining AI routes (trust-boundary Task 7)
+### 2. ~~Guard the three remaining AI routes~~ — done 2026-08-27
 
-`app/api/ai/generate-character/route.ts` POST has **no `resolveActor`, no rate
-limit, no feature flag, no moderation** and spends Meshy credits on anonymous
-requests. `ai/ask` has moderation but no actor; `ai/translate` has only the
-in-process limiter. All three are listed as `deferredTo: 'Task 7'` in
-`test/api/trust-boundary-guard.test.js:133` — the test encodes the hole rather
-than failing on it.
+`generate-character` had no actor, no access check, no flag, no limit and no
+moderation while spending Meshy and Anthropic credits for anonymous callers. It
+now runs the Task 7 order: actor → `requireProjectEdit` → input moderation →
+prefab (free, stays available with AI off) → `creation_ai` flag → per-actor
+limit → provider → output moderation. `ask` and `translate` stay **`actorOnly`
+on purpose** — the runtime fires them mid-game from published worlds, so
+requiring project edit would break the game for every player who isn't the
+author — but they now resolve an actor, honour the flag, and key their budget
+on that identity instead of `clientKey`'s forgeable `x-forwarded-for`.
 
-While you are there: that guard asserts `inventory.length === 31` against a
-hardcoded manifest, with no test asserting the manifest covers every file under
-`app/api`. 21 route files are outside it and escape authorization checking
-silently.
+The manifest's `deferredTo: 'Task 7'` category is gone, and two new tests keep
+it gone: `no protected surface is deferred`, and `every AI route file appears
+in the manifest`. Verified the AST guard can fail — removing
+`requireProjectEdit` from `generate-character` makes `npm run test:access` fail
+with `expected exactly one requireProjectEdit call, found 0`.
+
+**Still open here:** the manifest is complete for `app/api/ai` only. It has 31
+entries against 49 route files overall, and nothing asserts the rest are
+classified — a new route outside the AI directory still escapes the gate
+silently. Closing that means deciding the intended access for ~18 routes
+(`world-missions`, `commands`, `play-snapshot`, the `auth/*` surface), which is
+a task, not a cleanup.
 
 ### 3. Wire the orphaned test suites into CI
 
@@ -216,9 +227,16 @@ just re-creates the diff.
 
 ## Resume marker
 
-**Next task:** push `ba80cee` (section 0), then decide the ordinary-project
-publish story (section 1) — that 501 is what a child hits on day one, and the
-release beta does not fix it.
+**Last completed:** trust-boundary Task 7 guards (section 2) — all five AI
+routes on the actor/access/flag/limit/moderation pipeline, no deferrals left in
+the manifest. `type-check`, `lint`, `test:all`, `test:critical`,
+`test:world-release` and `build` all green.
+
+**Next task:** decide the ordinary-project publish story (section 1). That 501
+is what a child hits on day one, and the release beta does not fix it. It needs
+a product decision first — a real publish path, folding ordinary projects into
+the release pipeline, or making the toggle visibility-only and accepting that
+`/explore` stays seed-only — so do not start by writing code.
 
 **When updating this file:** correct the state snapshot from the actual tree
 rather than appending to it. The previous version drifted a week out of date by
