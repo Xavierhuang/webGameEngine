@@ -1,5 +1,7 @@
 const { TUTORIALS, getTutorial, referencedBlocks, LEVEL_LABELS } =
   require('../.build/lib/tutorials/catalog.js');
+const { TUTORIAL_LOCALES, TUTORIAL_TABLES, localizeTutorial } =
+  require('../.build/lib/tutorials/translations.js');
 const { BLOCK_DEFINITIONS } = require('../.build/lib/blockly/definitions.js');
 
 let failures = 0;
@@ -42,6 +44,29 @@ for (const t of TUTORIALS) {
 
 // At least one tutorial must be an obvious entry point for a total beginner.
 ok(TUTORIALS.some((t) => t.level === 'first'), "has a 'Start here' tutorial");
+
+// Translations: every translated locale covers every field a child reads,
+// and no key points at a tutorial or step that no longer exists.
+for (const locale of TUTORIAL_LOCALES) {
+  const table = TUTORIAL_TABLES[locale];
+  const expected = new Set();
+  for (const t of TUTORIALS) {
+    for (const f of ['title', 'summary', 'concept']) expected.add(`${t.id}.${f}`);
+    t.steps.forEach((s, i) => {
+      expected.add(`${t.id}.step.${i}.title`);
+      expected.add(`${t.id}.step.${i}.body`);
+      if (s.hint) expected.add(`${t.id}.step.${i}.hint`);
+    });
+  }
+  const missing = [...expected].filter((k) => !table[k]);
+  const orphans = Object.keys(table).filter((k) => !expected.has(k));
+  eq(missing.length, 0, `${locale}: every tutorial field is translated${missing.length ? ` (${missing.slice(0, 5).join(', ')})` : ''}`);
+  eq(orphans.length, 0, `${locale}: no orphan tutorial keys${orphans.length ? ` (${orphans.slice(0, 5).join(', ')})` : ''}`);
+  const localized = localizeTutorial(TUTORIALS[0], locale);
+  ok(localized.title !== TUTORIALS[0].title, `${locale}: localizeTutorial changes the title`);
+  eq(localized.steps.length, TUTORIALS[0].steps.length, `${locale}: localizeTutorial keeps every step`);
+}
+eq(localizeTutorial(TUTORIALS[0], 'xx').title, TUTORIALS[0].title, 'unknown locale falls back to English');
 
 eq(getTutorial('first-game')?.id, 'first-game', 'lookup by id');
 eq(getTutorial('nope'), undefined, 'unknown id returns undefined');

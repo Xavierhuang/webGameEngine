@@ -3,6 +3,7 @@ import { AppNav } from '@/components/common/AppNav';
 import { PageBackdrop } from '@/components/common/PageBackdrop';
 import { getAuthenticatedUser } from '@/lib/mysql/server';
 import { TUTORIALS, LEVEL_LABELS, type TutorialLevel } from '@/lib/tutorials/catalog';
+import { localizeTutorials, levelLabel } from '@/lib/tutorials/translations';
 import { Clock, ArrowRight } from 'lucide-react';
 import { getTranslator, getLocale } from '@/lib/i18n/server';
 import { translate } from '@/lib/i18n/messages';
@@ -23,6 +24,8 @@ const ORDER: TutorialLevel[] = ['first', 'easy', 'medium'];
 export default async function LearnPage() {
   const user = await getAuthenticatedUser();
   const t = await getTranslator();
+  const locale = await getLocale();
+  const tutorials = localizeTutorials(TUTORIALS, locale);
 
   // Subtitle interpolates a bolded "Learn" word — split so the bold can move
   // per grammar (Chinese places 学习 in a different position).
@@ -45,12 +48,12 @@ export default async function LearnPage() {
         </p>
 
         {ORDER.map((level) => {
-          const items = TUTORIALS.filter((tut) => tut.level === level);
+          const items = tutorials.filter((tut) => tut.level === level);
           if (items.length === 0) return null;
           return (
             <section key={level} className="mt-10">
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                {LEVEL_LABELS[level]}
+                {levelLabel(level, locale, LEVEL_LABELS[level])}
               </h2>
               <div className="grid gap-4 sm:grid-cols-2">
                 {items.map((tut) => (

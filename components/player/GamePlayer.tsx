@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense, memo, useMemo, useCallback } from 'react';
-import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
-import { Box, Sphere, Grid, useGLTF, Html } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Box, Sphere, Grid } from '@react-three/drei';
 import Link from 'next/link';
 import { RotateCcw, Square, Maximize, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { TouchControls } from './TouchControls';
@@ -11,11 +11,6 @@ import { beatsToSeconds } from '../../lib/audio/music';
 import { applyTexture } from '../../lib/models/textureMaterial';
 import { useTranslator, useLocale } from '../common/LocaleProvider';
 import * as THREE from 'three';
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
-import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
-import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import AnimatedModel from '../editor/AnimatedModel';
 import { logger } from '../../lib/utils/logger';
 import {
@@ -26,7 +21,6 @@ import {
   PHYSICS,
   CAMERA,
   SCENE,
-  LIGHTING,
   MOVEMENT,
   RENDERING,
 } from '../../lib/constants/game';
@@ -38,16 +32,21 @@ import AudioManager from '../../lib/audio/AudioManager';
 import { shouldRunBackgroundBeat } from '../../lib/audio/backgroundBeatPolicy';
 import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
 import { SceneLights } from '@/components/three/SceneLights';
+import { ExtensionModel } from './ExternalModels';
+import { FollowerBubble } from './FollowerBubble';
+import { PenTrail } from './PenTrail';
+import { SkyStepsWorldPresentation, SkyStepsCameraPresentation } from './SkyStepsPresentation';
+import {
+  safeParseProperties,
+  playerPositionForObject,
+  platformSurfaceForObject,
+} from '../../lib/player/objectPlacement';
 import { coerceLightingPreset, readScenePreset } from '@/lib/scene/lightingPresets';
 import { VideoSensing, type VideoSensingHandle } from './VideoSensing';
 import { ParticleField, type ParticleController } from './ParticleField';
 import { ParticleEmitter } from '../three/ParticleEmitter';
 import { CameraDirector } from './CameraDirector';
-import {
-  platformTopSurface,
-  toPlayerPosition,
-  type PlatformSurface,
-} from '../../lib/player/platformerWorld';
+import type { PlatformSurface } from '../../lib/player/platformerWorld';
 import { advancePlatformerMotion, facingYawForMovement, requestPlatformerJump } from '../../lib/player/platformerMotion';
 import { requiresDynamicPhysics } from '../../lib/player/physicsPolicy';
 import { hasSpaceJumpScript } from '../../lib/player/jumpHint';
@@ -89,69 +88,6 @@ function formatMessage(message: string, values: Record<string, string | number>)
 // ExtensionModel picks by extension and NEVER calls a hook itself — it only
 // renders one of these children conditionally, which is legal.
 // -----------------------------------------------------------------------------
-type ExtModelProps = {
-  modelUrl: string;
-  meshRef: React.RefObject<any>;
-  position: [number, number, number];
-  rotation: [number, number, number];
-  scale: [number, number, number] | number;
-  color: string;
-};
-
-function GLTFExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
-  const gltf = useGLTF(modelUrl) as any;
-  // useGLTF caches one source scene per URL. A collectible can share its URL
-  // with siblings, but Three.js can parent one Object3D only once; cloning
-  // keeps each render and touch collider at its own authored position.
-  const instance = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
-  return <primitive ref={meshRef} object={instance} position={position} rotation={rotation} scale={scale} />;
-}
-function OBJExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
-  const obj = useLoader(OBJLoader as any, modelUrl);
-  return <primitive ref={meshRef} object={obj as any} position={position} rotation={rotation} scale={scale} />;
-}
-function STLExtModel({ modelUrl, meshRef, position, rotation, scale, color }: ExtModelProps) {
-  const geom = useLoader(STLLoader as any, modelUrl);
-  return (
-    <mesh ref={meshRef} position={position} rotation={rotation} scale={scale}>
-      <primitive object={geom as any} attach="geometry" />
-      <meshStandardMaterial color={color} />
-    </mesh>
-  );
-}
-function FBXExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
-  const fbx = useLoader(FBXLoader as any, modelUrl);
-  return <primitive ref={meshRef} object={fbx as any} position={position} rotation={rotation} scale={scale} />;
-}
-function ColladaExtModel({ modelUrl, meshRef, position, rotation, scale }: ExtModelProps) {
-  const collada = useLoader(ColladaLoader as any, modelUrl);
-  return <primitive ref={meshRef} object={(collada as any).scene} position={position} rotation={rotation} scale={scale} />;
-}
-function BoxFallback({ meshRef, position, rotation, scale, color }: Omit<ExtModelProps, 'modelUrl'>) {
-  return (
-    <Box ref={meshRef} position={position} rotation={rotation} scale={scale as any}>
-      <meshStandardMaterial color={color} />
-    </Box>
-  );
-}
-function ExtensionModel({ ext, ...rest }: ExtModelProps & { ext: string }) {
-  switch (ext) {
-    case 'glb':
-    case 'gltf':
-      return <GLTFExtModel {...rest} />;
-    case 'obj':
-      return <OBJExtModel {...rest} />;
-    case 'stl':
-      return <STLExtModel {...rest} />;
-    case 'fbx':
-      return <FBXExtModel {...rest} />;
-    case 'dae':
-      return <ColladaExtModel {...rest} />;
-    default:
-      // Unknown extension: fallback to box. No loader hook needed.
-      return <BoxFallback {...rest} />;
-  }
-}
 
 interface GamePlayerProps {
   project: Project;
@@ -913,107 +849,6 @@ export default function GamePlayer({ project, compact = false, missionReporting,
   );
 }
 
-// Sky dome - a 3D object that acts as the sky
-function SkyDome() {
-  const meshRef = useRef<THREE.Mesh>(null);
-  
-  useEffect(() => {
-    logger.debug('[SkyDome] Sky dome component mounted and rendering');
-    if (meshRef.current) {
-      logger.debug('[SkyDome] Mesh created:', {
-        position: meshRef.current.position,
-        scale: meshRef.current.scale,
-        visible: meshRef.current.visible,
-        material: meshRef.current.material,
-      });
-      meshRef.current.frustumCulled = false;
-    }
-  }, []);
-  
-  useFrame(() => {
-    // Ensure the sky dome is always visible
-    if (meshRef.current) {
-      meshRef.current.visible = true;
-    }
-  });
-  
-  useEffect(() => {
-    if (meshRef.current) {
-      // Mark this as the sky dome for debugging
-      meshRef.current.userData.isSkyDome = true;
-      meshRef.current.name = 'SkyDome';
-    }
-  }, []);
-  
-  return (
-    <mesh 
-      ref={meshRef}
-      position={[0, 0, 0]} 
-      scale={[RENDERING.SKY_DOME_SCALE, RENDERING.SKY_DOME_SCALE, RENDERING.SKY_DOME_SCALE]}
-      renderOrder={-10000} // Very low render order to render FIRST (before everything else)
-      frustumCulled={false}
-      userData={{ isSkyDome: true }}
-      name="SkyDome"
-    >
-      <sphereGeometry args={[1, RENDERING.SKY_DOME_SEGMENTS * 2, RENDERING.SKY_DOME_SEGMENTS]} />
-      <meshBasicMaterial 
-        color={SCENE.DEFAULT_BACKGROUND_COLOR} 
-        side={THREE.BackSide} 
-        depthWrite={false}
-        depthTest={true} // Enable depth test but write false - renders behind everything
-        fog={false}
-        transparent={false}
-      />
-    </mesh>
-  );
-}
-
-function isPlatformObject(object: GameObject) {
-  const properties = typeof object.properties === 'string' ? safeParseProperties(object.properties) : object.properties ?? {};
-  return object.type === 'platform' || properties.shape === 'plane';
-}
-
-function safeParseProperties(raw: string) {
-  try { return JSON.parse(raw || '{}'); } catch { return {}; }
-}
-
-function designPosition(object: GameObject): [number, number, number] {
-  return [
-    Number(object.position_x ?? 0),
-    Number(object.position_y ?? 0),
-    Number(object.position_z ?? 0),
-  ];
-}
-
-function legacyPlayerPosition(object: GameObject): [number, number, number] {
-  const [x, y, z] = designPosition(object);
-  const legacyX = x === 0 ? 500 : x;
-  const legacyY = y === 0 ? 300 : y;
-  return [(legacyX / 100) - 5, -(legacyY / 100) + 3, z];
-}
-
-function playerPositionForObject(object: GameObject, legacyGround: boolean): [number, number, number] {
-  if (!legacyGround) {
-    const point = toPlayerPosition(designPosition(object), { legacyGround: false });
-    return [point.x, point.y, point.z];
-  }
-
-  const legacyPosition = legacyPlayerPosition(object);
-  if (!isPlatformObject(object)) return legacyPosition;
-  const point = toPlayerPosition(legacyPosition, { legacyGround: true });
-  return [point.x, point.y, point.z];
-}
-
-function platformSurfaceForObject(object: GameObject, legacyGround: boolean): PlatformSurface | null {
-  if (!isPlatformObject(object)) return null;
-  return platformTopSurface({
-    id: object.id,
-    type: object.type,
-    position: legacyGround ? legacyPlayerPosition(object) : designPosition(object),
-    properties: object.properties,
-  }, { legacyGround });
-}
-
 const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, onPlayerMotion, onStarVisibilityChange, reducedMotion, skyStepsV2, skyStepsWon, collectedStarNames }: {
   scene: { game_objects?: GameObject[]; background_color?: string; background_image_url?: string | null };
   keys: KeyState;
@@ -1029,7 +864,6 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
   const { scene: threeScene, camera } = useThree();
   const skyBlueColor = useRef(new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR));
   const checkCount = useRef(0);
-  const skyDomeRef = useRef<THREE.Mesh>(null);
   const backdropTextureRef = useRef<THREE.Texture | null>(null);
   const characterPositionRef = useRef<THREE.Vector3 | null>(null);
   const characterVelocityRef = useRef({ x: 0, z: 0 });
@@ -1322,109 +1156,6 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
   );
 });
 
-/** Purely visual Sky Steps decoration; no child here is registered with the runtime. */
-function SkyStepsWorldPresentation({
-  objects,
-  legacyGround,
-  reducedMotion,
-  collectedStarNames,
-}: {
-  objects: GameObject[];
-  legacyGround: boolean;
-  reducedMotion: boolean;
-  collectedStarNames: string[];
-}) {
-  const stars = objects.filter((object) => object.type === 'collectible' && /star/i.test(object.name) && !collectedStarNames.includes(object.name));
-  const portal = objects.find((object) => /sky portal/i.test(object.name));
-  return (
-    <>
-      <fog attach="fog" args={['#bae6fd', 12, 32]} />
-      {!reducedMotion && stars.map((star) => (
-        <SkyStepsStarDecoration key={star.id} position={playerPositionForObject(star, legacyGround)} />
-      ))}
-      {!reducedMotion && portal && (
-        <SkyStepsPortalDecoration position={playerPositionForObject(portal, legacyGround)} />
-      )}
-    </>
-  );
-}
-
-function SkyStepsStarDecoration({ position }: { position: [number, number, number] }) {
-  const visualRef = useRef<THREE.Group>(null);
-  useFrame((state) => {
-    if (!visualRef.current) return;
-    visualRef.current.position.y = 0.11 * Math.sin(state.clock.elapsedTime * 2.4);
-    visualRef.current.rotation.y = state.clock.elapsedTime * 1.7;
-  });
-  return (
-    <group position={position} renderOrder={2}>
-      <group ref={visualRef}>
-        <mesh scale={0.27}>
-          <octahedronGeometry args={[1, 0]} />
-          <meshStandardMaterial color="#facc15" emissive="#f59e0b" emissiveIntensity={1.5} roughness={0.3} />
-        </mesh>
-      </group>
-    </group>
-  );
-}
-
-function SkyStepsPortalDecoration({ position }: { position: [number, number, number] }) {
-  const visualRef = useRef<THREE.Group>(null);
-  useFrame((state) => {
-    if (!visualRef.current) return;
-    const pulse = 1 + 0.08 * Math.sin(state.clock.elapsedTime * 2);
-    visualRef.current.rotation.y = state.clock.elapsedTime * 0.45;
-    visualRef.current.scale.setScalar(pulse);
-  });
-  return (
-    <group position={position} renderOrder={2}>
-      <group ref={visualRef}>
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.58, 0.06, 10, 32]} />
-          <meshStandardMaterial color="#a855f7" emissive="#7e22ce" emissiveIntensity={1.7} roughness={0.22} />
-        </mesh>
-      </group>
-    </group>
-  );
-}
-
-function SkyStepsCameraPresentation({
-  camera,
-  characterPositionRef,
-  characterVelocityRef,
-  landingBumpRef,
-  won,
-  reducedMotion,
-}: {
-  camera: THREE.Camera;
-  characterPositionRef: React.MutableRefObject<THREE.Vector3 | null>;
-  characterVelocityRef: React.MutableRefObject<{ x: number; z: number }>;
-  landingBumpRef: React.MutableRefObject<number>;
-  won: boolean;
-  reducedMotion: boolean;
-}) {
-  const wasWonRef = useRef(false);
-  const winEmphasisRef = useRef(0);
-  useFrame((_, delta) => {
-    const characterPosition = characterPositionRef.current;
-    if (!characterPosition) return;
-    const velocity = characterVelocityRef.current;
-    const lookAhead = reducedMotion ? 0 : THREE.MathUtils.clamp(velocity.x * 0.16, -0.65, 0.65);
-    if (!reducedMotion && landingBumpRef.current > 0) landingBumpRef.current = Math.max(0, landingBumpRef.current - delta * 3.5);
-    if (!reducedMotion && won && !wasWonRef.current) winEmphasisRef.current = 1;
-    wasWonRef.current = won;
-    if (!reducedMotion && winEmphasisRef.current > 0) winEmphasisRef.current = Math.max(0, winEmphasisRef.current - delta * 1.8);
-    const landingLift = reducedMotion ? 0 : landingBumpRef.current * 0.13;
-    const winLift = reducedMotion ? 0 : winEmphasisRef.current * 0.28;
-    const target = SCRATCH_CAMERA_TARGET.copy(SCRATCH_FOLLOW_OFFSET).add(characterPosition);
-    target.x += lookAhead;
-    target.y += landingLift + winLift;
-    camera.position.lerp(target, delta * CAMERA.FOLLOW_LERP_SPEED);
-    camera.lookAt(characterPosition.x + lookAhead * 0.65, characterPosition.y + winLift * 0.3, characterPosition.z);
-  });
-  return null;
-}
-
 // Frustum culling wrapper - only renders GameObject if it's in the camera's view
 const FrustumCulledObject = memo(function FrustumCulledObject({
   object,
@@ -1546,54 +1277,6 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
     />
   );
 });
-
-/**
- * Speech bubble that follows the object's live world position, independent of
- * any mesh scale/transform. Rendered as a scene-root sibling of the mesh so the
- * mesh's scale never distorts the bubble offset or size.
- */
-function FollowerBubble({
-  meshRef,
-  bubble,
-  yOffset,
-}: {
-  // RefObject<T | null>: React 19 stopped pretending a ref initialised to
-  // null is non-null.
-  meshRef: React.RefObject<THREE.Object3D | null>;
-  bubble: { text: string; style: 'say' | 'think' } | null;
-  yOffset: number;
-}) {
-  const groupRef = useRef<THREE.Group>(null);
-  useFrame(() => {
-    if (!groupRef.current || !meshRef.current) return;
-    // Copy world position so parent scale never distorts the anchor.
-    meshRef.current.getWorldPosition(groupRef.current.position);
-    groupRef.current.position.y += yOffset;
-  });
-  if (!bubble) return null;
-  const border = bubble.style === 'say' ? '2px solid #333' : '2px dashed #333';
-  const tailChar = bubble.style === 'say' ? '▾' : '⋯';
-  return (
-    <group ref={groupRef} renderOrder={999}>
-      <Html center distanceFactor={10} zIndexRange={[40, 20]} occlude={false}>
-        <div
-          style={{
-            background: 'white', color: '#111', border, borderRadius: 12, padding: '6px 10px',
-            fontFamily: 'system-ui, sans-serif', fontSize: 13, maxWidth: 200, minWidth: 40,
-            whiteSpace: 'pre-wrap', textAlign: 'center', pointerEvents: 'none', userSelect: 'none',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.25)', position: 'relative',
-          }}
-        >
-          {bubble.text}
-          <span style={{
-            position: 'absolute', left: '50%', bottom: -10, transform: 'translateX(-50%)',
-            color: '#333', fontSize: 14, lineHeight: 1,
-          }}>{tailChar}</span>
-        </div>
-      </Html>
-    </group>
-  );
-}
 
 const GameObject = memo(function GameObject({ object, keys, world, legacyGround, platformSurfaces, onPositionUpdate, onVisibilityChange, cloneId, reducedMotion = false, skyStepsV2 = false }: {
   object: GameObject;
@@ -2616,42 +2299,3 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
   );
 });
 
-/**
- * The Pen extension's output. Scratch draws on a 2D canvas; in 3D the natural
- * equivalent is a ribbon of line segments through the points the object passed.
- */
-function PenTrail({
-  strokes,
-  color,
-  size,
-}: {
-  strokes: number[][][];
-  color: string;
-  size: number;
-}) {
-  if (!strokes || strokes.length === 0) return null;
-  return (
-    <>
-      {strokes.map((stroke, i) => {
-        // A line needs at least two points.
-        if (!stroke || stroke.length < 2) return null;
-        const positions = new Float32Array(stroke.flat());
-        return (
-          <line key={i}>
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                args={[positions, 3]}
-                count={stroke.length}
-                array={positions}
-                itemSize={3}
-              />
-            </bufferGeometry>
-            {/* linewidth is capped at 1 by most WebGL drivers; kept for intent. */}
-            <lineBasicMaterial color={color} linewidth={size} />
-          </line>
-        );
-      })}
-    </>
-  );
-}

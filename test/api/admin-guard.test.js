@@ -7,6 +7,8 @@ const { analyzeSource } = require('../helpers/trust-boundary-ast.cjs');
 const ROOT = path.resolve(__dirname, '../..');
 const EXPECTATIONS = Object.freeze({
   'app/api/admin/reports/route.ts': { GET: 'requireAdmin', PATCH: 'requireAdmin' },
+  // The ordinary-project publish path: approve/reject what a child submitted.
+  'app/api/admin/moderation/route.ts': { GET: 'requireAdmin', PATCH: 'requireAdmin' },
   'app/api/admin/users/route.ts': {
     GET: 'requireAdmin',
     PATCH: 'requireAdmin',

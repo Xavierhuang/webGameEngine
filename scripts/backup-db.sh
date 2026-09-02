@@ -54,6 +54,39 @@ fi
 SIZE="$(du -h "$OUT" | cut -f1)"
 echo "Backup OK: $OUT ($SIZE, $TABLES tables)"
 
+# Off-site copy. Fourteen days of backups on the same droplet as the database
+# means a host loss takes both. When BACKUP_S3_URI is set (DigitalOcean Spaces
+# is S3-compatible: set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY and
+# BACKUP_S3_ENDPOINT, e.g. https://nyc3.digitaloceanspaces.com), the archive
+# is uploaded with the AWS CLI. Encrypt before upload when BACKUP_GPG_RECIPIENT
+# is set, so the bucket never holds a plaintext dump of children's accounts.
+if [ -n "${BACKUP_S3_URI:-}" ]; then
+  UPLOAD="$OUT"
+  if [ -n "${BACKUP_GPG_RECIPIENT:-}" ]; then
+    if gpg --batch --yes --trust-model always -r "$BACKUP_GPG_RECIPIENT" -o "$OUT.gpg" -e "$OUT"; then
+      UPLOAD="$OUT.gpg"
+    else
+      echo "Off-site upload SKIPPED: gpg encryption failed" >&2
+      UPLOAD=""
+    fi
+  fi
+  if [ -n "$UPLOAD" ]; then
+    if command -v aws >/dev/null 2>&1; then
+      if aws s3 cp "$UPLOAD" "${BACKUP_S3_URI%/}/$(basename "$UPLOAD")" \
+           ${BACKUP_S3_ENDPOINT:+--endpoint-url "$BACKUP_S3_ENDPOINT"} --only-show-errors; then
+        echo "Off-site copy OK: ${BACKUP_S3_URI%/}/$(basename "$UPLOAD")"
+      else
+        echo "Off-site upload FAILED (local backup kept)" >&2
+      fi
+    else
+      echo "Off-site upload SKIPPED: aws CLI not installed" >&2
+    fi
+    [ "$UPLOAD" != "$OUT" ] && rm -f "$UPLOAD"
+  fi
+else
+  echo "Off-site copy not configured (set BACKUP_S3_URI); backups stay on this host"
+fi
+
 # Rotate. -mtime +N deletes strictly older than N days.
 find "$BACKUP_DIR" -name "${DB}-*.sql.gz" -type f -mtime "+${KEEP_DAYS}" -delete
 echo "Retained: $(find "$BACKUP_DIR" -name "${DB}-*.sql.gz" -type f | wc -l | tr -d ' ') backup(s)"

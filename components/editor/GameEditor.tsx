@@ -394,14 +394,35 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
    * property edits had already gone to the server, so undoing a delete made
    * the object reappear on screen and a reload brought the deletion back.
    * This diffs the two snapshots per object and replays the difference
-   * through the same write paths the editor already uses. Scenes are not
-   * diffed here: scene add/delete has its own confirm step and no history.
+   * through the same write paths the editor already uses. Scenes are diffed
+   * too, so undoing a scene delete brings its objects back with it.
    */
   const reconcileObjects = async (from: any, to: any) => {
     const before = objectsInSnapshot(from);
     const after = objectsInSnapshot(to);
     const write = { revisionRef, editingSessionId: editingSessionIdRef.current, projectId };
     let failed = false;
+
+    // Scenes first: an object being re-created may belong to a scene that is
+    // itself being re-created, and a scene delete removes its objects with it.
+    const scenesBefore = new Map<string, any>((from?.scenes ?? []).map((s: any) => [s.id, s]));
+    const scenesAfter = new Map<string, any>((to?.scenes ?? []).map((s: any) => [s.id, s]));
+    for (const [sceneId, scene] of scenesAfter) {
+      if (scenesBefore.has(sceneId)) continue;
+      const created = await commandServiceCall({
+        ...write,
+        command: {
+          type: 'scene.create',
+          sceneId,
+          name: String(scene.name ?? 'Scene'),
+          ...(typeof scene.background_color === 'string' ? { backgroundColor: scene.background_color } : {}),
+          ...(scene.background_image_url ? { backgroundImageUrl: scene.background_image_url } : {}),
+        },
+      });
+      if (!created.ok) failed = true;
+    }
+    const deletedScenes = new Set<string>();
+    for (const sceneId of scenesBefore.keys()) if (!scenesAfter.has(sceneId)) deletedScenes.add(sceneId);
 
     for (const [id, { object, sceneId }] of after) {
       const prev = before.get(id);
@@ -452,9 +473,13 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
       }
     }
 
-    for (const id of before.keys()) {
-      if (after.has(id)) continue;
+    for (const [id, { sceneId }] of before) {
+      if (after.has(id) || deletedScenes.has(sceneId)) continue;
       const response = await commandWrite({ ...write, url: `/api/game-objects/${id}`, method: 'DELETE' });
+      if (!response.ok) failed = true;
+    }
+    for (const sceneId of deletedScenes) {
+      const response = await commandServiceCall({ ...write, command: { type: 'scene.delete', sceneId } });
       if (!response.ok) failed = true;
     }
 

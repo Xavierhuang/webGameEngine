@@ -93,6 +93,17 @@ const SCRIPTS = [
   'test/worlds/template-picker.test.mjs',
 ];
 
+// The app's own pool (lib/mysql/client.ts) defaults to `gameengine` while
+// every suite here defaults to `gameengine_test`. Unset locally, the fixture
+// rows and the code under test landed in different databases and the consent
+// suite failed on a foreign key. CI sets this explicitly; default it here so
+// a local run means the same thing.
+process.env.MYSQL_DATABASE ??= 'gameengine_test';
+if (!process.env.MYSQL_DATABASE.includes('_test')) {
+  console.error(`regression gate refuses to run against "${process.env.MYSQL_DATABASE}": the database name must contain _test.`);
+  process.exit(1);
+}
+
 const passed = await runGate('regression gate', SUITES);
 
 for (const script of SCRIPTS) {

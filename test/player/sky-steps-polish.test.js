@@ -6,6 +6,9 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '../..');
 const player = fs.readFileSync(path.join(root, 'components/player/GamePlayer.tsx'), 'utf8');
+// The decorative pieces moved out of GamePlayer.tsx on 2026-09-01; the mount
+// assertion stays on the player, the render-only hooks live here.
+const skySteps = fs.readFileSync(path.join(root, 'components/player/SkyStepsPresentation.tsx'), 'utf8');
 const animatedModel = fs.readFileSync(path.join(root, 'components/editor/AnimatedModel.tsx'), 'utf8');
 const messages = fs.readFileSync(path.join(root, 'lib/i18n/messages.ts'), 'utf8');
 
@@ -28,14 +31,14 @@ assert.doesNotMatch(animatedModel, /animationsRef\.current\[0\]/, 'FBX never sub
 assert.doesNotMatch(animatedModel, /stateLower\.includes\(nameLower\)/, 'short unrelated clip names cannot masquerade as a semantic state match');
 assert.doesNotMatch(animatedModel, /meshRef\.current\.position\.y\s*[+\-*/]?=/, 'fallback does not write gameplay/collider coordinates');
 assert.match(player, /<SkyStepsWorldPresentation[\s\S]*reducedMotion=\{reducedMotion\}/, 'the flagship mounts world-only decorative presentation with reduced-motion support');
-assert.match(player, /function SkyStepsWorldPresentation[\s\S]*function SkyStepsStarDecoration[\s\S]*useFrame/, 'visible stars have a render-only bob and rotation hook');
-assert.match(player, /function SkyStepsPortalDecoration[\s\S]*useFrame/, 'the portal has a render-only pulse and rotation hook');
-assert.match(player, /function SkyStepsCameraPresentation[\s\S]*velocity\.x/, 'camera lookahead is driven by horizontal hero velocity');
-assert.match(player, /!reducedMotion && stars\.map\([\s\S]*SkyStepsStarDecoration/, 'reduced motion does not mount continuous star decoration');
-assert.match(player, /!reducedMotion && portal && \([\s\S]*SkyStepsPortalDecoration/, 'reduced motion does not mount continuous portal decoration');
-assert.match(player, /const lookAhead = reducedMotion \? 0[\s\S]*const landingLift = reducedMotion \? 0[\s\S]*const winLift = reducedMotion \? 0/, 'reduced motion disables camera lookahead and presentation bumps');
+assert.match(skySteps, /function SkyStepsWorldPresentation[\s\S]*function SkyStepsStarDecoration[\s\S]*useFrame/, 'visible stars have a render-only bob and rotation hook');
+assert.match(skySteps, /function SkyStepsPortalDecoration[\s\S]*useFrame/, 'the portal has a render-only pulse and rotation hook');
+assert.match(skySteps, /function SkyStepsCameraPresentation[\s\S]*velocity\.x/, 'camera lookahead is driven by horizontal hero velocity');
+assert.match(skySteps, /!reducedMotion && stars\.map\([\s\S]*SkyStepsStarDecoration/, 'reduced motion does not mount continuous star decoration');
+assert.match(skySteps, /!reducedMotion && portal && \([\s\S]*SkyStepsPortalDecoration/, 'reduced motion does not mount continuous portal decoration');
+assert.match(skySteps, /const lookAhead = reducedMotion \? 0[\s\S]*const landingLift = reducedMotion \? 0[\s\S]*const winLift = reducedMotion \? 0/, 'reduced motion disables camera lookahead and presentation bumps');
 assert.match(player, /if \(!isSkyStepsV2 \|\| reducedMotion\) return;[\s\S]*particlesRef\.current\?\.burst\('sky-steps-star[\s\S]*if \(!isSkyStepsV2 \|\| reducedMotion \|\| outcome\.state !== 'won'/, 'reduced motion leaves both nonessential effect paths inactive');
-assert.match(player, /<fog attach="fog" args=\{\['#bae6fd', 12, 32\]\}/, 'Sky Steps receives a bright readable atmospheric treatment');
+assert.match(skySteps, /<fog attach="fog" args=\{\['#bae6fd', 12, 32\]\}/, 'Sky Steps receives a bright readable atmospheric treatment');
 assert.match(player, /skyStepsV2 \? '#2563eb' : color/, 'Sky Steps platforms use the cohesive legibility material treatment');
 assert.match(messages, /'player\.skySteps\.stars'/, 'the default locale declares the visible Sky Steps HUD key');
 assert.match(messages, /'player\.skySteps\.win'/, 'the default locale declares the visible win-card key');

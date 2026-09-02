@@ -15,6 +15,22 @@ const SORTS = Object.freeze({
 export type PublicProjectSort = keyof typeof SORTS;
 
 /** The sole live-graph gallery query: published rows in, allowlisted DTOs out. */
+/**
+ * Turns free text into a BOOLEAN MODE query: every term required, operator
+ * characters stripped so a child typing "+" or "\"" cannot change the query's
+ * meaning. Returns null when nothing indexable remains (fewer than two
+ * characters, the ngram token size).
+ */
+export function fulltextQuery(search: string): string | null {
+  const terms = search
+    .replace(/[+\-~<>()*"@]/g, ' ')
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter((term) => [...term].length >= 2);
+  if (terms.length === 0) return null;
+  return terms.map((term) => `+${term}`).join(' ');
+}
+
 export async function listPublicProjects(options: {
   search?: string;
   genre?: string;
@@ -35,8 +51,17 @@ export async function listPublicProjects(options: {
   const values: unknown[] = [];
 
   if (search) {
-    where.push('(p.title LIKE ? OR p.description LIKE ?)');
-    values.push(`%${search}%`, `%${search}%`);
+    const fulltext = fulltextQuery(search);
+    if (fulltext) {
+      // ngram FULLTEXT (migration 016): indexed, and it tokenises CJK titles.
+      where.push('MATCH (p.title, p.description) AGAINST (? IN BOOLEAN MODE)');
+      values.push(fulltext);
+    } else {
+      // A single character is below the ngram token size; scanning is the
+      // only option and the term is short enough not to matter.
+      where.push('(p.title LIKE ? OR p.description LIKE ?)');
+      values.push(`%${search}%`, `%${search}%`);
+    }
   }
   if (genre) {
     where.push('p.genre = ?');

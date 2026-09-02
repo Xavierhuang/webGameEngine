@@ -16,7 +16,10 @@ const isDev = process.env.NODE_ENV !== 'production';
  */
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  // `wasm-unsafe-eval`: the meshopt decoder for compressed models is
+  // WebAssembly, and Chrome refuses to compile WASM under a script-src policy
+  // without it. It permits only WASM, not JS eval.
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "media-src 'self' data: blob: https:",

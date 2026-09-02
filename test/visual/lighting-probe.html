@@ -16,6 +16,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 // The rig is supplied by the runner, which parses it out of
 // lib/constants/game.ts. It is deliberately NOT duplicated here: a hardcoded
@@ -48,7 +49,9 @@ window.probe = async (modelUrl, RIG, scale = 1) => {
   d2.position.set(...RIG.dir2[0]); scene.add(d2);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, RIG.hemi * scale));
 
-  const gltf = await new GLTFLoader().loadAsync(modelUrl);
+  const loader = new GLTFLoader();
+  loader.setMeshoptDecoder(MeshoptDecoder);
+  const gltf = await loader.loadAsync(modelUrl);
   const model = gltf.scene;
   scene.add(model);
 

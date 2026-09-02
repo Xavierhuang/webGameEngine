@@ -1,0 +1,20 @@
+{
+  // The compile behind `test:all`, `test:regression` and the other gates.
+  //
+  // Extends the app tsconfig but leaves out `.next/types`: Next generates a
+  // route validator there on every build, and a stale one from an earlier
+  // build fails the compile the moment a route is added — which is exactly
+  // when you want the tests to run. The app build regenerates it anyway.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "test/.build",
+    "rootDir": ".",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "incremental": false,
+    "plugins": []
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", ".next", ".worktrees", "test/.build", "webGameEngine-main"]
+}

@@ -70,6 +70,56 @@ requires explicit operator authorization and a cohort insert first.
 
 ---
 
+## 2026-09-01 second pass ("fix them all", round two)
+
+After the first pass the user asked again for everything on the remaining
+list. Done, verified locally (`type-check`, `lint` 0 errors, `test:all`,
+`test:critical`, `test:regression`, `test:visual`, `build`, `smoke`, `a11y`):
+
+- **Publish path for ordinary projects — decided and built.** Reviewed
+  approval, not auto-publish: `app/api/admin/moderation/route.ts` (GET the
+  queue, PATCH approve/reject under `FOR UPDATE`), buttons on
+  `/admin/reports`, an entry in `ALLOWED_BYPASSES` and the admin-guard
+  expectations. Approval sets `is_published` and
+  `moderation_status='published'`; reject sets `rejected`. Edits after
+  approval still go live on the next play — reports are the safety net; a
+  re-review-on-edit rule is the next tightening if it is needed.
+- **Undo diffs scenes too** (create/delete via the command service).
+- **Migration 016**: ngram FULLTEXT `idx_projects_search` (CJK-safe) used by
+  `/explore` for terms of two or more characters, and `tutorial_progress`
+  behind `GET/PUT /api/tutorials/progress`; the panel merges server and
+  localStorage, furthest step wins.
+- **Tutorials in Chinese** (`lib/tutorials/translations.ts`, overlaid by
+  `localizeTutorial`, checked complete by `test/tutorials/catalog.test.js`);
+  the panel chrome uses `learn.panel.*` keys.
+- **`test:all` is one compile + `scripts/all-gate.mjs`** (serial, skip = fail)
+  instead of 46 chained scripts. The per-suite scripts remain for single runs.
+- **CI is three parallel jobs** (static, gates, browser) with a cached
+  Playwright download.
+- **Models are meshopt-compressed**: 3.7 MB → 1.3 MB for the starters (the
+  dragon stays raw: its render contract pins exact vertex bounds). `tools/models/compress.mjs` runs after the generators
+  and is idempotent; the CSP gained `wasm-unsafe-eval`; the raw
+  `GLTFLoader` in AnimationEditor and the lighting-probe harness register
+  the decoder. The 7.6 MB Minion FBX is untouched — see below.
+- **Alerting**: `scripts/alert-errors.mjs` (health + error spike → email).
+  **Off-site backups**: `backup-db.sh` uploads to `BACKUP_S3_URI`, optionally
+  GPG-encrypted.
+- **GamePlayer split**: `ExternalModels`, `SkyDome`, `FollowerBubble`,
+  `PenTrail`, `SkyStepsPresentation` and `lib/player/objectPlacement.ts`
+  moved out; the file is ~2,300 lines from ~2,600. The RuntimeContext
+  literal is still inside `GameObject` and is the next cut.
+
+Still open after both passes:
+
+- The Minion FBX (7.6 MB): converting it to GLB needs a pass through the
+  material-repair logic in `lib/models/minionMaterials.ts`; not attempted.
+- Nonce-based CSP (currently `'unsafe-inline'` for scripts), config
+  validation at boot, performance budgets, RTL review.
+- Durable-work T5–T7: guest claiming, S3 asset store, deletion pipeline.
+- Sky Steps flagship redesign, and the five browser suites that still do not
+  run (each diagnosed in `scripts/browser-gate.mjs`).
+- Instancing for repeated platforms.
+
 ## 2026-09-01 improvement pass
 
 An audit across child-facing UX, code health and production readiness, then
@@ -165,7 +215,11 @@ then manually exercise submit → reject → publish → play → remix → with
 takedown, and disable immediately if any check, audit, or public-boundary
 assertion fails.
 
-### 1. Ordinary-project sharing still has no publish path
+### 1. ~~Ordinary-project sharing still has no publish path~~ — built 2026-09-01
+
+Reviewed approval via `/api/admin/moderation` and the buttons on
+`/admin/reports`. The notes below are the history of the decision.
+
 
 **Update 2026-09-01:** the dialog bug is fixed — `ShareDialog` no longer sends
 `is_published`, so the 501 and the raw `publication_moved` string are gone, and

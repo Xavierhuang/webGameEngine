@@ -55,6 +55,7 @@ const ALLOWED_BYPASSES = new Map([
   // Task 4; full pipelines land later.
   ['app/api/projects/[id]/route.ts', 'delete subtree wrapped in txn; full pipeline is durable-work Task 7'],
   ['app/api/admin/reports/route.ts', 'moderation status update wrapped in txn; publication is trust-boundary Task 8'],
+  ['app/api/admin/moderation/route.ts', 'publication decision (is_published + moderation_status) under FOR UPDATE in one txn; the reviewed publish path for ordinary projects (2026-09-01)'],
 
   // Counter caches: not part of the mutable project graph the editor
   // sees. Wrapped in `withTransaction` for atomicity in Task 4.

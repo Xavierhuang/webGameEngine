@@ -1,20 +1,30 @@
 name: CI
 
-# The repo had no CI at all, and next.config.js sets both
+# The repo had no CI at all, and next.config.js set both
 # `typescript.ignoreBuildErrors` and `eslint.ignoreDuringBuilds` — so nothing,
 # anywhere, ever type-checked or linted this project. A real type error sat in
 # the tree undetected as a result.
+#
+# Three jobs run in parallel rather than one serial job: static checks and the
+# pure-logic suites, the MySQL-backed gates, and the build + browser checks.
+# Each job needs its own MySQL service because GitHub Actions services are
+# per-job; the migration step is repeated for the same reason. Wall time is
+# bounded by the slowest job instead of the sum of all of them.
 on:
   push:
     branches: ['**']
   pull_request:
 
-jobs:
-  verify:
-    runs-on: ubuntu-latest
+env:
+  MYSQL_HOST: 127.0.0.1
+  MYSQL_PORT: '3306'
+  MYSQL_USER: root
+  MYSQL_PASSWORD: ''
 
-    # The app queries MySQL during server rendering, so without a database the
-    # smoke test only proves pages fail gracefully — not that they work.
+jobs:
+  static:
+    name: Type-check, lint, pure suites
+    runs-on: ubuntu-latest
     services:
       mysql:
         image: mysql:8
@@ -28,120 +38,153 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
-
     env:
-      MYSQL_HOST: 127.0.0.1
-      MYSQL_PORT: '3306'
-      MYSQL_USER: root
-      MYSQL_PASSWORD: ''
       MYSQL_DATABASE: gameengine
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           # Node 20: the local build segfaults on Node 22 + @next/swc-darwin-arm64.
           node-version: '20'
           cache: 'npm'
-
       - name: Install dependencies
         run: npm ci
-
       - name: Apply migrations
         run: |
           for m in $(ls migrations/*.sql | sort); do
             echo "-> $(basename "$m")"
             # 001 creates a trigger; on some MySQL builds that needs SUPER, and
             # the app no longer depends on it, so a failure there is tolerated.
-            mysql -h 127.0.0.1 -P 3306 -u root gameengine < "$m" || echo "   (skipped: $m)"
+            sed -E '/^[[:space:]]*USE[[:space:]]/d; /^[[:space:]]*CREATE DATABASE[[:space:]]/d' "$m" \
+              | mysql -h 127.0.0.1 -P 3306 -u root gameengine || echo "   (skipped: $m)"
           done
-
       - name: Type-check
         run: npm run type-check
-
-      # Now blocking: the tree is at zero lint errors, including the
+      # Blocking: the tree is at zero lint errors, including the
       # react-hooks/rules-of-hooks violations that had to be refactored out of
       # SceneView. Keep it that way.
       - name: Lint
         run: npm run lint
-
       - name: Tests
-        # Covers the runtime, serializer, name fields, access control, COPPA,
-        # moderation keyword scan, prefabs and the asset generators.
+        # One TypeScript compile, then every pure-logic suite through the
+        # skip-intolerant gate (scripts/all-gate.mjs).
         run: npm run test:all
-
       - name: Critical creator flows
-        # These cover world creation/preview/missions, safe model references,
-        # AI-to-command translation, and consent state. They used to be test
-        # scripts that existed locally but were never exercised by CI.
+        # World creation/preview/missions, safe model references, AI-to-command
+        # translation, and consent state.
         run: npm run test:critical
 
-      # The release gate refuses to run against any database whose name does not
-      # contain `_test`, so it never touches the `gameengine` database the rest
-      # of this job uses. Its suites apply the migrations themselves.
-      # The release gate's own suites apply migrations themselves; the
-      # regression and browser gates do not, and an empty database made them
-      # skip 12 tests and fail 29 with "Failed to open the referenced table
-      # 'projects'". Migrating here once covers all three.
-      - name: Create and migrate the guarded test database
+  gates:
+    name: Regression and world-release gates
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: gameengine_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      MYSQL_DATABASE: gameengine_test
+      AUDIT_HMAC_SECRET: ci-placeholder-not-a-real-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      # The gates refuse any database whose name does not contain `_test`.
+      # Migrations 001-009 contain a hardcoded `USE gameengine;`; strip it so
+      # the connection's own database decides. See
+      # test/database/migration-database-selection.test.js.
+      - name: Migrate the guarded test database
         run: |
-          mysql -h 127.0.0.1 -P 3306 -u root -e "CREATE DATABASE IF NOT EXISTS gameengine_test"
           for m in $(ls migrations/*.sql | sort); do
-            # Migrations 001-009 contain a hardcoded `USE gameengine;`, so
-            # piping them into gameengine_test silently writes to gameengine
-            # instead and leaves the test database empty — which is how the
-            # regression gate first failed with "Failed to open the referenced
-            # table 'projects'". Strip the database selection and let the
-            # connection's own database decide. `test/database/migration-database-selection.test.js`
-            # stops any new migration from adding one.
-            # 001 also creates a trigger that needs SUPER on some MySQL builds;
-            # the app does not depend on it, so tolerate that one failing.
             sed -E '/^[[:space:]]*USE[[:space:]]/d; /^[[:space:]]*CREATE DATABASE[[:space:]]/d' "$m" \
               | mysql -h 127.0.0.1 -P 3306 -u root gameengine_test || echo "   (skipped: $m)"
           done
-
       # 40 test scripts were reachable from no aggregator, so nothing ran them.
-      # The first run found a write-boundary bypass that had shipped to
-      # production, two assertions that had never passed, and a suite that hung
-      # forever after succeeding. Serial, and a skipped test is a failure —
-      # `node --test` exits 0 on a skip, which would turn an unreachable
-      # database into a green gate.
+      # Serial, and a skipped test is a failure — `node --test` exits 0 on a
+      # skip, which would turn an unreachable database into a green gate.
       - name: Regression gate
         run: npm run test:regression
-        env:
-          MYSQL_DATABASE: gameengine_test
-          AUDIT_HMAC_SECRET: ci-placeholder-not-a-real-secret
-
       - name: World release gate
         run: npm run test:world-release
         env:
-          MYSQL_DATABASE: gameengine_test
           FEATURE_FLAG_COMMUNITY_PUBLISHING: 'true'
-          AUDIT_HMAC_SECRET: ci-placeholder-not-a-real-secret
 
+  browser:
+    name: Build and browser checks
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: gameengine_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      MYSQL_DATABASE: gameengine_test
+      JWT_SECRET: ci-placeholder-not-a-real-secret
+      TRUSTED_PROXY_HOPS: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Migrate the guarded test database
+        run: |
+          for m in $(ls migrations/*.sql | sort); do
+            sed -E '/^[[:space:]]*USE[[:space:]]/d; /^[[:space:]]*CREATE DATABASE[[:space:]]/d' "$m" \
+              | mysql -h 127.0.0.1 -P 3306 -u root gameengine_test || echo "   (skipped: $m)"
+          done
       - name: Build
         run: npm run build
-        env:
-          # The build only needs these to exist; it never connects.
-          JWT_SECRET: ci-placeholder-not-a-real-secret
-
+      # Chromium was re-downloaded on every run (~1-2 minutes). Cache it keyed
+      # on the installed Playwright version so a bump invalidates it.
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -e "console.log(require('playwright/package.json').version)")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Chromium system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       # Status codes are not proof a page works — a deploy once white-screened
       # the whole site with a client-side exception while every page returned
       # HTTP 200. This loads each page in real Chromium and fails on any
       # uncaught exception, console error, or missing JS chunk.
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
       - name: Browser smoke test
         run: |
-          JWT_SECRET=ci-placeholder-not-a-real-secret npx next start -p 3000 &
+          npx next start -p 3000 &
           for i in $(seq 1 40); do
             curl -sf -o /dev/null http://localhost:3000 && break
             sleep 2
           done
           node scripts/smoke.js http://localhost:3000
-
       # smoke.js loads 12 public pages and never signs in, so the editor, the
       # player and the World Builder were never browser-verified by anything.
       # These suites do exercise them. They need their own server: a guarded
@@ -150,20 +193,13 @@ jobs:
       # /api/ai/apply-update), and a seeded gallery for examples-play.
       - name: Browser gate
         run: |
-          MYSQL_DATABASE=gameengine_test npm run seed:examples
-          JWT_SECRET=ci-placeholder-not-a-real-secret \
-          TRUSTED_PROXY_HOPS=0 \
-          FEATURE_FLAG_CREATION_AI=true \
-          MYSQL_DATABASE=gameengine_test \
-          npx next start -p 3456 &
+          npm run seed:examples
+          FEATURE_FLAG_CREATION_AI=true npx next start -p 3456 &
           for i in $(seq 1 40); do
             curl -sf -o /dev/null http://localhost:3456 && break
             sleep 2
           done
-          MYSQL_DATABASE=gameengine_test node scripts/browser-gate.mjs http://localhost:3456
-        env:
-          MYSQL_DATABASE: gameengine_test
-
+          node scripts/browser-gate.mjs http://localhost:3456
       # Aimed at classrooms, where accessibility is often a procurement
       # requirement. These are the mechanical checks a machine can make
       # honestly — not a substitute for testing with a screen-reader user.

@@ -14,6 +14,20 @@ export function ReportQueue({ reports, pending }: ReportQueueProps) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  const decide = async (projectId: string, action: 'approve' | 'reject') => {
+    setBusyId(projectId);
+    try {
+      const response = await fetch('/api/admin/moderation', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, action }),
+      });
+      if (response.ok) router.refresh();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const act = async (reportId: string, action: 'dismiss' | 'remove') => {
     setBusyId(reportId);
     try {
@@ -123,13 +137,35 @@ export function ReportQueue({ reports, pending }: ReportQueueProps) {
                 <span className="min-w-0 truncate text-sm font-medium text-slate-800">
                   {project.title}
                 </span>
-                <Link
-                  href={`/projects/${project.id}`}
-                  target="_blank"
-                  className="shrink-0 text-xs font-semibold text-slate-600 underline"
-                >
-                  Review
-                </Link>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {/* Play it as a moderator: decideAccess grants moderators
+                      view on pending projects, so the link works before
+                      approval. */}
+                  <Link
+                    href={`/play/${project.id}`}
+                    target="_blank"
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Play
+                  </Link>
+                  <button
+                    onClick={() => decide(project.id, 'approve')}
+                    disabled={busyId === project.id}
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                  >
+                    <Check className="h-3 w-3" />
+                    Publish
+                  </button>
+                  <button
+                    onClick={() => decide(project.id, 'reject')}
+                    disabled={busyId === project.id}
+                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:border-red-300 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Reject
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

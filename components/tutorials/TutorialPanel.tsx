@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Check, Lightbulb } from 'lucide-react';
 import { TUTORIALS, getTutorial, LEVEL_LABELS, type Tutorial } from '@/lib/tutorials/catalog';
+import { localizeTutorial, localizeTutorials, levelLabel } from '@/lib/tutorials/translations';
+import { useLocale, useTranslator } from '@/components/common/LocaleProvider';
 import { TutorialSpotlight } from './TutorialSpotlight';
 
 const STORAGE_KEY = 'lingplay-tutorial-progress';
@@ -26,6 +28,32 @@ function saveProgress(progress: Record<string, number>) {
 }
 
 /**
+ * The account copy of progress (migration 016). localStorage is the offline
+ * cache; the server wins on load so a second device or a shared classroom
+ * machine picks up where the child left off. Failures are silent: progress
+ * is a convenience, never a blocker.
+ */
+async function loadServerProgress(): Promise<Record<string, number> | null> {
+  try {
+    const response = await fetch('/api/tutorials/progress');
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.progress && typeof data.progress === 'object' ? data.progress : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveServerProgress(tutorialId: string, step: number) {
+  fetch('/api/tutorials/progress', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tutorialId, step }),
+    keepalive: true,
+  }).catch(() => { /* offline: the local copy still has it */ });
+}
+
+/**
  * Step-by-step tutorial panel, docked beside the editor.
  *
  * The editor previously dropped a first-time child into an empty scene with no
@@ -41,15 +69,33 @@ export function TutorialPanel({
   /** Open straight into this tutorial — how a /learn card lands in the editor. */
   initialTutorialId?: string;
 }) {
+  const locale = useLocale();
+  const t = useTranslator();
   const [activeId, setActiveId] = useState<string | null>(() =>
     initialTutorialId && getTutorial(initialTutorialId) ? initialTutorialId : null,
   );
   const [step, setStep] = useState(0);
   const [progress, setProgress] = useState<Record<string, number>>({});
 
-  useEffect(() => setProgress(loadProgress()), []);
+  useEffect(() => {
+    const local = loadProgress();
+    setProgress(local);
+    let cancelled = false;
+    loadServerProgress().then((remote) => {
+      if (cancelled || !remote) return;
+      // Furthest step wins per tutorial, whichever side has it.
+      const merged: Record<string, number> = { ...local };
+      for (const [id, value] of Object.entries(remote)) {
+        merged[id] = Math.max(merged[id] ?? -1, Number(value));
+      }
+      setProgress(merged);
+      saveProgress(merged);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
-  const tutorial = activeId ? getTutorial(activeId) : null;
+  const tutorials = localizeTutorials(TUTORIALS, locale);
+  const tutorial = activeId ? (() => { const base = getTutorial(activeId); return base ? localizeTutorial(base, locale) : null; })() : null;
 
   const open = (t: Tutorial) => {
     setActiveId(t.id);
@@ -63,6 +109,7 @@ export function TutorialPanel({
     const updated = { ...progress, [tutorial.id]: clamped };
     setProgress(updated);
     saveProgress(updated);
+    saveServerProgress(tutorial.id, clamped);
   };
 
   return (
@@ -73,12 +120,12 @@ export function TutorialPanel({
     <aside className="relative z-50 flex h-full w-80 shrink-0 flex-col border-l border-slate-200 bg-white">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
         <h2 className="text-sm font-bold text-slate-900">
-          {tutorial ? tutorial.title : 'Tutorials'}
+          {tutorial ? tutorial.title : t('learn.panel.title')}
         </h2>
         <button
           onClick={onClose}
           className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-          aria-label="Close tutorials"
+          aria-label={t('learn.panel.close')}
         >
           <X className="h-4 w-4" />
         </button>
@@ -87,26 +134,26 @@ export function TutorialPanel({
       {!tutorial ? (
         <div className="flex-1 space-y-2 overflow-y-auto p-3">
           <p className="px-1 pb-1 text-xs leading-relaxed text-slate-500">
-            New here? Start at the top.
+            {t('learn.panel.newHere')}
           </p>
-          {TUTORIALS.map((t) => {
-            const done = (progress[t.id] ?? -1) >= t.steps.length - 1;
+          {tutorials.map((tut) => {
+            const done = (progress[tut.id] ?? -1) >= tut.steps.length - 1;
             return (
               <button
-                key={t.id}
-                onClick={() => open(t)}
+                key={tut.id}
+                onClick={() => open(tut)}
                 className="w-full rounded-xl border border-slate-200 p-3 text-left transition hover:border-slate-300 hover:bg-slate-50"
               >
                 <div className="flex items-start gap-2.5">
-                  <span className="text-xl leading-none">{t.emoji}</span>
+                  <span className="text-xl leading-none">{tut.emoji}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-bold text-slate-900">{t.title}</span>
+                      <span className="truncate text-sm font-bold text-slate-900">{tut.title}</span>
                       {done && <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />}
                     </div>
-                    <p className="mt-0.5 text-xs leading-relaxed text-slate-600">{t.summary}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-slate-600">{tut.summary}</p>
                     <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      {LEVEL_LABELS[t.level]} · {t.minutes} min
+                      {levelLabel(tut.level, locale, LEVEL_LABELS[tut.level])} · {t('learn.panel.minutes').replace('{minutes}', String(tut.minutes))}
                     </p>
                   </div>
                 </div>
@@ -122,7 +169,7 @@ export function TutorialPanel({
               className="mb-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-800"
             >
               <ChevronLeft className="h-3 w-3" />
-              All tutorials
+              {t('learn.panel.all')}
             </button>
 
             {/* The idea being taught, not just the clicks. */}
@@ -132,7 +179,7 @@ export function TutorialPanel({
             </div>
 
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Step {step + 1} of {tutorial.steps.length}
+              {t('learn.panel.stepOf').replace('{step}', String(step + 1)).replace('{total}', String(tutorial.steps.length))}
             </div>
             <h3 className="text-base font-bold text-slate-900">{tutorial.steps[step].title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-slate-700">
@@ -141,7 +188,7 @@ export function TutorialPanel({
 
             {tutorial.steps[step].hint && (
               <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                Look at: {tutorial.steps[step].hint}
+                {t('learn.panel.lookAt')} {tutorial.steps[step].hint}
               </p>
             )}
 
@@ -152,7 +199,7 @@ export function TutorialPanel({
             {tutorial.steps[step].blocks && tutorial.steps[step].blocks!.length > 0 && (
               <div className="mt-3">
                 <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                  Blocks you need
+                  {t('learn.panel.blocksNeeded')}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {tutorial.steps[step].blocks!.map((b) => (
@@ -175,7 +222,7 @@ export function TutorialPanel({
               className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 disabled:opacity-40"
             >
               <ChevronLeft className="h-3 w-3" />
-              Back
+              {t('learn.panel.back')}
             </button>
             <div className="flex-1" />
             {step < tutorial.steps.length - 1 ? (
@@ -183,7 +230,7 @@ export function TutorialPanel({
                 onClick={() => goTo(step + 1)}
                 className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
               >
-                Next
+                {t('learn.panel.next')}
                 <ChevronRight className="h-3 w-3" />
               </button>
             ) : (
@@ -192,7 +239,7 @@ export function TutorialPanel({
                 className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500"
               >
                 <Check className="h-3 w-3" />
-                Done
+                {t('learn.panel.done')}
               </button>
             )}
           </div>

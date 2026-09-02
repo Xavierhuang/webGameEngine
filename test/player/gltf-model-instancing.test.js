@@ -5,7 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '../..');
-const player = fs.readFileSync(path.join(root, 'components/player/GamePlayer.tsx'), 'utf8');
+// The URL-model loaders moved from GamePlayer.tsx to ExternalModels.tsx on
+// 2026-09-01; the contract is unchanged.
+const player = fs.readFileSync(path.join(root, 'components/player/ExternalModels.tsx'), 'utf8');
 const gltfStart = player.indexOf('function GLTFExtModel');
 const gltfEnd = player.indexOf('function OBJExtModel', gltfStart);
 

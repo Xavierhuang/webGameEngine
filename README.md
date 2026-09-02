@@ -24,7 +24,7 @@ invalidated all sessions with no error anywhere.
 ## Verifying
 
 ```bash
-npm run test:all    # ~1300 assertions, pure logic, no browser
+npm run test:all    # one tsc compile, then every pure-logic suite (scripts/all-gate.mjs)
 npm run type-check  # must be zero; the build enforces it
 npm run lint        # must be zero; the build enforces it
 npm run smoke       # loads every page in real Chromium
@@ -94,8 +94,16 @@ not resolve the `@/` alias.
 
 ```bash
 npm run generate:backdrops   # 32 SVG backdrops
-npm run generate:starters    # 39 character GLBs (macOS + Metal only)
+npm run generate:starters    # 39 character GLBs (macOS + Metal only), then compresses them
+npm run models:compress      # meshopt-compress every GLB under public/models (idempotent)
 ```
+
+Every GLB ships meshopt-compressed (`tools/models/compress.mjs`): the starter
+library went from 3.7 MB to 1.3 MB; the red dragon is excluded because its
+render contract pins exact vertex bounds. drei's `useGLTF` registers the decoder
+itself; a bare `GLTFLoader` needs `setMeshoptDecoder`, and the CSP carries
+`wasm-unsafe-eval` for it. `npm run test:visual` renders the compressed
+files, so a decoder regression shows up as a blank model there.
 
 Both are deterministic. The starter roster is written down **twice** — in
 `StarterCatalog.swift` and in `generate.sh`, which needs the names up front to
@@ -147,6 +155,30 @@ Migrations are tracked in a `schema_migrations` table and skipped once applied �
 It verifies the archive is intact and contains tables, and **deletes the file
 rather than keeping a dump that restores nothing** — a backup that looks fine
 and is empty is worse than a loud failure.
+
+Set `BACKUP_S3_URI` (plus `BACKUP_S3_ENDPOINT` for DigitalOcean Spaces and the
+usual `AWS_*` credentials) and each archive is also copied off the droplet;
+set `BACKUP_GPG_RECIPIENT` to encrypt it first. Without those it prints that
+backups stay on the host, because a host loss then takes the database and its
+backups together.
+
+## Alerting
+
+`scripts/alert-errors.mjs` runs from cron every five minutes on the droplet.
+It fails `/api/health` loudly and emails `ALERT_EMAIL` (through the same
+Resend key as parental-consent mail) when the health check fails or
+`error_events` spikes past `ALERT_ERROR_THRESHOLD` in the last window, with a
+one-hour cooldown so an outage does not mail twelve times.
+
+## Publishing a child's game
+
+"Share publicly" moves a project to `moderation_pending`. A moderator opens
+`/admin/reports`, plays it, and clicks **Publish** or **Reject**
+(`/api/admin/moderation`). Only then does it appear in Explore and become
+playable from its link — `decideAccess` requires all three of
+`visibility = 'public'`, `is_published` and `moderation_status = 'published'`.
+Edits after approval go live with the next play, so a report is the safety
+net for a game that changes after review.
 
 ## Safety
 

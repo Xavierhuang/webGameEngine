@@ -6,6 +6,7 @@ import { OrbitControls, Grid, TransformControls } from '@react-three/drei';
 import { X, Play, Pause, Square, Save, Download, Bone, Move3D, RotateCw, Maximize2 } from 'lucide-react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { useGLTF } from '@react-three/drei';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { PALETTE } from '../common/design';
@@ -133,6 +134,9 @@ function AnimatedModelView({
 
         if (ext === 'glb' || ext === 'gltf') {
           const loader = new GLTFLoader();
+          // Starters are meshopt-compressed (tools/models/compress.mjs); drei's
+          // useGLTF registers this decoder itself, a bare loader does not.
+          loader.setMeshoptDecoder(MeshoptDecoder);
           const gltf = await new Promise<any>((resolve, reject) => {
             loader.load(
               modelUrl,
