@@ -10,6 +10,7 @@ import { getModelExtension, isTrustedModelUrl } from '@/lib/models/modelPolicy';
 import { SelectorModal, SelectorTile, SelectorSection } from './SelectorModal';
 import { PALETTE } from '../common/design';
 import { useTranslator } from '../common/LocaleProvider';
+import { toast } from '../common/Toast';
 import { PICKER_CHARACTERS, CHARACTER_TEMPLATES, BASIC_SHAPES } from '../../lib/prefabs/characters';
 
 interface CharacterSelectorProps {
@@ -75,11 +76,11 @@ export default function CharacterSelector({
         onSelect(character);
         onClose();
       } else {
-        alert('Failed to generate character');
+        toast(t('editor.characterPicker.generateFailed'));
       }
     } catch (error) {
       console.error('Error generating character:', error);
-      alert('Failed to generate character');
+      toast(t('editor.characterPicker.generateFailed'));
     } finally {
       setGeneratingAI(false);
     }

@@ -4,6 +4,10 @@ import { chatWithAI } from '@/lib/ai/claude';
 import { moderateText } from '@/lib/safety/moderation';
 import { resolveActor } from '@/lib/auth/actor';
 import { AccessError, requireProjectEdit } from '@/lib/auth/access';
+import { rateLimit } from '@/lib/safety/rateLimit';
+
+/** Chat is the most expensive AI call; siblings `ask` and `translate` were already limited. */
+const CHAT_LIMIT_PER_HOUR = 60;
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +22,15 @@ export async function POST(request: NextRequest) {
     const actor = await resolveActor(request);
     await requireProjectEdit(actor, projectId);
     const userId = actor.kind === 'user' ? actor.userId : null;
+
+    const actorKey = actor.kind === 'user' ? `user:${actor.userId}` : actor.kind === 'guest' ? `guest:${actor.profileId}` : 'anonymous';
+    const limit = rateLimit(`ai-chat:${actorKey}`, CHAT_LIMIT_PER_HOUR, 60 * 60 * 1000);
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { message: "You've asked a lot of questions! Take a short break and try again soon.", rateLimited: true, retryAfter: limit.retryAfter },
+        { status: 429 },
+      );
+    }
 
     // Get user profile for age (or use default for guests)
     let age = 10;

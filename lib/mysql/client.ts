@@ -14,8 +14,13 @@ export function getPool(): mysql.Pool {
       password: process.env.MYSQL_PASSWORD || '',
       database: process.env.MYSQL_DATABASE || 'gameengine',
       waitForConnections: true,
-      connectionLimit: parseInt(process.env.MYSQL_POOL_LIMIT || '5'),
-      queueLimit: 0,
+      // Five connections for the whole app, with an unbounded queue and no
+      // timeout, meant five slow transactions stalled every other request
+      // forever. Ten is still small; the queue cap and the connect timeout
+      // make overload fail fast and visibly instead of hanging.
+      connectionLimit: parseInt(process.env.MYSQL_POOL_LIMIT || '10'),
+      queueLimit: parseInt(process.env.MYSQL_QUEUE_LIMIT || '200'),
+      connectTimeout: parseInt(process.env.MYSQL_CONNECT_TIMEOUT_MS || '10000'),
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
     });

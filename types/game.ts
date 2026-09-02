@@ -221,8 +221,9 @@ export interface GameObject {
   logic_blocks?: LogicBlock[];
   has_physics?: boolean;
   scene_id?: string;
-  created_at?: string;
-  updated_at?: string;
+  /** ISO string over the wire; a Date when a server page hands rows straight to a client component. */
+  created_at?: string | Date;
+  updated_at?: string | Date;
 }
 
 // Scene
@@ -232,8 +233,9 @@ export interface Scene {
   project_id: string;
   background_color?: string;
   game_objects?: GameObject[];
-  created_at?: string;
-  updated_at?: string;
+  /** ISO string over the wire; a Date when a server page hands rows straight to a client component. */
+  created_at?: string | Date;
+  updated_at?: string | Date;
 }
 
 // Project
@@ -243,8 +245,9 @@ export interface Project {
   description?: string;
   owner_id: string;
   scenes?: Scene[];
-  created_at?: string;
-  updated_at?: string;
+  /** ISO string over the wire; a Date when a server page hands rows straight to a client component. */
+  created_at?: string | Date;
+  updated_at?: string | Date;
   /**
    * Monotonic per-project counter. Every accepted command bumps this by one.
    * Optimistic locking: writes assert an `expected_revision`; the server

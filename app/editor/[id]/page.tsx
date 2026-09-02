@@ -2,11 +2,13 @@ import { notFound } from 'next/navigation';
 import { query, queryOne } from '@/lib/mysql/server';
 import { resolveCurrentActor } from '@/lib/auth/actor';
 import { requireProjectEdit } from '@/lib/auth/access';
-import GameEditor from '@/components/editor/GameEditor';
+import GameEditor, { type EditorProject } from '@/components/editor/GameEditor';
+import type { GameObjectType } from '@/types/game';
 import { MobileEditorGate } from '@/components/editor/MobileEditorGate';
-import { CollaborationProvider } from '@/components/realtime/CollaborationProvider';
 import { getWorldTemplate } from '@/lib/worlds/templates';
 import { getMissionProgress, type MissionProgress } from '@/lib/worlds/missionService';
+import { getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/messages';
 
 interface EditorPageProps {
   params: Promise<{
@@ -164,6 +166,9 @@ export default async function EditorPage({ params }: EditorPageProps) {
         .filter((go) => go.scene_id === scene.id)
         .map((go) => ({
           ...go,
+          // The column is free text in MySQL; the editor and player agree on
+          // the union. Casting at the boundary keeps every consumer typed.
+          type: go.type as GameObjectType,
           logic_blocks: logicBlocks.filter(
             (lb) => lb.game_object_id === go.id
           ),
@@ -172,42 +177,27 @@ export default async function EditorPage({ params }: EditorPageProps) {
     assets,
   };
 
-  // Get user info for collaboration
-  const userId = actor.kind === 'user' ? actor.userId : actor.profileId;
-  let username = 'Guest';
-  const userProfile = await queryOne<{ username: string | null; display_name: string | null }>(
-    'SELECT username, display_name FROM profiles WHERE id = ?',
-    [actor.profileId]
-  );
-  username = userProfile?.username || userProfile?.display_name || 'Player';
-
   return (
     <MobileEditorGate>
-      <CollaborationProvider
+      <GameEditor
         projectId={id}
-        userId={userId}
-        username={username}
-      >
-        <GameEditor
-          projectId={id}
-          initialData={projectWithRelations}
-          worldBuilder={template ? {
-            templateId: worldIdentity?.template_id ?? template.id,
-            templateTitle: template.title,
-            templateVersion: Number(worldIdentity?.template_version),
-            revision: Number(project.revision),
-            missions: missionProgress,
-          } : undefined}
-        />
-      </CollaborationProvider>
+        initialData={projectWithRelations as EditorProject}
+        worldBuilder={template ? {
+          templateId: worldIdentity?.template_id ?? template.id,
+          templateTitle: template.title,
+          templateVersion: Number(worldIdentity?.template_version),
+          revision: Number(project.revision),
+          missions: missionProgress,
+        } : undefined}
+      />
     </MobileEditorGate>
   );
 }
 
-export async function generateMetadata({ params }: EditorPageProps) {
-  const { id } = await params;
+export async function generateMetadata() {
+  const locale = await getLocale();
   return {
-    title: 'Game Editor - Kids Game Builder',
-    description: 'Create your amazing game!',
+    title: translate(locale, 'meta.editorTitle'),
+    description: translate(locale, 'meta.description'),
   };
 }

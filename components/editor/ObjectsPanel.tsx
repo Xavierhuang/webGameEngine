@@ -54,7 +54,7 @@ export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplic
                     </div>
                   </button>
                   {onReorder && (
-                    <span className="flex shrink-0 flex-col opacity-0 transition group-hover:opacity-100">
+                    <span className="flex shrink-0 flex-col opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                       <button
                         onClick={() => onReorder(obj, -1)}
                         disabled={index === 0}
@@ -76,7 +76,7 @@ export default function ObjectsPanel({ scene, selectedObject, onSelect, onDuplic
                   {onDuplicate && (
                     <button
                       onClick={() => onDuplicate(obj)}
-                      className="mr-2 shrink-0 rounded p-1 text-gray-400 opacity-0 transition hover:bg-white hover:text-gray-700 group-hover:opacity-100"
+                      className="mr-2 shrink-0 rounded p-1 text-gray-400 opacity-0 transition hover:bg-white hover:text-gray-700 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
                       title={`Duplicate ${obj.name || 'object'}`}
                     >
                       <Copy className="h-3.5 w-3.5" />

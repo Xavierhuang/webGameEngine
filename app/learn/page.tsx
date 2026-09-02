@@ -4,11 +4,13 @@ import { PageBackdrop } from '@/components/common/PageBackdrop';
 import { getAuthenticatedUser } from '@/lib/mysql/server';
 import { TUTORIALS, LEVEL_LABELS, type TutorialLevel } from '@/lib/tutorials/catalog';
 import { Clock, ArrowRight } from 'lucide-react';
-import { getTranslator } from '@/lib/i18n/server';
+import { getTranslator, getLocale } from '@/lib/i18n/server';
+import { translate } from '@/lib/i18n/messages';
 
-export const metadata = {
-  title: 'Learn — lingplay',
-};
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: translate(locale, 'meta.learnTitle') };
+}
 
 const ORDER: TutorialLevel[] = ['first', 'easy', 'medium'];
 
@@ -75,8 +77,11 @@ export default async function LearnPage() {
                           .replace('{minutes}', String(tut.minutes))
                           .replace('{steps}', String(tut.steps.length))}
                       </span>
+                      {/* Carry the tutorial id through project creation so the
+                          editor opens on this tutorial, not on a blank scene
+                          the child then has to re-find it from. */}
                       <Link
-                        href="/projects/new"
+                        href={`/projects/new?tutorial=${encodeURIComponent(tut.id)}`}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-slate-800 hover:underline"
                       >
                         {t('learn.start')}

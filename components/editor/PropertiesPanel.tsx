@@ -1,5 +1,6 @@
 'use client';
 import { useTranslator } from '../common/LocaleProvider';
+import { toast } from '../common/Toast';
 
 import { useState } from 'react';
 import { Trash2, Bone, Brush } from 'lucide-react';
@@ -7,6 +8,16 @@ import AudioManager from '@/lib/audio/AudioManager';
 import { isTrustedModelUrl } from '@/lib/models/modelPolicy';
 import AnimationEditor from './AnimationEditor';
 import PaintEditor from './PaintEditor';
+
+/**
+ * `properties` arrives as either a string or an object depending on the
+ * driver. One malformed row used to throw inside render and blank the whole
+ * panel; this never throws.
+ */
+function parseProps(raw: unknown): any {
+  if (typeof raw !== 'string') return raw ?? {};
+  try { return JSON.parse(raw || '{}'); } catch { return {}; }
+}
 
 interface PropertiesPanelProps {
   selectedObject: any;
@@ -280,7 +291,7 @@ export default function PropertiesPanel({
           {(() => {
             // Parse properties
             const properties = typeof selectedObject.properties === 'string'
-              ? JSON.parse(selectedObject.properties || '{}')
+              ? parseProps(selectedObject.properties)
               : (selectedObject.properties || {});
             
             const isPlatform = selectedObject.type === 'platform' || properties.shape === 'plane';
@@ -326,7 +337,7 @@ export default function PropertiesPanel({
                       if (isPlatform || properties.size) {
                         // Update properties.size
                         const currentProps = typeof selectedObject.properties === 'string'
-                          ? JSON.parse(selectedObject.properties || '{}')
+                          ? parseProps(selectedObject.properties)
                           : (selectedObject.properties || {});
                         onUpdate({
                           properties: {
@@ -356,7 +367,7 @@ export default function PropertiesPanel({
                       if (isPlatform || properties.size) {
                         // Update properties.size
                         const currentProps = typeof selectedObject.properties === 'string'
-                          ? JSON.parse(selectedObject.properties || '{}')
+                          ? parseProps(selectedObject.properties)
                           : (selectedObject.properties || {});
                         onUpdate({
                           properties: {
@@ -393,13 +404,13 @@ export default function PropertiesPanel({
                 type="number"
                 value={(() => {
                   const props = typeof selectedObject.properties === 'string'
-                    ? JSON.parse(selectedObject.properties || '{}')
+                    ? parseProps(selectedObject.properties)
                     : (selectedObject.properties || {});
                   return props.rotation?.x || props.rotation_x || 0;
                 })()}
                 onChange={(e) => {
                   const props = typeof selectedObject.properties === 'string'
-                    ? JSON.parse(selectedObject.properties || '{}')
+                    ? parseProps(selectedObject.properties)
                     : (selectedObject.properties || {});
                   onUpdate({
                     properties: {
@@ -420,13 +431,13 @@ export default function PropertiesPanel({
                 type="number"
                 value={(() => {
                   const props = typeof selectedObject.properties === 'string'
-                    ? JSON.parse(selectedObject.properties || '{}')
+                    ? parseProps(selectedObject.properties)
                     : (selectedObject.properties || {});
                   return props.rotation?.y || props.rotation_y || 0;
                 })()}
                 onChange={(e) => {
                   const props = typeof selectedObject.properties === 'string'
-                    ? JSON.parse(selectedObject.properties || '{}')
+                    ? parseProps(selectedObject.properties)
                     : (selectedObject.properties || {});
                   onUpdate({
                     properties: {
@@ -447,13 +458,13 @@ export default function PropertiesPanel({
                 type="number"
                 value={(() => {
                   const props = typeof selectedObject.properties === 'string'
-                    ? JSON.parse(selectedObject.properties || '{}')
+                    ? parseProps(selectedObject.properties)
                     : (selectedObject.properties || {});
                   return props.rotation?.z || props.rotation_z || 0;
                 })()}
                 onChange={(e) => {
                   const props = typeof selectedObject.properties === 'string'
-                    ? JSON.parse(selectedObject.properties || '{}')
+                    ? parseProps(selectedObject.properties)
                     : (selectedObject.properties || {});
                   onUpdate({
                     properties: {
@@ -505,7 +516,7 @@ export default function PropertiesPanel({
         {/* Costumes (Scratch analog — alternate appearances the runtime can switch to) */}
         {(() => {
           const props = typeof selectedObject.properties === 'string'
-            ? JSON.parse(selectedObject.properties || '{}')
+            ? parseProps(selectedObject.properties)
             : (selectedObject.properties || {});
           const costumes: Array<{ name: string; color?: string; shape?: string; model_url?: string }> =
             Array.isArray(props.costumes) ? props.costumes : [];
@@ -563,7 +574,7 @@ export default function PropertiesPanel({
                             save(next);
                           }}
                           className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
-                          placeholder="name"
+                          placeholder={t('editor.properties.namePlaceholder')}
                         />
                         <button
                           onClick={() => {
@@ -609,7 +620,7 @@ export default function PropertiesPanel({
                         onBlur={(e) => {
                           const modelUrl = e.target.value.trim();
                           if (modelUrl && !isTrustedModelUrl(modelUrl)) {
-                            alert('For safety, upload a model file or use a model created in Lingplay.');
+                            toast(t('editor.properties.modelUrlBlocked'));
                             e.currentTarget.value = c.model_url || '';
                             return;
                           }
@@ -617,7 +628,7 @@ export default function PropertiesPanel({
                           next[i] = { ...c, model_url: modelUrl || undefined };
                           save(next);
                         }}
-                        placeholder="model URL (optional)"
+                        placeholder={t('editor.properties.modelUrlPlaceholder')}
                         className="mt-2 w-full px-2 py-1 text-xs border border-gray-300 rounded font-mono"
                       />
                     </div>
@@ -631,7 +642,7 @@ export default function PropertiesPanel({
         {/* Animation State (for characters with animated models) */}
         {selectedObject.type === 'character' && (() => {
           const props = typeof selectedObject.properties === 'string'
-            ? JSON.parse(selectedObject.properties || '{}')
+            ? parseProps(selectedObject.properties)
             : (selectedObject.properties || {});
           const modelUrl = props.model_url || props.sprite_data?.model_url;
           if (modelUrl) {
@@ -685,7 +696,7 @@ export default function PropertiesPanel({
                   <button
                     onClick={() => {
                       const props = typeof selectedObject.properties === 'string'
-                        ? JSON.parse(selectedObject.properties || '{}')
+                        ? parseProps(selectedObject.properties)
                         : (selectedObject.properties || {});
                       const modelUrl = props.model_url || props.sprite_data?.model_url;
                       if (modelUrl) {

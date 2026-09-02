@@ -4,7 +4,11 @@
 pick the next task, execute it end-to-end, commit, deploy, and update this
 file — without prior context.
 
-**Last refreshed:** 2026-08-27, after merging `origin/main`, guarding the AI
+**Last refreshed:** 2026-09-01, after the improvement pass described in
+"2026-09-01 improvement pass" below. Not yet deployed — the tree needs a
+`./deploy.sh` and a live smoke/a11y check.
+
+Before that: 2026-08-27, after merging `origin/main`, guarding the AI
 routes, and deploying. Everything below was verified against the tree and the
 droplet, not carried over from the previous version of this file (which had
 drifted a week out of date).
@@ -66,6 +70,66 @@ requires explicit operator authorization and a cohort insert first.
 
 ---
 
+## 2026-09-01 improvement pass
+
+An audit across child-facing UX, code health and production readiness, then
+fixes for everything that did not need a product decision. All verified
+locally: `type-check` 0, `lint` 0 errors, `test:all`, `test:critical`,
+`test:regression`, `build`, and `smoke` + `a11y` against a local `next start`.
+
+Fixed:
+
+- **Share dialog no longer shows `publication_moved`.** It sends only
+  `visibility`; a public-but-unreviewed game shows "Submitted for review"
+  and hides the link that would have 404'd. The publish path itself is still
+  the open decision in section 1.
+- **Undo/redo persist.** `GameEditor` diffs the two snapshots per object and
+  replays create/update/delete through the existing command paths, keeps the
+  selection when the object survives, and ⌘Z inside the Blockly workspace no
+  longer fires the project undo on top of Blockly's own.
+- **Block edits flush on unmount** (`BlockEditor`) instead of being dropped
+  when the child switches object within the 800 ms debounce.
+- **Interpreter errors are visible.** `RuntimeWorld.scriptErrors` +
+  `onScriptError`; the player shows a "{n} blocks had a problem" badge with
+  object, block type and message. Unknown block types report too.
+- **Error pages exist**: `app/error.tsx`, `app/global-error.tsx`,
+  `app/not-found.tsx`, and `not-found.tsx` under `play/[id]` and
+  `editor/[id]`, via `components/common/FriendlyErrorScreen.tsx`.
+- **No more `window.alert`.** `components/common/Toast.tsx`; every message is
+  translated (en/zh) and none says "check the console".
+- Player has a back link; the editor stage has a Stop button and shows from
+  `lg` (1024px) not `xl`; the editor header has the language switcher; the
+  D-pad presses WASD as well as arrows and is translated in all 19 locales;
+  `/learn` cards open their tutorial in the new project via `?tutorial=`.
+- Performance: `dpr={[1, 2]}` on the player canvas; key state is a mutated
+  ref (no re-render per key-repeat); per-frame `Vector3`/`JSON.parse`
+  allocations hoisted; visibility `setState` only on change; interpreter
+  `env` object reused per runtime; name lookups indexed; pen strokes capped.
+- Server: CSP + HSTS + frame/referrer/permissions headers and immutable
+  caching for `/models` and `/backdrops` in `next.config.js`; MySQL pool
+  10 connections with a bounded queue and connect timeout; remix and import
+  use multi-row inserts; `ai/chat` is rate limited like its siblings.
+- `deploy.sh` keeps `.next.prev` until the smoke test passes and rolls back
+  on failure; a machine without Playwright fails the deploy unless
+  `LINGPLAY_SKIP_SMOKE=1`.
+- Removed 14 unused dependencies (`phaser`, both `cannon`s, `zustand`,
+  `framer-motion`, `date-fns`, the shadcn trio, five Radix packages) and the
+  dead `PhysicsProvider`, `CollaborationProvider` and `lib/realtime`.
+- `GameEditor` takes a typed `EditorProject` instead of `any`.
+
+Deliberately not done (each is a larger or riskier piece):
+
+- Draco/meshopt compression of the 60 starter GLBs and replacing the 7.6 MB
+  Minion FBX — a generator change plus loader/decoder wiring, and
+  `test:visual` measures rendered pixels.
+- Tutorial catalog (`lib/tutorials/catalog.ts`) and `TutorialPanel` chrome
+  are still English-only; progress is still per-browser, not per-account.
+- Splitting `GamePlayer.tsx` (RuntimeContext literal at the `ctxRef.current`
+  assignment is the natural first cut) and collapsing the 107 `test:*`
+  scripts onto `scripts/lib/test-gate.mjs`.
+- Instancing for repeated platforms, a FULLTEXT index for gallery search,
+  CI job parallelisation, and the durable-work/production-readiness plans.
+
 ## Plan status
 
 Checkbox state in `docs/superpowers/plans/` is **not** a reliable completion
@@ -101,7 +165,14 @@ then manually exercise submit → reject → publish → play → remix → with
 takedown, and disable immediately if any check, audit, or public-boundary
 assertion fails.
 
-### 1. Ordinary-project sharing is broken in production
+### 1. Ordinary-project sharing still has no publish path
+
+**Update 2026-09-01:** the dialog bug is fixed — `ShareDialog` no longer sends
+`is_published`, so the 501 and the raw `publication_moved` string are gone, and
+a public-but-unreviewed game shows "Submitted for review" with no link. What
+remains is the product decision below: nothing yet flips
+`is_published`/`moderation_status='published'` for ordinary projects.
+
 
 `components/editor/ShareDialog.tsx` sends `is_published` on every share toggle —
 both directions. `app/api/projects/[id]/route.ts:249` rejects that key with a
@@ -235,12 +306,10 @@ Also reconcile the feature flags: five are declared, one is ever read, and the
 - Its rsync exclude list does **not** exclude `.opendeploy/`, which holds a
   plaintext MySQL password and `JWT_SECRET`. Every deploy copies them to
   `/opt/lingplay/source/`. Confirm and rotate.
-- The browser smoke step is gated on `[ -f node_modules/.bin/playwright ]` and
-  otherwise prints "skipping browser smoke test" and **exits 0**. A deploy from
-  a machine without Playwright ships with no real verification.
-- On smoke failure it prints "Investigate or roll back" and exits 1 but **does
-  not roll back** — `.next.prev` was already deleted a few lines earlier. Only a
-  `systemctl start` failure triggers the actual restore.
+- ~~Smoke skipped silently without Playwright~~ — fixed 2026-09-01: the deploy
+  fails unless `LINGPLAY_SKIP_SMOKE=1` is set on purpose.
+- ~~Smoke failure did not roll back~~ — fixed 2026-09-01: `.next.prev` is kept
+  until the smoke test passes and restored when it fails.
 - `scripts/smoke.js` covers 12 **public** pages and zero authenticated creator
   pages. The block editor, scene view, player and World Builder are never
   browser-verified before or after a ship. `test/visual/journey.mjs` and
@@ -304,10 +373,9 @@ just re-creates the diff.
 
 ## Resume marker
 
-**Last completed:** trust-boundary Task 7 guards (section 2) — all five AI
-routes on the actor/access/flag/limit/moderation pipeline, no deferrals left in
-the manifest. `type-check`, `lint`, `test:all`, `test:critical`,
-`test:world-release` and `build` all green.
+**Last completed:** the 2026-09-01 improvement pass (see that section).
+`type-check`, `lint`, `test:all`, `test:critical`, `test:regression`, `build`,
+local `smoke` and `a11y` all green. **Not deployed yet.**
 
 **Next task:** decide the ordinary-project publish story (section 1). That 501
 is what a child hits on day one, and the release beta does not fix it. It needs

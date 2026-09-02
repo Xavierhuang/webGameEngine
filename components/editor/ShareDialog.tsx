@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Copy, Globe, Lock, X } from 'lucide-react';
+import { Check, Clock, Copy, Globe, Lock, X } from 'lucide-react';
 import { useTranslator } from '../common/LocaleProvider';
 import WorldReleasePanel from '../worlds/WorldReleasePanel';
 
@@ -52,15 +52,19 @@ export function ShareDialog({
       const response = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        // Only visibility is settable here. Sending `is_published` made the
+        // route answer 501 `publication_moved`, and that literal string was
+        // what a child read after clicking Share. Publication itself is a
+        // reviewed step that a moderator completes.
         body: JSON.stringify({
           visibility: makePublic ? 'public' : 'private',
-          is_published: makePublic,
         }),
       });
 
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(data?.reason || data?.error || 'Could not update sharing.');
+        // `reason` is a sentence written for the child; `error` is a code.
+        setError(data?.reason || t('editor.share.updateFailed'));
         // Guests must register before publishing; point them at signup rather
         // than leaving a dead-end error.
         setNeedsAccount(data?.error === 'Account needed');
@@ -91,13 +95,17 @@ export function ShareDialog({
   };
 
   const rejected = isPublic && moderationStatus === 'rejected';
+  // Public but not yet reviewed: the link would 404 for anyone else, so say
+  // so instead of handing out a link that does not work.
+  const published = isPublic && moderationStatus === 'published';
+  const pendingReview = isPublic && !rejected && !published;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-900">
-            {isPrivateDraft ? 'Private draft' : t('share.title')}
+            {isPrivateDraft ? t('editor.share.privateDraft') : t('share.title')}
           </h2>
           <button
             onClick={onClose}
@@ -119,17 +127,19 @@ export function ShareDialog({
           ) : (
           <>
           <div className="flex items-start gap-3 rounded-xl bg-slate-50 p-4">
-            {isPublic ? (
+            {published ? (
               <Globe className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+            ) : pendingReview ? (
+              <Clock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             ) : (
               <Lock className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
             )}
             <div className="text-sm">
               <div className="font-semibold text-slate-900">
-                {isPublic ? t('share.public') : t('share.private')}
+                {published ? t('share.public') : pendingReview ? t('editor.share.pendingReview') : t('share.private')}
               </div>
               <p className="mt-0.5 leading-relaxed text-slate-600">
-                {isPublic ? t('share.publicBody') : t('share.privateBody')}
+                {published ? t('share.publicBody') : pendingReview ? t('editor.share.pendingReviewBody') : t('share.privateBody')}
               </p>
             </div>
           </div>
@@ -140,7 +150,7 @@ export function ShareDialog({
             </p>
           )}
 
-          {isPublic && !rejected && (
+          {published && (
             <div className="flex items-center gap-2">
               <input
                 readOnly
@@ -166,7 +176,7 @@ export function ShareDialog({
                   href="/auth/signup"
                   className="mt-2 inline-block font-semibold underline"
                 >
-                  Create a free account
+                  {t('editor.share.createAccount')}
                 </a>
               )}
             </div>
@@ -181,7 +191,7 @@ export function ShareDialog({
                   : 'bg-slate-900 text-white hover:bg-slate-800'
               }`}
             >
-              {busy ? 'Working…' : isPublic ? t('share.makePrivate') : t('share.makePublic')}
+              {busy ? t('editor.share.working') : isPublic ? t('share.makePrivate') : t('share.makePublic')}
             </button>
           </>
           )}

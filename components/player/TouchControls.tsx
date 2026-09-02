@@ -2,11 +2,25 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslator } from '../common/LocaleProvider';
 
 interface TouchControlsProps {
   /** Press/release a logical key, using the same names the keyboard handler uses. */
   onKeyChange: (key: string, down: boolean) => void;
 }
+
+/**
+ * Each D-pad button presses the arrow key AND its WASD twin. The key dropdown
+ * offers both, so a game authored with `when [w] key pressed` was unplayable
+ * on a tablet — the pad only ever sent arrows.
+ */
+const PAD_KEYS: Record<string, string[]> = {
+  up: ['arrowup', 'w'],
+  down: ['arrowdown', 's'],
+  left: ['arrowleft', 'a'],
+  right: ['arrowright', 'd'],
+  jump: [' '],
+};
 
 /**
  * On-screen D-pad and jump button.
@@ -20,6 +34,7 @@ interface TouchControlsProps {
  * desktop mouse users don't get a D-pad over their game.
  */
 export function TouchControls({ onKeyChange }: TouchControlsProps) {
+  const t = useTranslator();
   const [isTouch, setIsTouch] = useState(false);
   // Keys currently held via touch, so we can release them all if a pointer is
   // lost outside the button (pointercancel, or a finger sliding off).
@@ -45,28 +60,32 @@ export function TouchControls({ onKeyChange }: TouchControlsProps) {
 
   if (!isTouch) return null;
 
-  const press = (key: string) => (e: React.PointerEvent) => {
+  const press = (pad: string) => (e: React.PointerEvent) => {
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    heldRef.current.add(key);
-    onKeyChange(key, true);
+    for (const key of PAD_KEYS[pad]) {
+      heldRef.current.add(key);
+      onKeyChange(key, true);
+    }
   };
 
-  const release = (key: string) => (e: React.PointerEvent) => {
+  const release = (pad: string) => (e: React.PointerEvent) => {
     e.preventDefault();
-    heldRef.current.delete(key);
-    onKeyChange(key, false);
+    for (const key of PAD_KEYS[pad]) {
+      heldRef.current.delete(key);
+      onKeyChange(key, false);
+    }
   };
 
-  const padButton = (key: string, label: string, Icon: typeof ChevronUp, className: string) => (
+  const padButton = (pad: string, label: string, Icon: typeof ChevronUp, className: string) => (
     <button
       type="button"
       aria-label={label}
       className={`pointer-events-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/25 text-white backdrop-blur-sm transition active:bg-white/45 ${className}`}
-      onPointerDown={press(key)}
-      onPointerUp={release(key)}
-      onPointerCancel={release(key)}
-      onPointerLeave={release(key)}
+      onPointerDown={press(pad)}
+      onPointerUp={release(pad)}
+      onPointerCancel={release(pad)}
+      onPointerLeave={release(pad)}
       onContextMenu={(e) => e.preventDefault()}
     >
       <Icon className="h-7 w-7" />
@@ -78,27 +97,27 @@ export function TouchControls({ onKeyChange }: TouchControlsProps) {
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex touch-none select-none items-end justify-between p-4">
       <div className="grid grid-cols-3 grid-rows-3 gap-1.5">
         <span />
-        {padButton('arrowup', 'Move forward', ChevronUp, '')}
+        {padButton('up', t('player.touch.forward'), ChevronUp, '')}
         <span />
-        {padButton('arrowleft', 'Move left', ChevronLeft, '')}
+        {padButton('left', t('player.touch.left'), ChevronLeft, '')}
         <span />
-        {padButton('arrowright', 'Move right', ChevronRight, '')}
+        {padButton('right', t('player.touch.right'), ChevronRight, '')}
         <span />
-        {padButton('arrowdown', 'Move backward', ChevronDown, '')}
+        {padButton('down', t('player.touch.backward'), ChevronDown, '')}
         <span />
       </div>
 
       <button
         type="button"
-        aria-label="Jump"
-        className="pointer-events-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/25 text-base font-bold text-white backdrop-blur-sm transition active:bg-white/45"
-        onPointerDown={press(' ')}
-        onPointerUp={release(' ')}
-        onPointerCancel={release(' ')}
-        onPointerLeave={release(' ')}
+        aria-label={t('player.touch.jump')}
+        className="pointer-events-auto flex h-20 w-20 items-center justify-center rounded-full bg-white/25 text-base font-bold uppercase text-white backdrop-blur-sm transition active:bg-white/45"
+        onPointerDown={press('jump')}
+        onPointerUp={release('jump')}
+        onPointerCancel={release('jump')}
+        onPointerLeave={release('jump')}
         onContextMenu={(e) => e.preventDefault()}
       >
-        JUMP
+        {t('player.touch.jump')}
       </button>
     </div>
   );

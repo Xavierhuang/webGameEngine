@@ -94,25 +94,33 @@ export async function POST(
         gravity_y: number;
       }>;
 
+      // Multi-row inserts: this was one round-trip per scene, per object and
+      // per block, inside one transaction holding locks the whole time. A
+      // 200-block project meant 200+ sequential statements against a pool of
+      // a handful of connections.
       const sceneIdMap = new Map<string, string>();
+      const sceneRowsToInsert: unknown[][] = [];
       for (const scene of scenes) {
         const newSceneId = randomUUID();
         sceneIdMap.set(scene.id, newSceneId);
-        await connection.execute(
+        sceneRowsToInsert.push([
+          newSceneId,
+          newProjectId,
+          scene.name,
+          scene.order_index,
+          scene.background_color,
+          scene.background_image_url,
+          scene.lighting_preset,
+          scene.physics_enabled,
+          scene.gravity_y,
+        ]);
+      }
+      if (sceneRowsToInsert.length > 0) {
+        await connection.query(
           `INSERT INTO scenes
              (id, project_id, name, order_index, background_color, background_image_url, lighting_preset, physics_enabled, gravity_y)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            newSceneId,
-            newProjectId,
-            scene.name,
-            scene.order_index,
-            scene.background_color,
-            scene.background_image_url,
-            scene.lighting_preset,
-            scene.physics_enabled,
-            scene.gravity_y,
-          ],
+           VALUES ?`,
+          [sceneRowsToInsert],
         );
       }
 
@@ -125,35 +133,39 @@ export async function POST(
         );
         const objects = objectRows as Array<Record<string, any>>;
 
+        const objectRowsToInsert: unknown[][] = [];
         for (const obj of objects) {
           const newObjectId = randomUUID();
           objectIdMap.set(obj.id, newObjectId);
-          await connection.execute(
+          objectRowsToInsert.push([
+            newObjectId,
+            sceneIdMap.get(obj.scene_id),
+            obj.type,
+            obj.name,
+            obj.position_x,
+            obj.position_y,
+            obj.position_z,
+            obj.rotation,
+            obj.scale_x,
+            obj.scale_y,
+            obj.sprite_url,
+            obj.color,
+            obj.width,
+            obj.height,
+            obj.has_physics,
+            obj.is_static,
+            obj.mass,
+            typeof obj.properties === 'string' ? obj.properties : JSON.stringify(obj.properties ?? {}),
+          ]);
+        }
+        if (objectRowsToInsert.length > 0) {
+          await connection.query(
             `INSERT INTO game_objects
                (id, scene_id, type, name, position_x, position_y, position_z, rotation,
                 scale_x, scale_y, sprite_url, color, width, height,
                 has_physics, is_static, mass, properties)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              newObjectId,
-              sceneIdMap.get(obj.scene_id),
-              obj.type,
-              obj.name,
-              obj.position_x,
-              obj.position_y,
-              obj.position_z,
-              obj.rotation,
-              obj.scale_x,
-              obj.scale_y,
-              obj.sprite_url,
-              obj.color,
-              obj.width,
-              obj.height,
-              obj.has_physics,
-              obj.is_static,
-              obj.mass,
-              typeof obj.properties === 'string' ? obj.properties : JSON.stringify(obj.properties ?? {}),
-            ],
+             VALUES ?`,
+            [objectRowsToInsert],
           );
         }
       }
@@ -166,21 +178,22 @@ export async function POST(
         );
         const blocks = blockRows as Array<Record<string, any>>;
 
-        for (const block of blocks) {
-          await connection.execute(
+        const blockRowsToInsert = blocks.map((block) => [
+          randomUUID(),
+          objectIdMap.get(block.game_object_id),
+          newProjectId,
+          block.scene_id ? sceneIdMap.get(block.scene_id) ?? null : null,
+          block.block_type,
+          block.category,
+          block.order_index,
+          typeof block.block_data === 'string' ? block.block_data : JSON.stringify(block.block_data ?? {}),
+        ]);
+        if (blockRowsToInsert.length > 0) {
+          await connection.query(
             `INSERT INTO logic_blocks
                (id, game_object_id, project_id, scene_id, block_type, category, order_index, block_data)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              randomUUID(),
-              objectIdMap.get(block.game_object_id),
-              newProjectId,
-              block.scene_id ? sceneIdMap.get(block.scene_id) ?? null : null,
-              block.block_type,
-              block.category,
-              block.order_index,
-              typeof block.block_data === 'string' ? block.block_data : JSON.stringify(block.block_data ?? {}),
-            ],
+             VALUES ?`,
+            [blockRowsToInsert],
           );
         }
       }

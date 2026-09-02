@@ -356,7 +356,16 @@ export default function BlockEditor({ objectId, objectName, initialBlocks, objec
     Blockly.svgResize(workspace);
 
     return () => {
-      if (timer) clearTimeout(timer);
+      // Flush, don't drop. A pending debounce here is an edit the child made
+      // in the last 800 ms; clearing the timer used to discard it silently
+      // whenever they clicked another object or left the tab. `save`
+      // serializes synchronously before its first await, so it reads the
+      // workspace before `dispose()` below.
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+        void save();
+      }
       resizeObserver.disconnect();
       svg.removeEventListener('click', onSvgClick);
       // Always kill an in-flight preview on unmount so a forever loop can't

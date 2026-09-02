@@ -33,8 +33,17 @@ function saveProgress(progress: Record<string, number>) {
  * anywhere, so this mirrors its stepped panel — but each tutorial also names
  * the concept it is teaching, not just the blocks to drag.
  */
-export function TutorialPanel({ onClose }: { onClose: () => void }) {
-  const [activeId, setActiveId] = useState<string | null>(null);
+export function TutorialPanel({
+  onClose,
+  initialTutorialId,
+}: {
+  onClose: () => void;
+  /** Open straight into this tutorial — how a /learn card lands in the editor. */
+  initialTutorialId?: string;
+}) {
+  const [activeId, setActiveId] = useState<string | null>(() =>
+    initialTutorialId && getTutorial(initialTutorialId) ? initialTutorialId : null,
+  );
   const [step, setStep] = useState(0);
   const [progress, setProgress] = useState<Record<string, number>>({});
 

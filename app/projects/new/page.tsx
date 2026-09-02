@@ -131,7 +131,12 @@ function NewProjectPageInner() {
       }
 
       if (data.project) {
-        router.push(`/editor/${data.project.id}`);
+        const tutorial = searchParams?.get('tutorial');
+        router.push(
+          tutorial
+            ? `/editor/${data.project.id}?tutorial=${encodeURIComponent(tutorial)}`
+            : `/editor/${data.project.id}`,
+        );
       }
     } catch (err: any) {
       setError(err.message || t('newProject.error.default'));

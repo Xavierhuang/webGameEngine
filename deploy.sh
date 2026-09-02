@@ -140,8 +140,33 @@ if ! systemctl start lingplay; then
 fi
 sleep 3
 systemctl is-active lingplay
-rm -rf "$REMOTE/.next.prev" "$REMOTE/node_modules.prev"
+# The previous release is kept until the browser smoke test below has passed.
+# It used to be deleted here, a few lines before the test that would have
+# needed it — so "SMOKE FAILED … roll back" had nothing left to roll back to.
 REMOTE_SCRIPT
+
+rollback_previous_release() {
+  echo "==> ROLLING BACK to the previous release"
+  ssh "$USER@$HOST" bash <<'ROLLBACK_SCRIPT'
+set -euo pipefail
+REMOTE=/opt/lingplay/source
+if [ ! -d "$REMOTE/.next.prev" ]; then
+  echo '  no previous release kept — nothing to restore'
+  exit 1
+fi
+systemctl stop lingplay || true
+rm -rf "$REMOTE/.next" "$REMOTE/node_modules"
+mv "$REMOTE/.next.prev" "$REMOTE/.next"
+[ -d "$REMOTE/node_modules.prev" ] && mv "$REMOTE/node_modules.prev" "$REMOTE/node_modules"
+systemctl start lingplay
+sleep 3
+systemctl is-active lingplay
+ROLLBACK_SCRIPT
+}
+
+discard_previous_release() {
+  ssh "$USER@$HOST" 'rm -rf /opt/lingplay/source/.next.prev /opt/lingplay/source/node_modules.prev'
+}
 
 # Record what shipped. Without this there is no way to answer "what is running
 # on the droplet?" short of grepping its source tree — which is how a session
@@ -168,12 +193,21 @@ if [ -f node_modules/.bin/playwright ] || [ -d node_modules/playwright ]; then
   echo "==> browser smoke test"
   if node scripts/smoke.js "${LINGPLAY_PUBLIC_URL:-https://play.lingcode.dev}"; then
     echo "  smoke passed"
+    discard_previous_release
   else
-    echo "  SMOKE FAILED — the site is serving broken pages. Investigate or roll back."
+    echo "  SMOKE FAILED — the site is serving broken pages. Restoring the previous release."
+    rollback_previous_release
     exit 1
   fi
+elif [ "${LINGPLAY_SKIP_SMOKE:-}" = "1" ]; then
+  # Explicit opt-out only. Silently skipping the one check that looks at real
+  # pages shipped a white-screened site once already.
+  echo "==> browser smoke test SKIPPED by LINGPLAY_SKIP_SMOKE=1 — previous release kept on the droplet"
 else
-  echo "==> skipping browser smoke test (playwright not installed locally)"
+  echo "==> playwright is not installed locally, so the deploy cannot be verified."
+  echo "    Run 'npx playwright install chromium' and deploy again, or set LINGPLAY_SKIP_SMOKE=1 to ship unverified."
+  echo "    The new release is live; the previous one is kept as .next.prev on the droplet."
+  exit 1
 fi
 
 echo "==> done"

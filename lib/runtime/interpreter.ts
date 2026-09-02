@@ -430,9 +430,39 @@ export interface WorldObjectHooks {
 /** Scratch caps total live clones at 300. */
 export const MAX_CLONES = 300;
 
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/**
+ * A block that failed or was not understood. Reported once per (object, block
+ * type, message) so a `forever` loop cannot flood the list.
+ */
+export interface ScriptError {
+  objectId: string;
+  objectName: string;
+  blockType: string;
+  message: string;
+  at: number;
+}
+
+/** Keeps the error list bounded even if a project has hundreds of bad blocks. */
+const MAX_SCRIPT_ERRORS = 50;
+
 export class RuntimeWorld {
   readonly vars = new VariableStore();
   private objects = new Map<string, WorldObjectHooks>();
+  /** Lower-cased name -> object id, so name lookups are O(1) per call. */
+  private idsByName = new Map<string, string>();
+  /**
+   * Every distinct script failure this run. Before this existed a broken
+   * block and an empty one were indistinguishable: the interpreter caught
+   * every exception and returned, and nothing was logged or shown.
+   */
+  readonly scriptErrors: ScriptError[] = [];
+  private scriptErrorKeys = new Set<string>();
+  /** Player hook: fires once per newly recorded error. */
+  onScriptError?: (error: ScriptError) => void;
   private runtimes = new Map<string, ObjectRuntime>();
   private clickCounts = new Map<string, number>();
   /** Live clone ids (synchronously tracked so bursts can't overshoot the cap). */
@@ -672,11 +702,26 @@ export class RuntimeWorld {
   register(id: string, hooks: WorldObjectHooks) {
     this.objects.set(id, hooks);
     this.vars.registerObject(id, hooks.name);
+    // First registration wins for a duplicated name, matching the previous
+    // insertion-order scan.
+    const key = normalizeName(hooks.name);
+    if (!this.idsByName.has(key)) this.idsByName.set(key, id);
   }
 
   unregister(id: string) {
     this.particles?.remove(id);
+    const hooks = this.objects.get(id);
     this.objects.delete(id);
+    if (hooks) {
+      const key = normalizeName(hooks.name);
+      if (this.idsByName.get(key) === id) {
+        this.idsByName.delete(key);
+        // Another object may share the name; keep it reachable.
+        for (const [otherId, other] of this.objects) {
+          if (normalizeName(other.name) === key) { this.idsByName.set(key, otherId); break; }
+        }
+      }
+    }
     this.runtimes.delete(id);
     this.clickCounts.delete(id);
     this.activeClones.delete(id);
@@ -813,11 +858,36 @@ export class RuntimeWorld {
   }
 
   private findByName(name: string): [string, WorldObjectHooks] | null {
-    const wanted = name.trim().toLowerCase();
-    for (const entry of this.objects) {
-      if (entry[1].name.trim().toLowerCase() === wanted) return entry;
-    }
-    return null;
+    const id = this.idsByName.get(normalizeName(name));
+    if (id === undefined) return null;
+    const hooks = this.objects.get(id);
+    return hooks ? [id, hooks] : null;
+  }
+
+  /**
+   * Record a script failure. Deduplicated per object + block type + message;
+   * returns true when the error was new. Never throws.
+   */
+  reportScriptError(error: Omit<ScriptError, 'at' | 'objectName'> & { objectName?: string }): boolean {
+    const key = `${error.objectId}|${error.blockType}|${error.message}`;
+    if (this.scriptErrorKeys.has(key)) return false;
+    if (this.scriptErrors.length >= MAX_SCRIPT_ERRORS) return false;
+    this.scriptErrorKeys.add(key);
+    const full: ScriptError = {
+      objectId: error.objectId,
+      objectName: error.objectName ?? this.objects.get(error.objectId)?.name ?? error.objectId,
+      blockType: error.blockType,
+      message: error.message,
+      at: this.lastKnownTime,
+    };
+    this.scriptErrors.push(full);
+    try { this.onScriptError?.(full); } catch { /* a reporter must never break the loop */ }
+    return true;
+  }
+
+  clearScriptErrors() {
+    this.scriptErrors.length = 0;
+    this.scriptErrorKeys.clear();
   }
 
   /** 3D center distance between an object and another named object. 0 if unknown. */
@@ -1123,8 +1193,31 @@ export class ObjectRuntime {
     return this.scripts.some((s) => s.body.length > 0);
   }
 
+  /**
+   * One env object per runtime, refreshed in place. This used to allocate a
+   * fresh ten-field object plus a closure for every block of every object on
+   * every frame, which was the dominant garbage source in a busy scene. The
+   * fields that can change between calls are rewritten each time.
+   */
+  private envCache: EvalEnv | null = null;
   private env(time: number): EvalEnv {
-    return { objectId: this.objectId, vars: this.vars, keys: this.ctx.getKeys(), time, world: this.world, locals: this.localStack, ctx: this.ctx, getVolume: () => this.volume, pointer: this.world?.pointer, language: this.world?.language };
+    const e = this.envCache ?? (this.envCache = {
+      objectId: this.objectId,
+      vars: this.vars,
+      keys: this.ctx.getKeys(),
+      time,
+      world: this.world,
+      locals: this.localStack,
+      ctx: this.ctx,
+      getVolume: () => this.volume,
+      pointer: this.world?.pointer,
+      language: this.world?.language,
+    });
+    e.keys = this.ctx.getKeys();
+    e.time = time;
+    e.pointer = this.world?.pointer;
+    e.language = this.world?.language;
+    return e;
   }
 
   step(delta: number, time: number) {
@@ -1865,12 +1958,26 @@ export class ObjectRuntime {
         }
 
         default:
-          return; // unknown op: skip, never throw
+          // Unknown op: skip, never throw — but say so. A block that drags,
+          // snaps and saves yet does nothing at runtime used to raise no
+          // signal anywhere; a child just assumed they used it wrong.
+          this.reportError(block, 'unknown block type');
+          return;
       }
     } catch (e) {
       if (e === STOP_SCRIPT) throw e;
-      // A bad block must not kill the frame loop.
+      // A bad block must not kill the frame loop, but it must not vanish
+      // either.
+      this.reportError(block, e instanceof Error ? e.message : String(e));
       return;
+    }
+  }
+
+  private reportError(block: LogicBlock, message: string) {
+    const blockType = String(block?.block_type ?? 'unknown');
+    const isNew = this.world?.reportScriptError({ objectId: this.objectId, blockType, message }) ?? true;
+    if (isNew && typeof console !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      console.warn(`[interpreter] "${blockType}" on ${this.objectId}: ${message}`);
     }
   }
 }

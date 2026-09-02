@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { useFrame, useThree, useLoader } from '@react-three/fiber';
 import { Box, Sphere, useGLTF, TransformControls } from '@react-three/drei';
 import { Suspense } from 'react';
@@ -17,6 +17,12 @@ import { applyTexture } from '../../lib/models/textureMaterial';
 import AnimatedModel from './AnimatedModel';
 import { focusSceneCamera } from '../../lib/editor/cameraFocus';
 import { ParticleEmitter } from '../three/ParticleEmitter';
+
+/** `properties` is a JSON string from MySQL or an object from a fresh edit. */
+function safeParseProperties(raw: unknown): any {
+  if (typeof raw !== 'string') return raw ?? {};
+  try { return JSON.parse(raw || '{}'); } catch { return {}; }
+}
 
 interface SceneViewProps {
   scene: any;
@@ -201,17 +207,15 @@ function GameObject({
     }
     // Show the child's drawing in the editor exactly as the player will.
     if (meshRef.current) {
-      const props = typeof object.properties === 'string'
-        ? (() => { try { return JSON.parse(object.properties || '{}'); } catch { return {}; } })()
-        : (object.properties || {});
-      applyTexture(meshRef.current, props?.texture_url, textureCacheRef.current);
+      applyTexture(meshRef.current, propertiesRef.current?.texture_url, textureCacheRef.current);
     }
   });
 
-  // Parse properties if it's a string (JSON)
-  const properties = typeof object.properties === 'string' 
-    ? JSON.parse(object.properties || '{}')
-    : (object.properties || {});
+  // Parse properties once per change, never per frame, and never throw: a
+  // single malformed row used to blank the whole editor.
+  const properties = useMemo(() => safeParseProperties(object.properties), [object.properties]);
+  const propertiesRef = useRef(properties);
+  propertiesRef.current = properties;
   const persistedModelUrl = properties.model_url || properties.sprite_data?.model_url;
   const modelBounds = properties.model_bounds || properties.sprite_data?.model_bounds;
   const modelOriginOffset = properties.model_origin_offset
@@ -729,7 +733,7 @@ function GameObject({
                   z: Math.round((meshRef.current.rotation.z * 180) / Math.PI),
                 };
                 const props = typeof object.properties === 'string'
-                  ? JSON.parse(object.properties || '{}')
+                  ? safeParseProperties(object.properties)
                   : (object.properties || {});
                 onCommitPosition(object.id, posPixels, undefined, {
                   ...props,

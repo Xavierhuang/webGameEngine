@@ -4,10 +4,6 @@ import { resolveCurrentActor } from '@/lib/auth/actor';
 import { requireProjectView } from '@/lib/auth/access';
 import GamePlayer from '@/components/player/GamePlayer';
 import type { Project } from '@/types/game';
-import Link from 'next/link';
-import { AppNav } from '@/components/common/AppNav';
-import { PageBackdrop } from '@/components/common/PageBackdrop';
-import { ArrowLeft, Ghost, Lock } from 'lucide-react';
 import { CommandServiceError, writePlaySnapshot } from '@/lib/projects/commandService';
 import type { ProjectSnapshot } from '@/lib/projects/projectSnapshot';
 
@@ -94,37 +90,4 @@ async function createRenderedPlaySnapshot(projectId: string): Promise<{
     }
   }
   return null;
-}
-
-function PlayerErrorScreen({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="relative min-h-screen bg-white overflow-hidden">
-      <AppNav />
-      <PageBackdrop />
-      <div className="relative flex items-center justify-center px-4 py-24">
-        <div className="max-w-md w-full text-center rounded-3xl border border-slate-200 bg-white shadow-xl p-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-100 text-slate-700 mb-4">
-            {icon}
-          </div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">{title}</h1>
-          <p className="mt-2 text-slate-600">{body}</p>
-          <Link
-            href="/projects"
-            className="mt-6 inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-full px-5 py-2.5 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to My Games
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
 }

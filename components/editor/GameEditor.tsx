@@ -23,7 +23,10 @@ import ObstacleSelector from './ObstacleSelector';
 import SoundSelector from './SoundSelector';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { PICKER_CHARACTERS } from '../../lib/prefabs/characters';
-import { useTranslator } from '../common/LocaleProvider';
+import { useTranslator, useLocale } from '../common/LocaleProvider';
+import { LocaleSwitcher } from '../common/LocaleSwitcher';
+import { toast, Toaster } from '../common/Toast';
+import { normalizeDbBlocks } from '../../lib/blockly/serializer';
 import { buildCharacterVisual } from '../../lib/prefabs/characterPayload';
 import { listenForFocusShortcut } from '../../lib/editor/cameraFocus';
 import { SceneLights } from '@/components/three/SceneLights';
@@ -39,6 +42,7 @@ import { commandWrite, commandServiceCall, newCommandIdempotencyKey, newEditingS
 import WorldDraftStatus from '@/components/worlds/WorldDraftStatus';
 import WorldMissionPanel from '@/components/worlds/WorldMissionPanel';
 import type { MissionProgress } from '@/lib/worlds/missionService';
+import type { Project, Scene, GameObject } from '@/types/game';
 
 // Blockly needs the DOM — load the block editor client-side only.
 /**
@@ -71,9 +75,29 @@ const BlockEditor = dynamic(() => import('./BlockEditor'), {
   ),
 });
 
+/**
+ * The editor's view of a project: the player's `Project` plus the columns the
+ * editor page selects that the runtime never reads. This used to be `any`,
+ * which is where 97 of the file's `any`s came from — the same object reaches
+ * the player fully typed.
+ */
+export interface EditorScene extends Scene {
+  order_index?: number;
+  background_image_url?: string | null;
+  lighting_preset?: string | null;
+}
+
+export interface EditorProject extends Project {
+  scenes?: EditorScene[];
+  visibility?: string;
+  moderation_status?: string;
+  genre?: string | null;
+  assets?: Array<{ id?: string; name: string; asset_type: string; file_url: string | null }>;
+}
+
 interface GameEditorProps {
   projectId: string;
-  initialData?: any;
+  initialData: EditorProject;
   worldBuilder?: { templateId: string; templateTitle: string; templateVersion: number; revision: number; missions: MissionProgress[] };
 }
 
@@ -130,9 +154,32 @@ const getObjectDefaults = (type: string) => {
 /** Marks that the first-run tutorial nudge has been shown. */
 const FIRST_RUN_KEY = 'lingplay-tutorials-introduced';
 
+/** Object columns that undo/redo reconcile against the server. */
+type ObjectRow = Record<string, any>;
+
+function objectsInSnapshot(snapshot: any): Map<string, { object: ObjectRow; sceneId: string }> {
+  const map = new Map<string, { object: ObjectRow; sceneId: string }>();
+  for (const scene of snapshot?.scenes ?? []) {
+    for (const object of scene?.game_objects ?? []) {
+      if (object?.id) map.set(object.id, { object, sceneId: scene.id });
+    }
+  }
+  return map;
+}
+
+function parseObjectProperties(raw: unknown): Record<string, any> {
+  if (typeof raw !== 'string') return (raw as Record<string, any>) ?? {};
+  try { return JSON.parse(raw || '{}'); } catch { return {}; }
+}
+
+function sameNumber(a: unknown, b: unknown, fallback: number) {
+  return Number(a ?? fallback) === Number(b ?? fallback);
+}
+
 export default function GameEditor({ projectId, initialData, worldBuilder }: GameEditorProps) {
   const t = useTranslator();
-  const [project, setProject] = useState<any>(initialData);
+  const locale = useLocale();
+  const [project, setProject] = useState<EditorProject>(initialData);
   const [missionProgress, setMissionProgress] = useState<MissionProgress[]>(worldBuilder?.missions ?? []);
   // Task 4 compat: every project-graph write sends `If-Match: "<revision>"`.
   // useRef gives us the exact `{ current: number }` shape `commandWrite`
@@ -164,13 +211,13 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
     for (const id of ids) if (!observedObjectIds.current.has(id)) void reportMissionAction({ type: 'object_present', objectId: id });
     observedObjectIds.current = ids;
   }, [project?.scenes, reportMissionAction]);
-  const [currentScene, setCurrentScene] = useState<any>(null);
-  const [selectedObject, setSelectedObject] = useState<any>(null);
+  const [currentScene, setCurrentScene] = useState<EditorScene | null>(null);
+  const [selectedObject, setSelectedObject] = useState<GameObject | null>(null);
   const [editorMode, setEditorMode] = useState<'scene' | 'logic'>('scene');
   /** Bumping this remounts the stage, which is how Restart works there. */
   const [stageNonce, setStageNonce] = useState(0);
   const [objectHistory, setObjectHistory] = useState<Array<{ id: string; objectId: string; action: string; payload: any; at: number }>>([]);
-  const [history, setHistory] = useState<{ past: any[]; future: any[] }>({ past: [], future: [] });
+  const [history, setHistory] = useState<{ past: EditorProject[]; future: EditorProject[] }>({ past: [], future: [] });
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showCharacterSelector, setShowCharacterSelector] = useState(false);
   const [showCollectibleSelector, setShowCollectibleSelector] = useState(false);
@@ -240,6 +287,17 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showBackdropSelector, setShowBackdropSelector] = useState(false);
   const [showTutorials, setShowTutorials] = useState(false);
+  /** Tutorial to open on arrival, from `/learn` → `/projects/new?tutorial=`. */
+  const [requestedTutorial, setRequestedTutorial] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    try {
+      const id = new URLSearchParams(window.location.search).get('tutorial');
+      if (!id) return;
+      setRequestedTutorial(id);
+      setShowTutorials(true);
+      window.history.replaceState(null, '', window.location.pathname);
+    } catch { /* no URL access: nothing to open */ }
+  }, []);
   // Properties panel occupies a full sidebar (w-80) — a lot of horizontal
   // real estate on smaller laptops. Persist the collapsed state in
   // localStorage so a user who prefers the compact stage doesn't have to
@@ -326,43 +384,122 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
 
   const canUndo = history.past.length > 0;
   const canRedo = history.future.length > 0;
+  /** One undo/redo in flight at a time; they write to the server now. */
+  const historyBusyRef = useRef(false);
 
-  const undo = () => {
-    if (!canUndo) return;
-    setHistory((h) => {
-      const previous = h.past[h.past.length - 1];
-      const newPast = h.past.slice(0, -1);
-      // Current becomes first in future
-      const newFuture = [project, ...h.future];
-      setProject(previous);
-      // Adjust currentScene reference
-      if (previous?.scenes?.length > 0) {
-        const nextScene =
-          (currentScene && previous.scenes.find((s: any) => s.id === (currentScene as any).id)) ||
-          previous.scenes[0];
-        setCurrentScene(nextScene || null);
+  /**
+   * Make the server match `to`, given it currently matches `from`.
+   *
+   * Undo used to swap local React state and nothing else. Deletes and
+   * property edits had already gone to the server, so undoing a delete made
+   * the object reappear on screen and a reload brought the deletion back.
+   * This diffs the two snapshots per object and replays the difference
+   * through the same write paths the editor already uses. Scenes are not
+   * diffed here: scene add/delete has its own confirm step and no history.
+   */
+  const reconcileObjects = async (from: any, to: any) => {
+    const before = objectsInSnapshot(from);
+    const after = objectsInSnapshot(to);
+    const write = { revisionRef, editingSessionId: editingSessionIdRef.current, projectId };
+    let failed = false;
+
+    for (const [id, { object, sceneId }] of after) {
+      const prev = before.get(id);
+      if (!prev) {
+        // Re-create an object the child deleted, with its blocks.
+        const props = parseObjectProperties(object.properties);
+        const properties: Record<string, any> = {
+          ...props,
+          position: { x: Number(object.position_x ?? 0), y: Number(object.position_y ?? 0), z: Number(object.position_z ?? 0) },
+          scale: { x: Number(object.scale_x ?? 1), y: Number(object.scale_y ?? 1), z: 1 },
+        };
+        if (typeof object.color === 'string' && object.color) properties.color = object.color;
+        const created = await commandServiceCall({
+          ...write,
+          command: { type: 'object.create', objectId: id, sceneId, name: object.name, objectType: object.type, properties },
+        });
+        if (!created.ok) { failed = true; continue; }
+        const blocks = normalizeDbBlocks(object.logic_blocks ?? []);
+        if (blocks.length > 0) {
+          const saved = await commandWrite({ ...write, url: `/api/game-objects/${id}/logic-blocks`, method: 'PUT', body: { blocks } });
+          if (!saved.ok) failed = true;
+        }
+        continue;
       }
-      // Deselect selection on undo for safety
-      setSelectedObject(null);
-      return { past: newPast, future: newFuture };
+      const updates: Record<string, any> = {};
+      if (object.name !== prev.object.name) updates.name = object.name;
+      if (
+        !sameNumber(object.position_x, prev.object.position_x, 0) ||
+        !sameNumber(object.position_y, prev.object.position_y, 0) ||
+        !sameNumber(object.position_z, prev.object.position_z, 0)
+      ) {
+        updates.position_x = Number(object.position_x ?? 0);
+        updates.position_y = Number(object.position_y ?? 0);
+        updates.position_z = Number(object.position_z ?? 0);
+      }
+      if (!sameNumber(object.scale_x, prev.object.scale_x, 1) || !sameNumber(object.scale_y, prev.object.scale_y, 1)) {
+        updates.scale_x = Number(object.scale_x ?? 1);
+        updates.scale_y = Number(object.scale_y ?? 1);
+      }
+      if (typeof object.color === 'string' && object.color !== prev.object.color) updates.color = object.color;
+      const nextProps = parseObjectProperties(object.properties);
+      if (JSON.stringify(nextProps) !== JSON.stringify(parseObjectProperties(prev.object.properties))) {
+        updates.properties = nextProps;
+      }
+      if (Object.keys(updates).length > 0) {
+        const response = await commandWrite({ ...write, url: `/api/game-objects/${id}`, method: 'PATCH', body: updates });
+        if (!response.ok) failed = true;
+      }
+    }
+
+    for (const id of before.keys()) {
+      if (after.has(id)) continue;
+      const response = await commandWrite({ ...write, url: `/api/game-objects/${id}`, method: 'DELETE' });
+      if (!response.ok) failed = true;
+    }
+
+    if (failed) toast(t('editor.game.undoFailed'));
+  };
+
+  const applySnapshot = (snapshot: any) => {
+    setProject(snapshot);
+    if (snapshot?.scenes?.length > 0) {
+      const nextScene =
+        (currentScene && snapshot.scenes.find((s: any) => s.id === (currentScene as any).id)) ||
+        snapshot.scenes[0];
+      setCurrentScene(nextScene || null);
+    }
+    // Keep the selection if the object still exists; dropping it unmounted
+    // the block editor mid-edit.
+    setSelectedObject((prev: any) => {
+      if (!prev?.id) return null;
+      const still = objectsInSnapshot(snapshot).get(prev.id);
+      return still ? (still.object as GameObject) : null;
     });
   };
 
+  const undo = () => {
+    if (!canUndo || historyBusyRef.current) return;
+    const previous = history.past[history.past.length - 1];
+    const current = project;
+    setHistory((h) => ({ past: h.past.slice(0, -1), future: [current, ...h.future] }));
+    applySnapshot(previous);
+    historyBusyRef.current = true;
+    reconcileObjects(current, previous)
+      .catch(() => toast(t('editor.game.undoFailed')))
+      .finally(() => { historyBusyRef.current = false; });
+  };
+
   const redo = () => {
-    if (!canRedo) return;
-    setHistory((h) => {
-      const [next, ...rest] = h.future;
-      const newPast = [...h.past, project];
-      setProject(next);
-      if (next?.scenes?.length > 0) {
-        const nextScene =
-          (currentScene && next.scenes.find((s: any) => s.id === (currentScene as any).id)) ||
-          next.scenes[0];
-        setCurrentScene(nextScene || null);
-      }
-      setSelectedObject(null);
-      return { past: newPast, future: rest };
-    });
+    if (!canRedo || historyBusyRef.current) return;
+    const next = history.future[0];
+    const current = project;
+    setHistory((h) => ({ past: [...h.past, current], future: h.future.slice(1) }));
+    applySnapshot(next);
+    historyBusyRef.current = true;
+    reconcileObjects(current, next)
+      .catch(() => toast(t('editor.game.undoFailed')))
+      .finally(() => { historyBusyRef.current = false; });
   };
 
   const logObjectAction = (objectId: string, action: string, payload: any) => {
@@ -473,6 +610,10 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return;
+      // Blockly owns its own undo stack. ⌘Z with the block workspace focused
+      // used to fire *both* undos: Blockly's, and this one — which also
+      // deselected the object and unmounted the workspace under the child.
+      if (target?.closest?.('.injectionDiv, .blocklyWidgetDiv, .blocklyDropDownDiv')) return;
       if (e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
@@ -490,18 +631,20 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
 
   // Initialize current scene from initial data
   useEffect(() => {
-    if (!currentScene && initialData?.scenes?.length > 0) {
-      setCurrentScene(initialData.scenes[0]);
+    const firstScene = initialData?.scenes?.[0];
+    if (!currentScene && firstScene) {
+      setCurrentScene(firstScene);
     }
   }, [initialData, currentScene]);
 
   // Keep current scene in sync when project changes
   useEffect(() => {
-    if (project?.scenes?.length > 0) {
+    const scenes = project?.scenes ?? [];
+    if (scenes.length > 0) {
       if (!currentScene) {
-        setCurrentScene(project.scenes[0]);
+        setCurrentScene(scenes[0]);
       } else {
-        const updated = project.scenes.find((s: any) => s.id === (currentScene as any).id);
+        const updated = scenes.find((s) => s.id === currentScene.id);
         if (updated) setCurrentScene(updated);
       }
     }
@@ -590,7 +733,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        alert(data?.error || t('editor.game.sceneDeleteFailed'));
+        toast(data?.reason || t('editor.game.sceneDeleteFailed'));
         return;
       }
       setProject((prev: any) => {
@@ -598,7 +741,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
         return { ...prev, scenes };
       });
       setCurrentScene((cur: any) =>
-        cur?.id === sceneId ? project.scenes.find((s: any) => s.id !== sceneId) ?? null : cur
+        cur?.id === sceneId ? project.scenes?.find((s: any) => s.id !== sceneId) ?? null : cur
       );
       setSelectedObject(null);
     } catch (error) {
@@ -784,12 +927,14 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
         const detail = await response.json().catch(() => ({}));
         console.error('Save failed:', response.status, detail);
         setSaveState('error');
+        toast(detail?.reason || t('editor.game.saveFailedHint'));
         return;
       }
       setSaveState('saved');
     } catch (error) {
       console.error('Save failed:', error);
       setSaveState('error');
+      toast(t('editor.game.saveFailedHint'));
     }
   };
 
@@ -806,7 +951,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
       
       if (!projectId) {
         console.error('[GameEditor] Cannot play: projectId is missing');
-        alert('Error: Project ID is missing. Please refresh the page.');
+        toast(t('editor.game.playOpenFailed'));
         return;
       }
       
@@ -831,13 +976,14 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
         window.location.href = playUrl;
       } catch (fallbackError) {
         console.error('[GameEditor] Fallback navigation also failed:', fallbackError);
-        alert(`Error opening play mode: ${fallbackError}. Please check the console for details.`);
+        toast(t('editor.game.playOpenFailed'));
       }
     }
   };
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">
+      <Toaster />
       {/* Top Bar — sticky, mirrors the app nav style */}
       <div className="bg-white/95 backdrop-blur border-b border-slate-200 px-4 py-2.5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -875,10 +1021,10 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
         <div className="flex items-center gap-2">
           {/* Undo / Redo */}
           <div className="flex items-center gap-0.5">
-            <IconButton onClick={undo} disabled={!canUndo} title="Undo (⌘Z)">
+            <IconButton onClick={undo} disabled={!canUndo} title={t('editor.game.undoTitle')}>
               <Undo2 className="w-4 h-4" />
             </IconButton>
-            <IconButton onClick={redo} disabled={!canRedo} title="Redo (⇧⌘Z)">
+            <IconButton onClick={redo} disabled={!canRedo} title={t('editor.game.redoTitle')}>
               <Redo2 className="w-4 h-4" />
             </IconButton>
           </div>
@@ -925,6 +1071,10 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
             </div>
           )}
 
+          {/* Language: the editor builds its own top bar, so the switcher in
+              AppNav was unreachable from here and from the player. */}
+          <LocaleSwitcher current={locale} />
+
           {/* Save + Play */}
           <button
             onClick={handleSave}
@@ -935,7 +1085,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
                 ? 'border-red-300 text-red-700'
                 : 'border-slate-200 hover:border-slate-300 text-slate-800'
             }`}
-            title={saveState === 'error' ? 'Save failed — see console for details' : 'Save project details'}
+            title={saveState === 'error' ? t('editor.game.saveFailedHint') : t('editor.game.saveDetailsTitle')}
           >
             <Save className="w-3.5 h-3.5" />
             {saveState === 'saving'
@@ -1014,7 +1164,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
               try {
                 const sceneId = currentScene?.id || project?.scenes?.[0]?.id;
                 if (!sceneId) {
-                  alert('No scene found. Please create a scene first.');
+                  toast(t('editor.game.noSceneYet'));
                   return;
                 }
 
@@ -1120,7 +1270,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
         <div className="flex-1 relative">
           {editorMode === 'scene' ? (
             <ErrorBoundary
-              fallback={<EditorErrorPanel title="Scene rendering error" body="Something went wrong rendering the 3D scene." />}
+              fallback={<EditorErrorPanel title={t('editor.game.sceneError.title')} body={t('editor.game.sceneError.body')} />}
             >
               <div className="w-full h-full editor-grid relative">
                 {/* Floating lighting-preset picker — top-left of the canvas
@@ -1362,7 +1512,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
             </ErrorBoundary>
           ) : (
             <ErrorBoundary
-              fallback={<EditorErrorPanel title="Logic editor error" body="Something went wrong loading the block editor." />}
+              fallback={<EditorErrorPanel title={t('editor.game.logicError.title')} body={t('editor.game.sceneError.body')} />}
             >
               <div className="flex h-full min-h-0">
                 <div className="min-w-0 flex-1">
@@ -1413,7 +1563,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
                 */}
                 <div
                   data-stage-panel
-                  className="hidden w-[460px] shrink-0 flex-col border-l border-slate-200 bg-slate-950 xl:flex"
+                  className="hidden w-[360px] shrink-0 flex-col border-l border-slate-200 bg-slate-950 lg:flex xl:w-[460px]"
                 >
                   <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
                     <span>{t('editor.stage')}</span>
@@ -1444,7 +1594,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
         {/* Right Sidebar - Properties */}
         {/* Tutorials dock beside the properties panel so a child can follow a
             step while looking at the thing the step is about. */}
-        {showTutorials && <TutorialPanel onClose={() => setShowTutorials(false)} />}
+        {showTutorials && <TutorialPanel initialTutorialId={requestedTutorial} onClose={() => setShowTutorials(false)} />}
 
         <div className={`${propertiesCollapsed ? 'w-8' : 'w-80'} bg-white border-l border-slate-200 overflow-y-auto relative transition-[width] duration-150`}>
           {/* Collapse/expand toggle. Sits pinned at the top-left of the
@@ -1463,7 +1613,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
           <ErrorBoundary
             fallback={
               <div className="p-4">
-                <EditorErrorPanel title="Properties error" body="An error occurred in the properties panel." inline />
+                <EditorErrorPanel title={t('editor.game.propertiesError.title')} body={t('editor.game.sceneError.body')} inline />
               </div>
             }
           >
@@ -1474,6 +1624,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
               setObjectHistory((h) => h.filter((e) => e.objectId !== objectId));
             }}
             onUpdate={async (updates) => {
+              if (!selectedObject) return;
               // Update object properties
               try {
                 const response = await commandWrite({
@@ -1514,12 +1665,12 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
                   });
                   logObjectAction(selectedObject.id, 'update', updates);
                 } else {
-                  const data = await response.json().catch(() => null) as { error?: string } | null;
-                  alert(data?.error || 'Could not save that change. Please try again.');
+                  const data = await response.json().catch(() => null) as { error?: string; reason?: string } | null;
+                  toast(data?.reason || t('editor.game.saveChangeFailed'));
                 }
               } catch (error) {
                 console.error('Error updating object:', error);
-                alert('Could not save that change. Please try again.');
+                toast(t('editor.game.saveChangeFailed'));
               }
             }}
             onDuplicate={duplicateSelected}
@@ -1668,7 +1819,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
           try {
             const sceneId = currentScene?.id || project?.scenes?.[0]?.id;
             if (!sceneId) {
-              alert('No scene found. Please create a scene first.');
+              toast(t('editor.game.noSceneYet'));
               return;
             }
             const visual = buildCharacterVisual(character);
@@ -1717,7 +1868,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
           try {
             const sceneId = currentScene?.id || project?.scenes?.[0]?.id;
             if (!sceneId) {
-              alert('No scene found. Please create a scene first.');
+              toast(t('editor.game.noSceneYet'));
               return;
             }
             const addedTo = objectIdsIn(sceneId);
@@ -1762,7 +1913,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
           try {
             const sceneId = currentScene?.id || project?.scenes?.[0]?.id;
             if (!sceneId) {
-              alert('No scene found. Please create a scene first.');
+              toast(t('editor.game.noSceneYet'));
               return;
             }
             const addedTo = objectIdsIn(sceneId);
@@ -1807,7 +1958,7 @@ export default function GameEditor({ projectId, initialData, worldBuilder }: Gam
           try {
             const sceneId = currentScene?.id || project?.scenes?.[0]?.id;
             if (!sceneId) {
-              alert('No scene found. Please create a scene first.');
+              toast(t('editor.game.noSceneYet'));
               return;
             }
             const addedTo = objectIdsIn(sceneId);

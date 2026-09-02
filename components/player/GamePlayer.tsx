@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef, Suspense, memo, useMemo, useCallback } from 'react';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { Box, Sphere, Grid, useGLTF, Html } from '@react-three/drei';
-import { RotateCcw, Square, Maximize } from 'lucide-react';
+import Link from 'next/link';
+import { RotateCcw, Square, Maximize, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { TouchControls } from './TouchControls';
 import { parseAnimations, findAnimation, sampleAnimation } from '../../lib/models/customAnimation';
 import { beatsToSeconds } from '../../lib/audio/music';
@@ -32,7 +33,7 @@ import {
 import FPSCounter from './FPSCounter';
 import VariableWatchers from './VariableWatchers';
 import { ErrorBoundary } from '../common/ErrorBoundary';
-import { ObjectRuntime, RuntimeWorld, type RuntimeContext } from '../../lib/runtime/interpreter';
+import { ObjectRuntime, RuntimeWorld, type RuntimeContext, type ScriptError } from '../../lib/runtime/interpreter';
 import AudioManager from '../../lib/audio/AudioManager';
 import { shouldRunBackgroundBeat } from '../../lib/audio/backgroundBeatPolicy';
 import type { Project, GameObject, KeyState, LogicBlock, Costume } from '../../types/game';
@@ -54,6 +55,14 @@ import { bubbleForVisibility } from '../../lib/player/objectPresentation';
 import { deriveSkyStepsPresentation } from '../../lib/player/skyStepsPresentation';
 import { usesLegacyWorldCoordinates } from '../../lib/player/templateCoordinatePolicy';
 import { deriveStarterWorldPresentation } from '../../lib/player/starterWorldPresentation';
+
+/*
+ * Per-frame scratch vectors shared by the camera loops. useFrame callbacks
+ * run one at a time on the main thread, so a single set is safe.
+ */
+const SCRATCH_FOLLOW_OFFSET = new THREE.Vector3(...CAMERA.FOLLOW_OFFSET);
+const SCRATCH_CAMERA_TARGET = new THREE.Vector3();
+const SCRATCH_BOX_SIZE = new THREE.Vector3();
 
 function usePrefersReducedMotion() {
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -172,7 +181,18 @@ export default function GamePlayer({ project, compact = false, missionReporting,
   const t = useTranslator();
   const locale = useLocale();
   const reducedMotion = usePrefersReducedMotion();
-  const [keys, setKeys] = useState<KeyState>({});
+  /*
+   * Live key state. A single object mutated in place, never replaced: it used
+   * to be React state rebuilt on every keydown — including OS key-repeat at
+   * ~30Hz — which changed the `keys` prop identity and re-rendered the whole
+   * scene tree while a key was held. Nothing renders from it; the runtime
+   * reads it lazily through refs, so a stable object is all it needs.
+   */
+  const keyStateRef = useRef<KeyState>({});
+  const keys = keyStateRef.current;
+  /** Blocks that failed this run; rendered as a small badge so a broken script is visible. */
+  const [scriptErrors, setScriptErrors] = useState<ScriptError[]>([]);
+  const [showScriptErrors, setShowScriptErrors] = useState(false);
   // Scene switching: scenes arrive ordered by order_index; blocks change the
   // active index. Variables/broadcast state persist across switches (Scratch
   // semantics); the scene's objects remount fresh via the key below.
@@ -203,6 +223,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
     worldRef.current.started = compact;
   }
   const world = worldRef.current;
+  world.onScriptError = (error) => setScriptErrors((prev) => (prev.length >= 50 ? prev : [...prev, error]));
   const vars = world.vars;
   /*
    * The splash exists to unlock audio with a user gesture. Inside the editor
@@ -467,6 +488,8 @@ export default function GamePlayer({ project, compact = false, missionReporting,
     setAskPrompt(null);
     setSceneIndex(0);
     setRunNonce((n) => n + 1);
+    world.clearScriptErrors();
+    setScriptErrors([]);
     world.started = true;
     void startMissionSession();
   };
@@ -476,7 +499,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
    * handler above, so the runtime needs no notion of touch at all.
    */
   const handleTouchKey = useCallback((key: string, down: boolean) => {
-    setKeys((prev) => ({ ...prev, [key]: down }));
+    keyStateRef.current[key] = down;
   }, []);
 
   const toggleFullscreen = () => {
@@ -494,6 +517,8 @@ export default function GamePlayer({ project, compact = false, missionReporting,
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // OS key-repeat carries no new information.
+      if (e.repeat) return;
       // Normalize key names
       let keyName = e.key.toLowerCase();
       // Map arrow keys
@@ -502,8 +527,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
       else if (e.key === 'ArrowLeft') keyName = 'arrowleft';
       else if (e.key === 'ArrowRight') keyName = 'arrowright';
       else if (e.key === ' ') keyName = ' ';
-      
-      setKeys((prev) => ({ ...prev, [keyName]: true }));
+      keyStateRef.current[keyName] = true;
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -515,8 +539,7 @@ export default function GamePlayer({ project, compact = false, missionReporting,
       else if (e.key === 'ArrowLeft') keyName = 'arrowleft';
       else if (e.key === 'ArrowRight') keyName = 'arrowright';
       else if (e.key === ' ') keyName = ' ';
-      
-      setKeys((prev) => ({ ...prev, [keyName]: false }));
+      keyStateRef.current[keyName] = false;
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -536,8 +559,18 @@ export default function GamePlayer({ project, compact = false, missionReporting,
         {/* The stage beside the blocks is small; a title and description would
             take more of it than the game. */}
         {!compact && (
-          <div className="mb-4 text-white">
-            <h1 className="text-2xl font-bold">{project.title || 'My Game'}</h1>
+          <div className="mb-4 w-full max-w-[800px] text-white">
+            {/* The player used to be a dead end: Play opened it full-page with
+                no nav and no way back, and popup-blocked school Chromebooks
+                land here in the same tab. */}
+            <Link
+              href="/projects"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-300 transition hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {t('player.back')}
+            </Link>
+            <h1 className="mt-2 text-2xl font-bold">{project.title || 'My Game'}</h1>
             {project.description && (
               <p className="text-gray-400 text-sm mt-1">{project.description}</p>
             )}
@@ -612,6 +645,49 @@ export default function GamePlayer({ project, compact = false, missionReporting,
             onError={(message) => logger.warn('[GamePlayer] camera:', message)}
           />
           {!showStartSplash && <TouchControls onKeyChange={handleTouchKey} />}
+
+          {/* The editor stage has Restart in its panel header but nothing
+              could stop a `forever` loop short of remounting. */}
+          {compact && (
+            <button
+              type="button"
+              onClick={stopRun}
+              className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-slate-900/80 px-2.5 py-1 text-[11px] font-semibold text-white transition hover:bg-red-600"
+              title={t('player.stop')}
+            >
+              <Square className="h-3 w-3" />
+              {t('player.stop')}
+            </button>
+          )}
+
+          {/* Blocks that failed. Before this a broken block and an empty one
+              looked identical: the interpreter swallowed every error. */}
+          {scriptErrors.length > 0 && (
+            <div className="absolute bottom-2 left-2 z-20 max-w-[80%]">
+              <button
+                type="button"
+                onClick={() => setShowScriptErrors((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-amber-400 px-3 py-1 text-xs font-bold text-slate-900 shadow"
+                aria-expanded={showScriptErrors}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {t('player.blockProblems').replace('{count}', String(scriptErrors.length))}
+              </button>
+              {showScriptErrors && (
+                <ul className="mt-1 max-h-32 overflow-auto rounded-xl bg-slate-900/90 p-2 text-[11px] leading-snug text-slate-100 shadow-lg">
+                  {scriptErrors.map((err, i) => (
+                    <li key={i} className="py-0.5">
+                      <span className="font-semibold text-amber-300">{err.objectName}</span>
+                      {' · '}
+                      <code>{err.blockType}</code>
+                      {': '}
+                      {err.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {/* On-screen message from `show ... for n secs`. */}
           {banner && outcome.state === 'playing' && (
@@ -713,8 +789,15 @@ export default function GamePlayer({ project, compact = false, missionReporting,
             fallback={
               <div className="w-full h-full flex items-center justify-center bg-red-900 bg-opacity-50">
                 <div className="text-white text-center">
-                  <p className="text-xl font-bold mb-2">3D Rendering Error</p>
-                  <p className="text-sm">The 3D scene failed to render. Check the console for details.</p>
+                  <p className="text-xl font-bold mb-2">{t('common.renderError.title')}</p>
+                  <p className="text-sm">{t('common.renderError.body')}</p>
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="mt-3 rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-slate-900"
+                  >
+                    {t('common.reload')}
+                  </button>
                 </div>
               </div>
             }
@@ -727,6 +810,9 @@ export default function GamePlayer({ project, compact = false, missionReporting,
             far: CAMERA.DEFAULT_FAR 
           }}
           gl={{ alpha: true, preserveDrawingBuffer: true }}
+          // Cap the pixel ratio: a 3x retina tablet otherwise renders nine
+          // times the pixels of a 1x screen for no visible gain.
+          dpr={[1, 2]}
           onCreated={({ scene }) => {
             logger.debug('[GamePlayer] Canvas created, setting background to sky blue');
             scene.background = new THREE.Color(SCENE.DEFAULT_BACKGROUND_COLOR);
@@ -1157,10 +1243,10 @@ const GameScene = memo(function GameScene({ scene, keys, world, legacyGround, on
   useFrame((state, delta) => {
     if (!skyStepsV2 && characterPositionRef.current) {
       const charPos = characterPositionRef.current;
-      // Camera follows character with offset: behind and above
-      const cameraOffset = new THREE.Vector3(...CAMERA.FOLLOW_OFFSET);
-      const targetPosition = new THREE.Vector3().copy(charPos).add(cameraOffset);
-      
+      // Camera follows character with offset: behind and above. Scratch
+      // vectors, not fresh ones — this runs sixty times a second.
+      const targetPosition = SCRATCH_CAMERA_TARGET.copy(charPos).add(SCRATCH_FOLLOW_OFFSET);
+
       // Smooth camera movement
       camera.position.lerp(targetPosition, delta * CAMERA.FOLLOW_LERP_SPEED);
       // Camera looks at character
@@ -1330,7 +1416,7 @@ function SkyStepsCameraPresentation({
     if (!reducedMotion && winEmphasisRef.current > 0) winEmphasisRef.current = Math.max(0, winEmphasisRef.current - delta * 1.8);
     const landingLift = reducedMotion ? 0 : landingBumpRef.current * 0.13;
     const winLift = reducedMotion ? 0 : winEmphasisRef.current * 0.28;
-    const target = new THREE.Vector3(...CAMERA.FOLLOW_OFFSET).add(characterPosition);
+    const target = SCRATCH_CAMERA_TARGET.copy(SCRATCH_FOLLOW_OFFSET).add(characterPosition);
     target.x += lookAhead;
     target.y += landingLift + winLift;
     camera.position.lerp(target, delta * CAMERA.FOLLOW_LERP_SPEED);
@@ -1364,21 +1450,23 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
   skyStepsV2: boolean;
 }) {
   const [isVisible, setIsVisible] = useState(true);
+  const visibleRef = useRef(true);
   const frustum = useMemo(() => new THREE.Frustum(), []);
   const matrix = useMemo(() => new THREE.Matrix4(), []);
   const boundingBox = useMemo(() => new THREE.Box3(), []);
   const objectPosition = useRef(new THREE.Vector3());
-  
+  // Properties change on edit, not per frame. This was a JSON.parse every
+  // frame for every culled object.
+  const properties = useMemo(
+    () => (typeof object.properties === 'string' ? safeParseProperties(object.properties) : (object.properties || {})),
+    [object.properties],
+  );
+
   useFrame(() => {
     // Update object position from database
     const [x, y, z] = playerPositionForObject(object, legacyGround);
     objectPosition.current.set(x, y, z);
-    
-    // Get object size for bounding box
-    const properties = typeof object.properties === 'string' 
-      ? JSON.parse(object.properties || '{}')
-      : (object.properties || {});
-    
+
     const isPlatform = object.type === 'platform' || properties.shape === 'plane';
     let size: number;
     if (isPlatform) {
@@ -1392,15 +1480,20 @@ const FrustumCulledObject = memo(function FrustumCulledObject({
     }
     
     // Create bounding box around object
-    boundingBox.setFromCenterAndSize(objectPosition.current, new THREE.Vector3(size, size, size));
-    
+    boundingBox.setFromCenterAndSize(objectPosition.current, SCRATCH_BOX_SIZE.set(size, size, size));
+
     // Update frustum from camera
     matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     frustum.setFromProjectionMatrix(matrix);
-    
-    // Check if bounding box intersects frustum
+
+    // Check if bounding box intersects frustum. Only touch React state on a
+    // change — a setState per object per frame was a render storm whenever
+    // scenery crossed the frustum edge.
     const visible = frustum.intersectsBox(boundingBox);
-    setIsVisible(visible);
+    if (visible !== visibleRef.current) {
+      visibleRef.current = visible;
+      setIsVisible(visible);
+    }
   });
   
   /*
@@ -1845,7 +1938,13 @@ const GameObject = memo(function GameObject({ object, keys, world, legacyGround,
       penDown: (down) => {
         penStateRef.current.down = down;
         // Starting a new stroke shouldn't connect to where the pen was lifted.
-        if (down) penStateRef.current.points.push([]);
+        if (down) {
+          const strokes = penStateRef.current.points;
+          strokes.push([]);
+          // Per-stroke points are capped below; cap the stroke count too so a
+          // pen-down/pen-up loop cannot grow memory without bound.
+          if (strokes.length > 40) strokes.splice(0, strokes.length - 40);
+        }
       },
       penClear: () => { penStateRef.current.points = []; },
       penSetColor: (hex) => { penStateRef.current.color = hex; },

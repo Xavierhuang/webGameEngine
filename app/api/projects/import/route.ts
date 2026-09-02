@@ -75,15 +75,14 @@ export async function POST(request: NextRequest) {
         [projectId, actor.profileId, title, description, payload.project?.genre ?? null],
       );
 
+      // Multi-row inserts, same reasoning as the remix route: one statement
+      // per table rather than one per row inside a lock-holding transaction.
       const sceneIdMap = new Map<string, string>();
+      const sceneRows: unknown[][] = [];
       for (const [index, scene] of scenes.entries()) {
         const newId = randomUUID();
         sceneIdMap.set(String(scene.id), newId);
-        await connection.execute(
-          `INSERT INTO scenes
-             (id, project_id, name, order_index, background_color, background_image_url, lighting_preset, physics_enabled, gravity_y)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
+        sceneRows.push([
             newId,
             projectId,
             sanitizeUserInput(String(scene.name ?? `Scene ${index + 1}`)).substring(0, 255),
@@ -93,23 +92,25 @@ export async function POST(request: NextRequest) {
             typeof scene.lighting_preset === 'string' ? scene.lighting_preset.substring(0, 32) : null,
             scene.physics_enabled !== false,
             Number(scene.gravity_y) || 9.8,
-          ],
+        ]);
+      }
+      if (sceneRows.length > 0) {
+        await connection.query(
+          `INSERT INTO scenes
+             (id, project_id, name, order_index, background_color, background_image_url, lighting_preset, physics_enabled, gravity_y)
+           VALUES ?`,
+          [sceneRows],
         );
       }
 
       const objectIdMap = new Map<string, string>();
+      const objectRows: unknown[][] = [];
       for (const obj of objects) {
         const sceneId = sceneIdMap.get(String(obj.scene_id));
         if (!sceneId) continue;
         const newId = randomUUID();
         objectIdMap.set(String(obj.id), newId);
-        await connection.execute(
-          `INSERT INTO game_objects
-             (id, scene_id, type, name, position_x, position_y, position_z, rotation,
-              scale_x, scale_y, sprite_url, color, width, height,
-              has_physics, is_static, mass, properties)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
+        objectRows.push([
             newId,
             sceneId,
             String(obj.type ?? 'sprite').substring(0, 100),
@@ -128,18 +129,24 @@ export async function POST(request: NextRequest) {
             Boolean(obj.is_static),
             Number(obj.mass) || 1,
             JSON.stringify(obj.properties ?? {}),
-          ],
+        ]);
+      }
+      if (objectRows.length > 0) {
+        await connection.query(
+          `INSERT INTO game_objects
+             (id, scene_id, type, name, position_x, position_y, position_z, rotation,
+              scale_x, scale_y, sprite_url, color, width, height,
+              has_physics, is_static, mass, properties)
+           VALUES ?`,
+          [objectRows],
         );
       }
 
+      const blockRows: unknown[][] = [];
       for (const block of blocks) {
         const objectId = objectIdMap.get(String(block.game_object_id));
         if (!objectId || !block.block_type) continue;
-        await connection.execute(
-          `INSERT INTO logic_blocks
-             (id, game_object_id, project_id, block_type, category, order_index, block_data)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [
+        blockRows.push([
             randomUUID(),
             objectId,
             projectId,
@@ -147,7 +154,14 @@ export async function POST(request: NextRequest) {
             String(block.category ?? 'action').substring(0, 100),
             Number(block.order_index) || 0,
             JSON.stringify(block.block_data ?? {}),
-          ],
+        ]);
+      }
+      if (blockRows.length > 0) {
+        await connection.query(
+          `INSERT INTO logic_blocks
+             (id, game_object_id, project_id, block_type, category, order_index, block_data)
+           VALUES ?`,
+          [blockRows],
         );
       }
     });

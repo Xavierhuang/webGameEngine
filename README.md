@@ -64,7 +64,7 @@ DOMs, because a check that cannot fail is decoration.
 | Area | Where | Notes |
 |---|---|---|
 | Blocks | `lib/blockly/definitions.ts` | Pure data. Adding a block needs **no serializer change** — `BLOCK_SPECS` is derived reflectively |
-| Runtime | `lib/runtime/interpreter.ts` | Generator-coroutine interpreter. No React, no THREE |
+| Runtime | `lib/runtime/interpreter.ts` | Generator-coroutine interpreter. No React, no THREE. A failing or unknown block is recorded on `RuntimeWorld.scriptErrors` and shown as a badge in the player — it used to be swallowed silently |
 | Player | `components/player/GamePlayer.tsx` | Implements `RuntimeContext`; every method is optional so old contexts keep compiling |
 | Editor | `components/editor/` | Blockly workspace keyed per object, so each sprite owns its scripts |
 | Access control | `lib/auth/projectAccess.ts` | Pure `decideAccess()`; `lib/auth/access.ts` wires it to a request |
@@ -102,6 +102,16 @@ Both are deterministic. The starter roster is written down **twice** — in
 reserve publication locks. `test:starter-generator` asserts they match; it
 caught `--all` silently emitting 21 of 39 characters.
 
+## Security headers
+
+`next.config.js` sets a Content-Security-Policy, HSTS, `X-Frame-Options`,
+`Referrer-Policy` and `Permissions-Policy` on every response, and marks
+`/models/*` and `/backdrops/*` immutable. The CSP is strict about scripts
+(self only) and permissive about images, media and fetches (`https:`), because
+a child's project can reference a model on another host. `unsafe-eval` is only
+added in development for React Refresh. If nginx on the droplet also sets any
+of these, remove one copy — duplicated CSP headers intersect.
+
 ## Deploying
 
 ```bash
@@ -117,8 +127,11 @@ Three things it does deliberately:
   serving during the rebuild, handing browsers HTML that referenced chunk files
   the build had just deleted. A brief 502 retries cleanly; a corrupted app does
   not.
-- **Keeps the previous build** as `.next.prev` and restores it if the compile
-  fails.
+- **Keeps the previous build** as `.next.prev` until the browser smoke test
+  has passed, and **restores it if the smoke test fails**. It used to delete
+  the previous build a few lines before the test that would have needed it.
+  A machine without Playwright now fails the deploy instead of silently
+  skipping the test; set `LINGPLAY_SKIP_SMOKE=1` to ship unverified on purpose.
 - **Excludes `public/uploads`.** That holds user drawings, recordings and
   uploaded models, and `rsync --delete` erased it on every deploy until this
   was added. Only `public/uploads/models/` is gitignored, so the other

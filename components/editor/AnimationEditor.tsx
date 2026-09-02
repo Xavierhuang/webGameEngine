@@ -12,6 +12,7 @@ import { PALETTE } from '../common/design';
 import { useTranslator } from '../common/LocaleProvider';
 import { sampleAnimation } from '../../lib/models/customAnimation';
 import { SceneLights } from '@/components/three/SceneLights';
+import { toast } from '../common/Toast';
 
 interface AnimationEditorProps {
   isOpen: boolean;
@@ -383,7 +384,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   // Add keyframe at current time
   const addKeyframe = () => {
     if (!selectedBone) {
-      alert('Please select a bone first');
+      toast(t('editor.animation.pickBoneFirst'));
       return;
     }
 
@@ -415,7 +416,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   // preview here is exactly what runs in the game.
   const playAnimation = () => {
     if (keyframes.length === 0) {
-      alert('No keyframes to play. Add some keyframes first.');
+      toast(t('editor.animation.noKeyframesToPlay'));
       return;
     }
     playbackStartRef.current = performance.now() / 1000;
@@ -425,11 +426,11 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   /** Persist the animation onto the object so it survives and can be played. */
   const saveAnimation = async () => {
     if (keyframes.length === 0) {
-      alert('Add some keyframes before saving.');
+      toast(t('editor.animation.noKeyframesToSave'));
       return;
     }
     if (!objectId) {
-      alert('This animation editor was opened without an object to save to.');
+      toast(t('editor.animation.noTargetObject'));
       return;
     }
 
@@ -469,7 +470,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
   // Export animation as GLTF animation clip
   const exportAnimation = async () => {
     if (keyframes.length === 0) {
-      alert('No keyframes to export');
+      toast(t('editor.animation.noKeyframesToExport'));
       return;
     }
 
@@ -562,7 +563,7 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
     URL.revokeObjectURL(url);
 
     console.log('Animation exported:', clip);
-    alert(`Animation "${animationName}" exported successfully!`);
+    toast(t('editor.animation.exported').replace('{name}', animationName), 'success');
   };
 
   // Get root bones (bones without parents)
@@ -895,7 +896,14 @@ export default function AnimationEditor({ isOpen, onClose, modelUrl, objectId }:
               </button>
 
               {saveState === 'saved' && (
-                <p className="text-center text-xs leading-relaxed text-slate-500" dangerouslySetInnerHTML={{ __html: t('editor.animation.savedHint') }} />
+                <p className="text-center text-xs leading-relaxed text-slate-500">
+                  {/* The hint carries one <code> span. Render it as elements
+                      rather than raw HTML: a translated string is not a safe
+                      HTML sink, even if today's catalog is our own. */}
+                  {t('editor.animation.savedHint').split(/<\/?code>/).map((part, i) =>
+                    i % 2 === 1 ? <code key={i}>{part}</code> : <span key={i}>{part}</span>,
+                  )}
+                </p>
               )}
 
               {/* Export */}
