@@ -36,7 +36,25 @@ const PAGES = [
  * Noise we deliberately tolerate: analytics/asset 404s that don't break the
  * app, and React's dev-only warnings. Anything else is a failure.
  */
-const IGNORE = [/favicon/i, /manifest\.json/i, /Download the React DevTools/i];
+const IGNORE = [
+  /favicon/i,
+  /manifest\.json/i,
+  /Download the React DevTools/i,
+  // TEMPORARY. Cloudflare Web Analytics is enabled zone-wide on lingcode.dev
+  // and the edge injects this beacon into every HTML response. next.config.js
+  // allows `script-src 'self'`, so the browser blocks it and reports both a
+  // console violation and a failed request -- on all 12 pages at once, which
+  // rolled back an otherwise good deploy on 2026-09-03.
+  //
+  // Tolerating it is honest rather than a cover-up: the CSP still blocks the
+  // script, so it executes nothing and collects nothing here. This only stops
+  // the edge's own injection from being read as the site being broken.
+  //
+  // DELETE THIS once play.lingcode.dev is excluded from the Web Analytics
+  // hostname ruleset in the Cloudflare dashboard -- the beacon stops being
+  // injected and this line goes back to hiding a real class of CSP failure.
+  /static\.cloudflareinsights\.com/,
+];
 
 function ignorable(text) {
   return IGNORE.some((re) => re.test(text));
