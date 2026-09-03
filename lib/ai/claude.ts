@@ -415,7 +415,14 @@ export async function askAI(prompt: string, choices?: string[]): Promise<string>
   try {
     const response = await ai.messages.create({
       model: activeModel,
-      max_tokens: choices?.length ? 32 : 200,
+      // These budgets have to cover the `thinking` block the upstream emits
+      // before any text, not just the answer. They were 32 (choices) and 200,
+      // sized for the answer alone: `ai_decide` spent its whole 32 on thinking,
+      // returned no text block at all, and every such block in every child's
+      // game silently evaluated to ''. Measured thinking alone at 69-211 tokens
+      // on one-word decisions, so 256 is already too tight. Raise these rather
+      // than trimming them back — the answer is short, the preamble is not.
+      max_tokens: choices?.length ? 512 : 1024,
       system,
       messages: [{ role: 'user', content: prompt }],
     });
