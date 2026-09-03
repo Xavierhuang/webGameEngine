@@ -1,0 +1,26 @@
+[Unit]
+Description=LingPlay Next.js app
+After=network.target mysql.service
+# Wants=, NOT Requires=. Requires= propagates MySQL's stop to this unit and never
+# propagates its start back, so when unattended-upgrades installed mysql-server
+# 8.0.46 on 2026-09-02 06:35 UTC, systemd stopped lingplay, restarted MySQL, and
+# left the site 502ing for 24h. After= still orders us behind MySQL at boot.
+# Do not change this back, and note it cannot be fixed by a drop-in: systemd does
+# not allow dependency lists to be reset from one, only appended to.
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/lingplay/source
+EnvironmentFile=/opt/lingplay/.env
+ExecStart=/usr/bin/npm start
+# Was on-failure, which ignored the clean SIGTERM above. always= also covers the
+# case where losing the DB mid-flight kills the process.
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

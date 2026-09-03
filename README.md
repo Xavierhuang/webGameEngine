@@ -149,6 +149,28 @@ Three things it does deliberately:
 Migrations are tracked in a `schema_migrations` table and skipped once applied —
 `001` creates a trigger that cannot be re-run without `SUPER`.
 
+## The systemd unit
+
+`deploy.sh` assumes the unit already exists, so `ops/lingplay.service` is the
+canonical copy — install it to `/etc/systemd/system/` when rebuilding a droplet
+rather than retyping it.
+
+It depends on MySQL with **`Wants=`, not `Requires=`**. `Requires=` propagates
+MySQL's *stop* to us and never propagates its *start* back, so when
+unattended-upgrades installed `mysql-server` 8.0.46 on 2026-09-02, systemd
+stopped LingPlay, restarted MySQL, and left the site serving 502 for 24 hours.
+`After=` still orders us behind MySQL at boot. This cannot be corrected with a
+drop-in: systemd only lets a drop-in *append* to a dependency list, never reset
+one, so the base unit is the only place it can be fixed.
+
+`Restart=always`, not `on-failure`, for the same outage: the stop was a clean
+SIGTERM, which `on-failure` ignores by definition. Note that `Restart=` is never
+consulted for job-driven stops at all, so it is not sufficient on its own — that
+is what `ops/uptime-check.sh` covers, curling the origin every five minutes from
+cron and starting the unit back up. It logs to `journalctl -t lingplay-uptime`
+and needs nothing configured, which is why it is separate from
+`scripts/alert-errors.mjs` below.
+
 ## Backups
 
 `scripts/backup-db.sh` runs nightly from cron on the droplet, keeping 14 days.
